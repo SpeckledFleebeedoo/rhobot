@@ -4,6 +4,8 @@
 
 Factorio Mod Notifier is Discord bot written in Rust which can send mod update notifications to Discord servers, written primarily for the [Factorio discord server](https://discord.gg/factorio).
 
+Rewrite of and replacement for [SpeckledFleebeedoo/Factorio-Mod-Notifier](https://github.com/SpeckledFleebeedoo/Factorio-mod-notifier).
+
 ## Features
 
 - Automatically checks for mod updates

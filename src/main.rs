@@ -3,7 +3,10 @@ mod mods;
 mod faq_commands;
 mod custom_errors;
 mod util;
+mod fff_commands;
 
+use clokwerk::{AsyncScheduler, Job};
+use fff_commands::update_fff_channel_description;
 use mods::{get_mod_count, update_database, update_mod_cache, update_sub_cache, update_author_cache, ModCacheEntry, SubCacheEntry};
 use faq_commands::{update_faq_cache, FaqCacheEntry};
 use tokio::time;
@@ -38,6 +41,7 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
         poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {:?}", error),
         poise::FrameworkError::Command { error, ctx, .. } => {
             println!("Error in command `{}`: {:?}", ctx.command().name, error,);
+            let _ = ctx.say(format!("Error while executing command: `{:?}`", error)).await;
         }
         poise::FrameworkError::CommandCheckFailed { ctx, .. } => {
             let _ = ctx.say("Error: invalid permissions.").await;
@@ -49,10 +53,6 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
         }
     }
 }
-
-// async fn on_message(ctx: Context<'_>) {
-
-// }
 
 #[tokio::main]
 async fn main() {
@@ -100,6 +100,7 @@ async fn main() {
             mod_commands::show_changelogs(),
             faq_commands::faq(),
             faq_commands::faq_edit(),
+            fff_commands::fff(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("+".into()),
@@ -124,10 +125,6 @@ async fn main() {
         skip_checks_for_owners: false,
         event_handler: |_ctx, event, _framework, data| {
             Box::pin(async move {
-                // println!(
-                //     "Got an event in event handler: {:?}",
-                //     event.snake_case_name()
-                // );
                 match event {
                     serenity::FullEvent::GuildDelete { incomplete, full: _ } => {
                         if incomplete.unavailable == false {
@@ -216,6 +213,20 @@ async fn main() {
             }
             println!("Caches updated")
         };
+    });
+    
+    let http_clone = client.as_ref().unwrap().http.clone();
+    // let _ = update_fff_channel_description(http_clone.clone()).await;
+    let mut scheduler: AsyncScheduler = AsyncScheduler::new();
+    scheduler.every(clokwerk::Interval::Friday)
+        .at("12:02")
+        .run(move || update_fff_channel_description(http_clone.clone()));
+    
+    tokio::spawn(async move {
+        loop{
+            scheduler.run_pending().await;
+            tokio::time::sleep(Duration::from_millis(1000)).await;
+        }
     });
 
     client.unwrap().start().await.unwrap()

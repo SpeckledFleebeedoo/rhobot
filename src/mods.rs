@@ -4,7 +4,7 @@ use sqlx::{Pool, Sqlite};
 use std::sync::{Arc, RwLock};
 
 use crate::Error;
-use crate::custom_errors::StatusCodeError;
+use crate::custom_errors::CustomError;
 use crate::util::{escape_formatting, get_subscribed_mods, get_subscribed_authors};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -103,7 +103,7 @@ pub async fn get_mods(page: i32, initializing: bool) -> Result<ApiResponse, Erro
     let response = reqwest::get(url).await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
-        _ => return Err(Box::new(StatusCodeError::new("Received HTTP status code that is not 200"))),
+        _ => return Err(Box::new(CustomError::new("Received HTTP status code that is not 200"))),
     };
     Ok(response.json::<ApiResponse>().await?)
 }
@@ -265,8 +265,8 @@ async fn make_update_message(
         ModState::New => Colour::from_rgb(0x2E, 0xCC, 0x71),
     };
     let mut title = match updated_mod.state {
-        ModState::Updated => format!("Updated mod:\n {}", escape_formatting(updated_mod.title.clone()).await),
-        ModState::New => format!("New mod:\n {}", escape_formatting(updated_mod.title.clone()).await),
+        ModState::Updated => format!("Updated mod:\n{}", escape_formatting(updated_mod.title.clone()).await),
+        ModState::New => format!("New mod:\n{}", escape_formatting(updated_mod.title.clone()).await),
     };
     title.truncate(265);
     let changelog: String;
@@ -296,7 +296,7 @@ pub async fn get_mod_thumbnail(name: &String) -> Result<String, Error> {
     let response = reqwest::get(url).await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
-        _ => return Err(Box::new(StatusCodeError::new("Received HTTP status code that is not 200"))),
+        _ => return Err(Box::new(CustomError::new("Received HTTP status code that is not 200"))),
     };
     let mod_info = response.json::<Mod>().await?;
     let thumbnail_url = format!("https://assets-mod.factorio.com{}", mod_info.thumbnail.unwrap_or("/assets/.thumb.png".to_owned()));
@@ -309,7 +309,7 @@ pub async fn get_mod_changelog(name: &String, lines: Option<i32>) -> Result<Stri
     let response = reqwest::get(url).await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
-        _ => return Err(Box::new(StatusCodeError::new("Received HTTP status code that is not 200"))),
+        _ => return Err(Box::new(CustomError::new("Received HTTP status code that is not 200"))),
     };
     let mod_info = response.json::<Mod>().await?;
     match mod_info.changelog {

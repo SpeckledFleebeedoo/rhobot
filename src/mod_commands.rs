@@ -346,7 +346,7 @@ pub async fn find_mod(
     title.truncate(256);
     let thumbnail = match mods::get_mod_thumbnail(&name).await {
         Ok(t) => t,
-        Err(e) => panic!("Error getting mod thumbnail: {e}")
+        Err(e) => panic!("Error getting mod thumbnail: {e}") // TODO: Replace with return error
     };
     let url = format!("https://mods.factorio.com/mod/{name}")
         .replace(" ", "%20");

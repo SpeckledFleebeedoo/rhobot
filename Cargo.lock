@@ -677,6 +677,7 @@ dependencies = [
  "rust-fuzzy-search",
  "scraper",
  "serde",
+ "serde_json",
  "serenity",
  "sqlx",
  "tokio",

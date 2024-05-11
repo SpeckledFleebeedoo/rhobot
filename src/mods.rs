@@ -305,6 +305,7 @@ pub async fn get_mod_thumbnail(name: &String) -> Result<String, Error> {
 
 pub async fn get_mod_changelog(name: &String, lines: Option<i32>) -> Result<String, Error> {
     println!("Getting mod changelog for {name}");
+    let versionsplit = "-".repeat(99);
     let url = format!("https://mods.factorio.com/api/mods/{name}/full");
     let response = reqwest::get(url).await?;
     match response.status() {
@@ -318,10 +319,10 @@ pub async fn get_mod_changelog(name: &String, lines: Option<i32>) -> Result<Stri
             let mut line_iter = ch.lines().skip(1);
             let mut out = String::new();
             loop {
-                let l = line_iter.next().unwrap_or("-----");
-                if l.starts_with("-----") {
+                let l = line_iter.next().unwrap_or(&versionsplit);
+                if l.contains(&versionsplit) {
                     break;
-                } else if  l.starts_with("    "){
+                } else if l.starts_with("    ") {
                     out.push_str(&escape_formatting(
                         l.strip_prefix("    ").unwrap().to_owned()).await
                     );
@@ -331,8 +332,7 @@ pub async fn get_mod_changelog(name: &String, lines: Option<i32>) -> Result<Stri
                     out.push_str(&escape_formatting(
                         l.strip_prefix("  ").unwrap().to_owned()).await
                     );
-                    out.push_str("**");
-                    out.push_str("\n");
+                    out.push_str("**\n");
                 };
                 linecount += 1;
                 if linecount >= lines.unwrap_or(i32::MAX) {

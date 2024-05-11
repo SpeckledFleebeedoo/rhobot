@@ -1,14 +1,16 @@
 mod mod_commands;
 mod mods;
 mod faq_commands;
+mod fff_commands;
+mod api_commands;
 mod custom_errors;
 mod util;
-mod fff_commands;
 
 use clokwerk::{AsyncScheduler, Job};
 use fff_commands::update_fff_channel_description;
 use mods::{get_mod_count, update_database, update_mod_cache, update_sub_cache, update_author_cache, ModCacheEntry, SubCacheEntry};
 use faq_commands::{update_faq_cache, FaqCacheEntry};
+use api_commands::update_api_cache;
 use tokio::time;
 use log::{ error, info};
 use dotenv::dotenv;
@@ -31,6 +33,7 @@ pub struct Data {
     faqcache: Arc<RwLock<Vec<FaqCacheEntry>>>,
     subscriptioncache: Arc<RwLock<Vec<SubCacheEntry>>>,
     authorcache: Arc<RwLock<Vec<String>>>,
+    apicache: Arc<RwLock<api_commands::ApiResponse>>,
 }
 
 async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
@@ -82,6 +85,16 @@ async fn main() {
 
     let authorname_cache = Arc::new(RwLock::new(Vec::new()));
     let authorname_cache_clone = authorname_cache.clone();
+    
+    let api = match api_commands::get_runtime_api().await {
+        Ok(a) => a,
+        Err(e) => {
+            error!("Failed to get mods api: {e}");
+            return
+        },
+    };
+    let api_cache = Arc::new(RwLock::new(api));
+    let api_cache_clone = api_cache.clone();
 
     // FrameworkOptions contains all of poise's configuration option in one struct
     // Every option can be omitted to use its default value
@@ -90,7 +103,6 @@ async fn main() {
             util::help(),
             util::get_server_info(),
             util::reset_server_settings(),
-            // util::migrate_serverdb_entry(),
             mod_commands::find_mod(),
             mod_commands::show_subscriptions(),
             mod_commands::subscribe(),
@@ -101,6 +113,7 @@ async fn main() {
             faq_commands::faq(),
             faq_commands::faq_edit(),
             fff_commands::fff(),
+            api_commands::api(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("+".into()),
@@ -125,13 +138,10 @@ async fn main() {
         skip_checks_for_owners: false,
         event_handler: |_ctx, event, _framework, data| {
             Box::pin(async move {
-                match event {
-                    serenity::FullEvent::GuildDelete { incomplete, full: _ } => {
-                        if incomplete.unavailable == false {
-                            util::on_guild_leave(incomplete.id, data.database.clone()).await?;
-                        }
-                    },
-                    _ => {},
+                if let serenity::FullEvent::GuildDelete { incomplete, full: _} = event {
+                    if !incomplete.unavailable {
+                        util::on_guild_leave(incomplete.id, data.database.clone()).await?;
+                    }
                 }
                 Ok(())
             })
@@ -150,6 +160,7 @@ async fn main() {
                     faqcache: faq_cache_clone,
                     subscriptioncache: subscription_cache_clone,
                     authorcache: authorname_cache_clone,
+                    apicache: api_cache_clone,
                 })
             })
         })
@@ -206,12 +217,24 @@ async fn main() {
             match update_sub_cache(subscription_cache.clone(), db.clone()).await {
                 Ok(_) => info!("Updated subscription cache"),
                 Err(error) => error!("Error while updating subscription cache: {error}"),
-            }
+            };
             match update_author_cache(authorname_cache.clone(), db.clone()).await {
                 Ok(_) => info!("Updated subscription cache"),
                 Err(error) => error!("Error while updating author name cache: {error}"),
-            }
+            };
             println!("Caches updated")
+        };
+    });
+
+    let mut api_update_interval = time::interval(time::Duration::from_secs(60*60*24));
+    api_update_interval.tick().await;   // First tick happens instantly
+    tokio::spawn(async move {
+        loop {
+            api_update_interval.tick().await;
+            match update_api_cache(api_cache.clone()).await {
+                Ok(_) => info!("Updated API cache"),
+                Err(error) => error!("Error while updating api cache: {error}"),
+            };
         };
     });
     

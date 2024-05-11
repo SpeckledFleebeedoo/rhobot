@@ -31,7 +31,6 @@ pub async fn escape_formatting(unformatted_string: String) -> String {
     // This is supposedly cheaper than using the String::replace function.
     unformatted_string
         .chars()
-        .into_iter()
         .flat_map(|c| match c {
             '_' | '*' | '~' => Some('\\'),
             _ => None

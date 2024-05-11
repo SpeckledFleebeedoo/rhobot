@@ -47,20 +47,16 @@ pub async fn faq(
         Some(e) => {
             let color = Colour::GOLD;
             let mut embed = CreateEmbed::new()
-                .title(e.title.clone().unwrap())
+                .title(e.title.unwrap())
                 .color(color);
-            match e.contents.clone() {
-                Some(c) => {
-                    embed = embed.description(c);
-                },
-                None => {},
-            };
-            match e.image.clone() {
-                Some(i) => {
-                    embed = embed.image(i);
-                }
-                None => {},
-            };
+            if let Some(c) = e.contents {
+                embed = embed.description(c);
+            }
+
+            if let Some(i) = e.image {
+                embed = embed.image(i);
+            }
+
             let builder = CreateReply::default().embed(embed);
             ctx.send(builder).await?;
         },

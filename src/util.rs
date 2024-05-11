@@ -52,7 +52,7 @@ pub async fn get_subscribed_mods(db: &Pool<Sqlite>, server_id: i64) -> Result<Ve
         .into_iter()
         .map(|m| m.mod_name.unwrap())
         .collect::<Vec<String>>();
-    return Ok(subscribed_mods);
+    Ok(subscribed_mods)
 }
 pub async fn get_subscribed_authors(db: &Pool<Sqlite>, server_id: i64) -> Result<Vec<String>, Error> {
     let subscribed_authors = sqlx::query!(r#"SELECT author_name FROM subscribed_authors WHERE server_id = ?1"#, server_id)
@@ -61,7 +61,7 @@ pub async fn get_subscribed_authors(db: &Pool<Sqlite>, server_id: i64) -> Result
         .into_iter()
         .map(|m| m.author_name.unwrap())
         .collect::<Vec<String>>();
-    return Ok(subscribed_authors)
+    Ok(subscribed_authors)
 }
 
 /// Show stored information about this server

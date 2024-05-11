@@ -184,51 +184,51 @@ pub struct GlobalObject {
 impl Class {
     pub async fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/classes/{}.html", &self.common.name);
-        let embed = self.common.create_embed(&url).await;
-        return embed;
+        
+        self.common.create_embed(&url).await
     }
 }
 
 impl Event {
     pub async fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/events.html#{}", &self.common.name);
-        let embed = self.common.create_embed(&url).await;
-        return embed;
+        
+        self.common.create_embed(&url).await
     }
 }
 
 impl Define {
     pub async fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/defines.html#defines.{}", &self.common.name);
-        let embed = self.common.create_embed(&url).await;
-        return embed;
+        
+        self.common.create_embed(&url).await
     }
 }
 
 impl Concept {
     pub async fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/concepts.html#{}", &self.common.name);
-        let embed = self.common.create_embed(&url).await;
-        return embed;
+        
+        self.common.create_embed(&url).await
     }
 }
 
 impl BuiltinType {
     pub async fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/builtin-types.html#{}", &self.common.name);
-        let embed = self.common.create_embed(&url).await;
-        return embed;
+        
+        self.common.create_embed(&url).await
     }
 }
 
 impl BasicMember {
     pub async fn create_embed(&self, url: &str) -> serenity::CreateEmbed {
-        let embed = serenity::CreateEmbed::new()
+        
+        serenity::CreateEmbed::new()
             .title(&self.name)
             .description(&self.description)
             .url(url)
-            .color(serenity::Colour::GOLD);
-        return embed;
+            .color(serenity::Colour::GOLD)
     }
 }
 
@@ -285,7 +285,7 @@ impl Type {
                 }
             }
         }
-        return output;
+        output
     }
 }
 
@@ -409,7 +409,7 @@ pub async fn api_class (
     let builder = CreateReply::default()
         .embed(embed);
     ctx.send(builder).await?;
-    return Ok(());
+    Ok(())
 }
 
 async fn autocomplete_class<'a>(
@@ -449,10 +449,10 @@ async fn autocomplete_class_property<'a>(
     let methods = class.methods.clone().into_iter().map(|m| m.common);
     let attributes = class.attributes.clone().into_iter().map(|a| a.common);
     let properties = methods.chain(attributes);
-    let names = properties.map(|p| p.name)
+    
+    properties.map(|p| p.name)
         .filter(|n| n.to_lowercase().contains(&partial.to_lowercase()))
-        .collect::<Vec<String>>();
-    return names;
+        .collect::<Vec<String>>()
 }
 
 #[poise::command(prefix_command, slash_command, rename="event")]
@@ -471,7 +471,7 @@ pub async fn api_event (
     let builder = CreateReply::default()
         .embed(search_result.to_embed().await);
     ctx.send(builder).await?;
-    return Ok(());
+    Ok(())
 }
 
 async fn autocomplete_event<'a>(
@@ -502,7 +502,7 @@ pub async fn api_define (
     let builder = CreateReply::default()
         .embed(search_result.to_embed().await);
     ctx.send(builder).await?;
-    return Ok(());
+    Ok(())
 }
 
 async fn autocomplete_define<'a>(
@@ -533,7 +533,7 @@ pub async fn api_concept (
     let builder = CreateReply::default()
         .embed(search_result.to_embed().await);
     ctx.send(builder).await?;
-    return Ok(());
+    Ok(())
 }
 
 async fn autocomplete_concept<'a>(
@@ -564,7 +564,7 @@ pub async fn api_builtintype (
     let builder = CreateReply::default()
         .embed(search_result.to_embed().await);
     ctx.send(builder).await?;
-    return Ok(());
+    Ok(())
 }
 
 async fn autocomplete_builtintype<'a> (

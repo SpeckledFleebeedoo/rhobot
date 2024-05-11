@@ -59,7 +59,7 @@ pub struct InfoJson {
 #[serde(rename_all = "kebab-case")]
 pub enum Category {
     #[serde(alias = "")]
-    NoCategory,
+    Uncategorized,
     Content,
     Overhaul,
     Tweaks,
@@ -73,7 +73,7 @@ pub enum Category {
 impl Category {
     pub async fn to_string(&self) -> String {
         match &self {
-            Self::NoCategory => "No Category".to_owned(),
+            Self::Uncategorized => "No Category".to_owned(),
             Self::Content => "Content".to_owned(),
             Self::Overhaul => "Overhaul".to_owned(),
             Self::Tweaks => "Tweaks".to_owned(),
@@ -93,13 +93,12 @@ pub enum ModState{
 
 pub async fn get_mods(page: i32, initializing: bool) -> Result<ApiResponse, Error> {
     
-    let url: String;
-    match initializing {    // Load entire database at once during initialization, use pagination when updating.
+    let url = match initializing {    // Load entire database at once during initialization, use pagination when updating.
         true => {
-            url = format!("https://mods.factorio.com/api/mods?page_size=max")},
+            "https://mods.factorio.com/api/mods?page_size=max".to_string()},
         false => {
-            url = format!("https://mods.factorio.com/api/mods?page_size=25&sort=updated_at&sort_order=desc&page={page}")},
-    }
+            format!("https://mods.factorio.com/api/mods?page_size=25&sort=updated_at&sort_order=desc&page={page}")},
+    };
     let response = reqwest::get(url).await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
@@ -115,7 +114,7 @@ pub async fn update_database(
     ) -> Result<(), Error> {
     let mut page = 1;
     let mut old_mod_encountered = false;
-    while old_mod_encountered == false {
+    while !old_mod_encountered {
         let mods = get_mods(page, initializing).await?;
         page += 1;
         for result in mods.results {
@@ -184,12 +183,12 @@ pub async fn update_database(
                     name: result.name,
                     title: result.title,
                     author: result.owner,
-                    version: version,
-                    thumbnail: thumbnail,
-                    changelog: changelog,
-                    state: state
+                    version,
+                    thumbnail,
+                    changelog,
+                    state
                 };
-                send_mod_update(updated_mod, db.clone(), &cache_http).await?;
+                send_mod_update(updated_mod, db.clone(), cache_http).await?;
             }
         };
         if initializing {
@@ -235,13 +234,13 @@ async fn send_mod_update(
         let subscribed_mods = get_subscribed_mods(&db, server.id).await?;
         let subscribed_authors = get_subscribed_authors(&db, server.id).await?;
 
-        let updates_channel: poise::serenity_prelude::ChannelId;
-        match server.updates_channel {
-            Some(ch) => updates_channel = poise::serenity_prelude::ChannelId::new(ch as u64),
+        
+        let updates_channel: poise::serenity_prelude::ChannelId = match server.updates_channel {
+            Some(ch) => poise::serenity_prelude::ChannelId::new(ch as u64),
             None => continue,
-        }
+        };
 
-        if subscribed_mods.len() == 0 && subscribed_authors.len() == 0 {
+        if subscribed_mods.is_empty() && subscribed_authors.is_empty() {
             make_update_message(&updated_mod, updates_channel, server.show_changelog, cache_http).await?;
         }
         else if subscribed_mods.contains(&updated_mod.name) || subscribed_authors.contains(&updated_mod.author) {
@@ -269,10 +268,9 @@ async fn make_update_message(
         ModState::New => format!("New mod:\n{}", escape_formatting(updated_mod.title.clone()).await),
     };
     title.truncate(265);
-    let changelog: String;
-    match show_changelog {
-        true => changelog = updated_mod.changelog.clone(),
-        false => changelog = "".to_owned(),
+    let changelog = match show_changelog {
+        true => updated_mod.changelog.clone(),
+        false => "".to_owned(),
     };
     let author_link = format!("[{}](https://mods.factorio.com/user/{})", escape_formatting(updated_mod.author.clone()).await, &updated_mod.author);
     let embed = CreateEmbed::new()
@@ -326,7 +324,7 @@ pub async fn get_mod_changelog(name: &String, lines: Option<i32>) -> Result<Stri
                     out.push_str(&escape_formatting(
                         l.strip_prefix("    ").unwrap().to_owned()).await
                     );
-                    out.push_str("\n");
+                    out.push('\n');
                 } else if l.starts_with("  ") {
                     out.push_str("**");
                     out.push_str(&escape_formatting(
@@ -341,10 +339,10 @@ pub async fn get_mod_changelog(name: &String, lines: Option<i32>) -> Result<Stri
                 }
             };
             out.truncate(4096);
-            return Ok(out);
+            Ok(out)
         },
-        None => return Ok("".to_owned()),
-    };
+        None => Ok("".to_owned()),
+    }
 }
 
 pub async fn get_mod_count(db: Pool<Sqlite>) -> i32 {
@@ -352,7 +350,7 @@ pub async fn get_mod_count(db: Pool<Sqlite>) -> i32 {
         .fetch_all(&db)
         .await;
     match record {
-        Ok(mods) => return mods.len() as i32,
+        Ok(mods) => mods.len() as i32,
         Err(_) => 0,
     }
 }

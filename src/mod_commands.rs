@@ -152,7 +152,7 @@ pub async fn subscribe_mod(
     let mut w = cache.write().unwrap();
     w.push(
         SubCacheEntry{
-            server_id: server_id,
+            server_id,
             subscription: SubscriptionType::Modname(modname),
         }
     );
@@ -206,7 +206,7 @@ pub async fn subscribe_author(
     let mut w = cache.write().unwrap();
     w.push(
         SubCacheEntry{
-            server_id: server_id,
+            server_id,
             subscription: SubscriptionType::Author(author),
         }
     );
@@ -221,7 +221,7 @@ async fn autocomplete_author(
     let c = cache.read().unwrap();
     c.clone()
         .into_iter()
-        .filter(|entry| entry.starts_with(&partial))
+        .filter(|entry| entry.starts_with(partial))
         .collect::<Vec<String>>()
 }
 
@@ -349,7 +349,7 @@ pub async fn find_mod(
         Err(e) => panic!("Error getting mod thumbnail: {e}") // TODO: Replace with return error
     };
     let url = format!("https://mods.factorio.com/mod/{name}")
-        .replace(" ", "%20");
+        .replace(' ', "%20");
     let mut summary = escape_formatting(mod_data.summary.unwrap_or("".to_owned())).await;
     summary.truncate(4096);
     let owner = escape_formatting(mod_data.owner.unwrap_or("".to_owned())).await;
@@ -429,5 +429,5 @@ async fn autocomplete_modname<'a>(
     .collect::<Vec<AutocompleteChoice>>();
     list.append(&mut name_contains);
 
-    return list;
+    list
 }

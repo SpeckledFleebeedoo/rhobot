@@ -19,7 +19,7 @@ struct FFFData {
 impl FFFData {
     pub fn new(url: String) -> Self {
         Self {
-            url: url,
+            url,
             title: None,
             image: None,
             description: None,
@@ -60,7 +60,7 @@ async fn get_fff_data(number: i32) -> Result<FFFData, Error> {
         desc.truncate(1000);
         desc
     });
-    return Ok(fff)
+    Ok(fff)
 }
 
 /// Link an FFF
@@ -82,14 +82,14 @@ pub async fn fff(
     Ok(())
 }
 
-pub async fn update_fff_channel_description(cache_http: Arc<Http>) -> () {
+pub async fn update_fff_channel_description(cache_http: Arc<Http>) {
     // discord.gg/factorio #friday-facts channel
     let fff_channel = ChannelId::from(603392474458882065);
     let next_fff_time = match next_friday_1pm().await{
         Some(t) => t,
         None => {
             error!("Error while updating FFF timestamp");
-            return ();
+            return ;
         }
     };
     let topic = format!("FFF <t:{next_fff_time}:R> - \nIn Friday Facts We Trust: https://www.factorio.com/blog/");

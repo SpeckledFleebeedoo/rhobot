@@ -1,11 +1,12 @@
 use std::iter::once;
-use poise::serenity_prelude::{GuildId, RoleId, Permissions};
+use poise::serenity_prelude as serenity;
+use poise::reply::CreateReply;
 use sqlx::{Pool, Sqlite};
 use crate::{Context, Error};
 
 pub async fn is_mod(ctx: Context<'_>) -> Result<bool, Error> {
-    let user_permissions = ctx.author_member().await.unwrap().permissions(ctx.cache()).unwrap();
-    if user_permissions.contains(Permissions::ADMINISTRATOR) {
+    let user_permissions = ctx.author_member().await.unwrap().permissions(ctx.cache())?;
+    if user_permissions.contains(serenity::Permissions::ADMINISTRATOR) {
         return Ok(true);
     };
     let db = &ctx.data().database;
@@ -23,7 +24,7 @@ pub async fn is_mod(ctx: Context<'_>) -> Result<bool, Error> {
                 return Ok(false)
             },
         };
-    let has_role = ctx.author().has_role(ctx.http(), ctx.guild_id().unwrap(), RoleId::from(modrole as u64)).await?;
+    let has_role = ctx.author().has_role(ctx.http(), ctx.guild_id().unwrap(), serenity::RoleId::from(modrole as u64)).await?;
     Ok(has_role)
 }
 
@@ -76,18 +77,9 @@ pub async fn get_server_info(
         .await?;
     match serverdata {
         Some(data) => {
-            let updates_channel = match data.updates_channel {
-                Some(ch) => format!("<#{ch}>"),
-                None => "Not set".to_owned(),
-            };
-            let modrole = match data.modrole {
-                Some(role) => format!("<@&{role}>"),
-                None => "Not set".to_owned(),
-            };
-            let show_changelog = match data.show_changelog {
-                Some(b) => b.to_string(),
-                None => "Not set (default to true)".to_owned(),
-            };
+            let updates_channel = data.updates_channel.map_or_else(|| "Not set".to_owned(), |ch| format!("<#{ch}>"));
+            let modrole = data.modrole.map_or_else(|| "Not set".to_owned(), |role| format!("<@&{role}>"));
+            let show_changelog = data.show_changelog.map_or_else(|| "Not set (default to true)".to_owned(), |b| b.to_string());
             let response = format!("**Stored information for this server:**\nServer ID: {:?}\nUpdates channel: {}\nmodrole: {}\nShow changelogs: {}",
                 data.server_id.unwrap_or(0), updates_channel, modrole, show_changelog);
             ctx.say(response).await?;
@@ -168,7 +160,7 @@ pub async fn reset_server_settings(
 //     Ok(())
 // }
 
-pub async fn on_guild_leave(id: GuildId, db: Pool<Sqlite>) -> Result<(), Error> {
+pub async fn on_guild_leave(id: serenity::GuildId, db: Pool<Sqlite>) -> Result<(), Error> {
     let server_id = id.get() as i64;
     sqlx::query!(r#"DELETE FROM servers WHERE server_id = ?1"#, server_id)
         .execute(&db)
@@ -183,5 +175,16 @@ pub async fn on_guild_leave(id: GuildId, db: Pool<Sqlite>) -> Result<(), Error> 
         .execute(&db)
         .await?;
     println!("Left guild {server_id}");
+    Ok(())
+}
+pub async fn send_custom_error_message(ctx: Context<'_>, msg: &str) -> Result<(), Error> {
+    let embed = serenity::CreateEmbed::new()
+        .title("Error while executing command:")
+        .description(msg)
+        .color(serenity::Colour::RED);
+    let builder = CreateReply::default()
+        .embed(embed);
+    ctx.send(builder).await?;
+        
     Ok(())
 }

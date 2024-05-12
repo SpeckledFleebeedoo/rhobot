@@ -6,8 +6,8 @@ pub struct CustomError{
 }
 
 impl CustomError {
-    pub fn new(message: &str) -> CustomError {
-        CustomError {msg: message.to_owned()}
+    pub fn new(message: &str) -> Self {
+        Self {msg: message.to_owned()}
     }
 }
 

@@ -2,7 +2,7 @@ mod mod_commands;
 mod mods;
 mod faq_commands;
 mod fff_commands;
-mod runtime_api;
+mod api_runtime;
 mod api_data;
 mod custom_errors;
 mod util;
@@ -33,7 +33,7 @@ pub struct Data {
     faq_cache: Arc<RwLock<Vec<FaqCacheEntry>>>,
     mod_subscription_cache: Arc<RwLock<Vec<SubCacheEntry>>>,
     mod_author_cache: Arc<RwLock<Vec<String>>>,
-    runtime_api_cache: Arc<RwLock<runtime_api::RuntimeApiResponse>>,
+    runtime_api_cache: Arc<RwLock<api_runtime::RuntimeApiResponse>>,
     data_api_cache: Arc<RwLock<api_data::DataApiResponse>>,
 }
 
@@ -88,7 +88,7 @@ async fn main() {
     let authorname_cache = Arc::new(RwLock::new(Vec::new()));
     let authorname_cache_clone = authorname_cache.clone();
     
-    let runtime_api: runtime_api::RuntimeApiResponse = match runtime_api::get_runtime_api().await {
+    let runtime_api: api_runtime::RuntimeApiResponse = match api_runtime::get_runtime_api().await {
         Ok(a) => a,
         Err(e) => {
             error!("Failed to get modding runtime api: {e}");
@@ -125,7 +125,7 @@ async fn main() {
             faq_commands::faq(),
             faq_commands::faq_edit(),
             fff_commands::fff(),
-            runtime_api::api(),
+            api_runtime::api(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("+".into()),
@@ -162,9 +162,9 @@ async fn main() {
     };
 
     let framework = poise::Framework::builder()
-        .setup(move |ctx, _ready, framework| {
+        .setup(move |ctx, ready, framework| {
             Box::pin(async move {
-                println!("Logged in as {}", _ready.user.name);
+                println!("Logged in as {}", ready.user.name);
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 Ok(Data {
                     database: db_clone,
@@ -220,19 +220,19 @@ async fn main() {
         loop {
             cache_update_interval.tick().await;
             match update_mod_cache(mods_cache.clone(), db.clone()).await {
-                Ok(_) => info!("Updated mod cache"),
+                Ok(()) => info!("Updated mod cache"),
                 Err(error) => error!("Error while updating mod cache: {error}"),
             };
             match update_faq_cache(faq_cache.clone(), db.clone()).await {
-                Ok(_) => info!("Updated faq cache"),
+                Ok(()) => info!("Updated faq cache"),
                 Err(error) => error!("Error while updating faq cache: {error}"),
             };
             match update_sub_cache(subscription_cache.clone(), db.clone()).await {
-                Ok(_) => info!("Updated subscription cache"),
+                Ok(()) => info!("Updated subscription cache"),
                 Err(error) => error!("Error while updating subscription cache: {error}"),
             };
             match update_author_cache(authorname_cache.clone(), db.clone()).await {
-                Ok(_) => info!("Updated subscription cache"),
+                Ok(()) => info!("Updated subscription cache"),
                 Err(error) => error!("Error while updating author name cache: {error}"),
             };
             println!("Caches updated");
@@ -244,7 +244,7 @@ async fn main() {
     tokio::spawn(async move {
         loop {
             api_update_interval.tick().await;
-            match runtime_api::update_api_cache(runtime_api_cache.clone()).await {
+            match api_runtime::update_api_cache(runtime_api_cache.clone()).await {
                 Ok(_) => info!("Updated API cache"),
                 Err(error) => error!("Error while updating runtime api cache: {error}"),
             };

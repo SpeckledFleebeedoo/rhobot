@@ -74,15 +74,15 @@ pub enum Category {
 impl fmt::Display for Category {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Category::Uncategorized => write!(f, "No Category"),
-            Category::Content => write!(f, "Content"),
-            Category::Overhaul => write!(f, "Overhaul"),
-            Category::Tweaks => write!(f, "Tweaks"),
-            Category::Utilities => write!(f, "Utilities"),
-            Category::Scenarios => write!(f, "Scenarios"),
-            Category::ModPacks => write!(f, "Mod Packs"),
-            Category::Localizations => write!(f, "Localizations"),
-            Category::Internal => write!(f, "Internal"),
+            Self::Uncategorized => write!(f, "No Category"),
+            Self::Content => write!(f, "Content"),
+            Self::Overhaul => write!(f, "Overhaul"),
+            Self::Tweaks => write!(f, "Tweaks"),
+            Self::Utilities => write!(f, "Utilities"),
+            Self::Scenarios => write!(f, "Scenarios"),
+            Self::ModPacks => write!(f, "Mod Packs"),
+            Self::Localizations => write!(f, "Localizations"),
+            Self::Internal => write!(f, "Internal"),
         }
     }
 }
@@ -93,13 +93,11 @@ pub enum ModState{
 }
 
 pub async fn get_mods(page: i32, initializing: bool) -> Result<ApiResponse, Error> {
-    
-    let url = match initializing {    // Load entire database at once during initialization, use pagination when updating.
-        true => {
-            "https://mods.factorio.com/api/mods?page_size=max".to_string()},
-        false => {
-            format!("https://mods.factorio.com/api/mods?page_size=25&sort=updated_at&sort_order=desc&page={page}")},
-    };
+
+    let url = if initializing {     // Load entire database at once during initialization, use pagination when updating.
+        "https://mods.factorio.com/api/mods?page_size=max".to_string()
+    } else {
+        format!("https://mods.factorio.com/api/mods?page_size=25&sort=updated_at&sort_order=desc&page={page}")};
     let response = reqwest::get(url).await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
@@ -120,46 +118,27 @@ pub async fn update_database(
         page += 1;
         for result in mods.results {
 
-            let category = match result.category.clone() {
-                None => "".to_owned(),
-                Some(cat) => format!("{cat}"),
-            };
+            let category = result.category.clone().map_or_else(String::new, |cat| format!("{cat}"));
             let latest_release = result.latest_release.clone();
-            let factorio_version = match latest_release {
-                None => "".to_owned(),
-                Some(ref ver) => ver.clone().info_json.factorio_version,
-            };
-            let version = match latest_release {
-                None => "".to_owned(),
-                Some(ref ver) => ver.clone().version,
-            };
-            let released_at = match latest_release {
-                None => "".to_owned(),
-                Some(ref ver) => ver.clone().released_at,
-            };
-            let timestamp = match chrono::DateTime::parse_from_rfc3339(&released_at) {
-                Ok(datetime) => datetime.timestamp(),
-                Err(_) => 0,
-            };
+            let factorio_version = latest_release.as_ref().map_or_else(String::new, |ver| ver.clone().info_json.factorio_version);
+            let version = latest_release.as_ref().map_or_else(String::new, |ver| ver.clone().version);
+            let released_at = latest_release.as_ref().map_or_else(String::new, |ver| ver.clone().released_at);
+            let timestamp = chrono::DateTime::parse_from_rfc3339(&released_at).map_or(0, |datetime| datetime.timestamp());
 
             let state;
             let record = sqlx::query!(r#"SELECT released_at FROM mods WHERE name = ?1"#, result.name).fetch_optional(&db).await?;
 
-            match record {
-                Some(rec) => { // Mod found in database
-                    if rec.released_at.unwrap_or(0) == timestamp {
-                        println!("Already known mod found: {}", result.title); 
-                        old_mod_encountered = true;
-                        break;
-                    } else {
-                        state = ModState::Updated;
-                        println!("Updated mod found: {}", result.title)
-                    }
-                },  
-                None => { // Mod not found in database
-                    state = ModState::New;
-                    println!("New mod found: {}", result.title)
-                },     
+            if let Some(rec) = record { // Mod found in database
+                if rec.released_at.unwrap_or(0) == timestamp {
+                    println!("Already known mod found: {}", result.title);
+                    old_mod_encountered = true;
+                    break;
+                }
+                state = ModState::Updated;
+                println!("Updated mod found: {}", result.title);
+            } else { // Mod not found in database
+                state = ModState::New;
+                println!("New mod found: {}", result.title);
             };
             
             sqlx::query!(r#"INSERT OR REPLACE INTO mods 
@@ -175,7 +154,7 @@ pub async fn update_database(
                     version,
                     timestamp)
                     .execute(&db)
-                    .await.unwrap();
+                    .await?;
             
             if !initializing {  // Only send messages when not initializing database
                 let thumbnail = get_mod_thumbnail(&result.name).await?;
@@ -269,10 +248,7 @@ async fn make_update_message(
         ModState::New => format!("New mod:\n{}", escape_formatting(updated_mod.title.clone()).await),
     };
     title.truncate(265);
-    let changelog = match show_changelog {
-        true => updated_mod.changelog.clone(),
-        false => "".to_owned(),
-    };
+    let changelog = if show_changelog { updated_mod.changelog.clone() } else { String::new() };
     let author_link = format!("[{}](https://mods.factorio.com/user/{})", escape_formatting(updated_mod.author.clone()).await, &updated_mod.author);
     let embed = CreateEmbed::new()
         .title(&title)
@@ -285,7 +261,7 @@ async fn make_update_message(
     let builder = CreateMessage::new().embed(embed);
     match updates_channel.send_message(cache_http, builder).await {
         Ok(_) => {},
-        Err(e) => println!("Error sending message: {}", e),
+        Err(e) => println!("Error sending message: {e}"),
     };
     Ok(())
 }
@@ -298,7 +274,7 @@ pub async fn get_mod_thumbnail(name: &String) -> Result<String, Error> {
         _ => return Err(Box::new(CustomError::new("Received HTTP status code that is not 200"))),
     };
     let mod_info = response.json::<Mod>().await?;
-    let thumbnail_url = format!("https://assets-mod.factorio.com{}", mod_info.thumbnail.unwrap_or("/assets/.thumb.png".to_owned()));
+    let thumbnail_url = format!("https://assets-mod.factorio.com{}", mod_info.thumbnail.unwrap_or_else(|| "/assets/.thumb.png".to_owned()));
     Ok(thumbnail_url)
 }
 
@@ -342,7 +318,7 @@ pub async fn get_mod_changelog(name: &String, lines: Option<i32>) -> Result<Stri
             out.truncate(4096);
             Ok(out)
         },
-        None => Ok("".to_owned()),
+        None => Ok(String::new()),
     }
 }
 
@@ -350,10 +326,7 @@ pub async fn get_mod_count(db: Pool<Sqlite>) -> i32 {
     let record = sqlx::query!(r#"SELECT name FROM mods"#)
         .fetch_all(&db)
         .await;
-    match record {
-        Ok(mods) => mods.len() as i32,
-        Err(_) => 0,
-    }
+    record.map_or(0, |mods| mods.len() as i32)
 }
 
 #[derive(Debug, Clone)]
@@ -387,9 +360,9 @@ pub async fn update_mod_cache(
         .map(|rec| {
             ModCacheEntry{
                 name: rec.name.clone().unwrap(),
-                title: rec.title.clone().unwrap_or("".to_owned()),
-                author: rec.owner.clone().unwrap_or("".to_owned()),
-                downloads_count: rec.downloads_count.unwrap_or(0),
+                title: rec.title.clone().unwrap_or_default(),
+                author: rec.owner.clone().unwrap_or_default(),
+                downloads_count: rec.downloads_count.unwrap_or_default(),
             }
         })
         .collect::<Vec<ModCacheEntry>>();

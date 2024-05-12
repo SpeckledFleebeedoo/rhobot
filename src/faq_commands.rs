@@ -32,6 +32,7 @@ pub async fn update_faq_cache(
 }
 
 /// Frequently Asked Questions
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, guild_only)]
 pub async fn faq(
     ctx: Context<'_>,
@@ -65,6 +66,7 @@ pub async fn faq(
     Ok(())
 }
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_faq<'a>(
     ctx: Context<'_>,
     partial: &'a str,
@@ -79,6 +81,7 @@ async fn autocomplete_faq<'a>(
         .collect::<Vec<String>>()
 }
 
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, guild_only, subcommands("new", "remove", "link"))]
 pub async fn faq_edit(
     _ctx: Context<'_>
@@ -87,6 +90,7 @@ pub async fn faq_edit(
 }
 
 /// Add and faq entry
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, guild_only)]
 pub async fn new(
     ctx: Context<'_>,
@@ -99,28 +103,27 @@ pub async fn new(
 ) -> Result<(), Error> {
     let server_id = ctx.guild_id().unwrap().get() as i64;
     let db = &ctx.data().database;
-    match sqlx::query!(r#"SELECT title FROM faq WHERE server_id = ?1"#, server_id) // Check if name already exists
+
+    if (sqlx::query!(r#"SELECT title FROM faq WHERE server_id = ?1"#, server_id) // Check if name already exists
         .fetch_optional(db)
-        .await? {
-        Some(_) => {
-            // Return "faq already exists" message
-            ctx.say(format!("Error: An faq entry with title {name} already exists")).await?;
-        },
-        None => {
-            let timestamp = ctx.created_at().timestamp();
-            let author_id = ctx.author().id.get() as i64;
-            sqlx::query!(r#"INSERT INTO faq (server_id, title, contents, image, edit_time, author) 
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6)"#, server_id, name, content, image, timestamp, author_id)
-                .execute(db)
-                .await?;
-            ctx.say(format!("FAQ entry {name} added to database")).await?;
-        },
+        .await?).is_some() {
+        // Return "faq already exists" message
+        ctx.say(format!("Error: An faq entry with title {name} already exists")).await?;
+    } else {
+        let timestamp = ctx.created_at().timestamp();
+        let author_id = ctx.author().id.get() as i64;
+        sqlx::query!(r#"INSERT INTO faq (server_id, title, contents, image, edit_time, author)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6)"#, server_id, name, content, image, timestamp, author_id)
+            .execute(db)
+            .await?;
+        ctx.say(format!("FAQ entry {name} added to database")).await?;
     }
 
     Ok(())
 }
 
 /// Remove an faq entry
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, guild_only)]
 pub async fn remove(
     ctx: Context<'_>,
@@ -145,6 +148,7 @@ pub async fn remove(
 }
 
 /// Link two faq titles to the same content
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, guild_only)]
 pub async fn link(
     ctx: Context<'_>,
@@ -156,22 +160,19 @@ pub async fn link(
 ) -> Result<(), Error> {
     let server_id = ctx.guild_id().unwrap().get() as i64;
     let db = &ctx.data().database;
-    match sqlx::query!(r#"SELECT title FROM faq WHERE server_id = ?1"#, server_id) // Check if name already exists
+    if (sqlx::query!(r#"SELECT title FROM faq WHERE server_id = ?1"#, server_id) // Check if name already exists
         .fetch_optional(db)
-        .await? {
-        Some(_) => {
-            // Return "faq already exists" message
-            ctx.say(format!("Error: An faq entry with title {name} already exists")).await?;
-        },
-        None => {
-            let timestamp = ctx.created_at().timestamp();
-            let author_id = ctx.author().id.get() as i64;
-            sqlx::query!(r#"INSERT INTO faq (server_id, title, edit_time, author, link) 
-                VALUES (?1, ?2, ?3, ?4, ?5)"#, server_id, name, timestamp, author_id, link_to)
-                .execute(db)
-                .await?;
-            ctx.say(format!("FAQ link {name} added to database, linking to {link_to}")).await?;
-        },
+        .await?).is_some() {
+        // Return "faq already exists" message
+        ctx.say(format!("Error: An faq entry with title {name} already exists")).await?;
+    } else {
+        let timestamp = ctx.created_at().timestamp();
+        let author_id = ctx.author().id.get() as i64;
+        sqlx::query!(r#"INSERT INTO faq (server_id, title, edit_time, author, link)
+        VALUES (?1, ?2, ?3, ?4, ?5)"#, server_id, name, timestamp, author_id, link_to)
+        .execute(db)
+        .await?;
+        ctx.say(format!("FAQ link {name} added to database, linking to {link_to}")).await?;
     }
     Ok(())
 }

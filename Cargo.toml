@@ -5,6 +5,17 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# [lints.rust]
+# unsafe_code = "warn"
+
+# [lints.clippy]
+# nursery = "warn"
+# pedantic = "warn"
+# unwrap_used = "warn"
+# expect_used = "warn"
+# missing_panics_doc = "allow" # unless you actually want to document stuff :)
+# missing_errors_doc = "allow" # unless you actually want to document stuff :)
+
 [dependencies]
 serenity = "0.12"
 tokio = { version = "1.21.2", features = ["macros", "rt-multi-thread"] }

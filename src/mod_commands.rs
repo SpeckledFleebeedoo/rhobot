@@ -20,27 +20,24 @@ pub async fn set_updates_channel(
     let channel_id = channel.id.get() as i64;
     let server_id = channel.guild_id.get() as i64;
     let db = &ctx.data().database;
-    // Check if server exists in database
-    match sqlx::query!(r#"SELECT * FROM servers WHERE server_id = ?1"#, server_id)
-            .fetch_optional(db)
-            .await? {
-        Some(_) => {
-            // Update server data if it does exist
-            println!("Setting channel {channel_id} as mod updates channel for server {server_id}");
-            sqlx::query!(r#"UPDATE servers SET updates_channel = ?1 WHERE server_id = ?2"#, 
-            channel_id, server_id)
+
+    if (sqlx::query!(r#"SELECT * FROM servers WHERE server_id = ?1"#, server_id)
+        .fetch_optional(db)
+        .await?).is_some() {
+        // Update server data if it does exist
+        println!("Setting channel {channel_id} as mod updates channel for server {server_id}");
+        sqlx::query!(r#"UPDATE servers SET updates_channel = ?1 WHERE server_id = ?2"#,
+        channel_id, server_id)
             .execute(db)
             .await?;
-        },
-        None => {
-            // Add server and set setting if it does not exist
-            println!("Adding server {server_id} to database with updates channel {channel_id}");
-            sqlx::query!(r#"INSERT INTO servers (server_id, updates_channel) VALUES (?1, ?2)"#,
-            server_id, channel_id)
+    } else {
+        // Add server and set setting if it does not exist
+        println!("Adding server {server_id} to database with updates channel {channel_id}");
+        sqlx::query!(r#"INSERT INTO servers (server_id, updates_channel) VALUES (?1, ?2)"#,
+        server_id, channel_id)
             .execute(db)
             .await?;
-        }
-    };
+    }
 
     let response = format!("Mod updates channel was set to {channel}");
     ctx.say(response).await?;
@@ -56,27 +53,24 @@ pub async fn set_modrole(
     let role_id = role.id.get() as i64;
     let server_id = role.guild_id.get() as i64;
     let db = &ctx.data().database;
-    // Check if server exists in database
-    match sqlx::query!(r#"SELECT * FROM servers WHERE server_id = ?1"#, server_id)
-            .fetch_optional(db)
-            .await? {
-        Some(_) => {
-            // Update server data if it does exist
-            println!("Setting role {role_id} as mod role for server {server_id}");
-            sqlx::query!(r#"UPDATE servers SET modrole = ?1 WHERE server_id = ?2"#, 
-            role_id, server_id)
+    
+    if (sqlx::query!(r#"SELECT * FROM servers WHERE server_id = ?1"#, server_id)
+        .fetch_optional(db)
+        .await?).is_some() {
+        // Update server data if it does exist
+        println!("Setting role {role_id} as mod role for server {server_id}");
+        sqlx::query!(r#"UPDATE servers SET modrole = ?1 WHERE server_id = ?2"#,
+        role_id, server_id)
             .execute(db)
             .await?;
-        },
-        None => {
-            // Add server and set setting if it does not exist
-            println!("Adding server {server_id} to database with mod role {role_id}");
-            sqlx::query!(r#"INSERT INTO servers (server_id, modrole) VALUES (?1, ?2)"#,
-            server_id, role_id)
+    } else {
+        // Add server and set setting if it does not exist
+        println!("Adding server {server_id} to database with mod role {role_id}");
+        sqlx::query!(r#"INSERT INTO servers (server_id, modrole) VALUES (?1, ?2)"#,
+        server_id, role_id)
             .execute(db)
             .await?;
-        }
-    };
+    }
 
     let response = format!("Modrole was set to {role}");
     ctx.say(response).await?;
@@ -109,14 +103,13 @@ pub async fn show_changelogs(
             .await?;
         }
     };
-    match show_changelogs {
-        true => ctx.say("Now showing changelogs in mod updates feed.").await?,
-        false => ctx.say("No longer showing changelogs in mod updates feed.").await?,
-    };
+    if show_changelogs { ctx.say("Now showing changelogs in mod updates feed.").await?
+    } else { ctx.say("No longer showing changelogs in mod updates feed.").await? };
     Ok(())
 }
 
 /// Unsubscribe from a mod or author.
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, guild_only, check="is_mod", subcommands("unsubscribe_author", "unsubscribe_mod"), subcommand_required, category="Subscriptions")]
 pub async fn unsubscribe(
     _: Context<'_>
@@ -125,6 +118,7 @@ pub async fn unsubscribe(
 }
 
 /// Subscribe to a mod or author. Only subscriptions are shown in the update feed.
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, guild_only, check="is_mod", subcommands("subscribe_author", "subscribe_mod"), subcommand_required, category="Subscriptions")]
 pub async fn subscribe(
     _: Context<'_>
@@ -133,6 +127,7 @@ pub async fn subscribe(
 }
 
 /// Subscribe to a mod
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, guild_only, check="is_mod", rename="mod")]
 pub async fn subscribe_mod(
     ctx: Context<'_>,
@@ -161,6 +156,7 @@ pub async fn subscribe_mod(
 
 
 /// Unsubscribe from a mod
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, guild_only, check="is_mod", rename="mod")]
 pub async fn unsubscribe_mod(
     ctx: Context<'_>,
@@ -178,14 +174,16 @@ pub async fn unsubscribe_mod(
     Ok(())
 }
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_subscribed_modname(
     ctx: Context<'_>,
     partial: &str,
 ) -> Vec<String> {
-    autocomplete_unsubscribe(ctx, partial, AutocompleteType::Mod).await
+    autocomplete_unsubscribe(ctx, partial, &AutocompleteType::Mod)
 }
 
 /// Subscribe to a mod author
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, guild_only, check="is_mod", rename="author")]
 pub async fn subscribe_author(
     ctx: Context<'_>,
@@ -213,6 +211,7 @@ pub async fn subscribe_author(
     Ok(())
 }
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_author(
     ctx: Context<'_>,
     partial: &str,
@@ -226,6 +225,7 @@ async fn autocomplete_author(
 }
 
 /// Unsubscribe from a mod author
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, guild_only, check="is_mod", rename="author")]
 pub async fn unsubscribe_author(
     ctx: Context<'_>,
@@ -243,17 +243,18 @@ pub async fn unsubscribe_author(
     Ok(())
 }
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_subscribed_author(
     ctx: Context<'_>,
     partial: &str,
 ) -> Vec<String> {
-    autocomplete_unsubscribe(ctx, partial, AutocompleteType::Author).await
+    autocomplete_unsubscribe(ctx, partial, &AutocompleteType::Author)
 }
 
-async fn autocomplete_unsubscribe(
+fn autocomplete_unsubscribe(
     ctx: Context<'_>,
     partial: &str,
-    data_type: AutocompleteType,
+    data_type: &AutocompleteType,
 ) -> Vec<String> {
     let cache = &ctx.data().mod_subscription_cache;
     let server_id = ctx.guild_id().unwrap().get() as i64;
@@ -285,6 +286,7 @@ async fn autocomplete_unsubscribe(
 }
 
 /// List which mods and authors the server is currently subscribed to.
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, guild_only, category="Subscriptions")]
 pub async fn show_subscriptions(
     ctx: Context<'_>,
@@ -306,6 +308,7 @@ pub async fn show_subscriptions(
 }
 
 /// Find a mod on the mod portal.
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, track_edits, aliases("find-mod"))]
 pub async fn find_mod(
     ctx: Context<'_>,
@@ -324,7 +327,7 @@ pub async fn find_mod(
                 .map(|f| f.title)
                 .collect::<Vec<String>>();
             let title_list_unowned = title_list.iter()
-                .map(|f| f.as_ref())
+                .map(std::convert::AsRef::as_ref)
                 .collect::<Vec<&str>>();
             let query = modname.split('|').collect::<Vec<&str>>()[0];
             let title = fuzzy_search_best_n(query, &title_list_unowned, 1)[0].0.to_owned();
@@ -342,7 +345,7 @@ pub async fn find_mod(
         .await?;
 
     let name = mod_data.name.unwrap();
-    let mut title = escape_formatting(mod_data.title.unwrap_or(name.clone())).await;
+    let mut title = escape_formatting(mod_data.title.unwrap_or_else(|| name.clone())).await;
     title.truncate(256);
     let thumbnail = match mods::get_mod_thumbnail(&name).await {
         Ok(t) => t,
@@ -350,9 +353,9 @@ pub async fn find_mod(
     };
     let url = format!("https://mods.factorio.com/mod/{name}")
         .replace(' ', "%20");
-    let mut summary = escape_formatting(mod_data.summary.unwrap_or("".to_owned())).await;
+    let mut summary = escape_formatting(mod_data.summary.unwrap_or(String::new())).await;
     summary.truncate(4096);
-    let owner = escape_formatting(mod_data.owner.unwrap_or("".to_owned())).await;
+    let owner = escape_formatting(mod_data.owner.unwrap_or(String::new())).await;
     let downloads = mod_data.downloads_count.unwrap_or(0).to_string();
     let color = Colour::from_rgb(0x2E, 0xCC, 0x71);
 
@@ -367,12 +370,13 @@ pub async fn find_mod(
     let builder = CreateReply::default().embed(embed);
     match ctx.send(builder).await {
         Ok(_) => {},
-        Err(e) => println!("Error sending message: {}", e),
+        Err(e) => println!("Error sending message: {e}"),
     };
 
     Ok(())
 }
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_modname<'a>(
     ctx: Context<'_>,
     partial: &'a str,

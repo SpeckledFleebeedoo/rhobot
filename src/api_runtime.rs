@@ -3,7 +3,7 @@ use poise::serenity_prelude as serenity;
 use poise::reply::CreateReply;
 use std::{fmt, sync::{Arc, RwLock}};
 
-use crate::{Context, Error, custom_errors::CustomError, api_data::api_data};
+use crate::{Context, Error, util, custom_errors::CustomError, api_data::api_data};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BasicMember {
@@ -178,47 +178,47 @@ pub struct GlobalObject {
 }
 
 impl Class {
-    pub async fn to_embed(&self) -> serenity::CreateEmbed {
+    pub fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/classes/{}.html", &self.common.name);
         
-        self.common.create_embed(&url).await
+        self.common.create_embed(&url)
     }
 }
 
 impl Event {
-    pub async fn to_embed(&self) -> serenity::CreateEmbed {
+    pub fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/events.html#{}", &self.common.name);
         
-        self.common.create_embed(&url).await
+        self.common.create_embed(&url)
     }
 }
 
 impl Define {
-    pub async fn to_embed(&self) -> serenity::CreateEmbed {
+    pub fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/defines.html#defines.{}", &self.common.name);
         
-        self.common.create_embed(&url).await
+        self.common.create_embed(&url)
     }
 }
 
 impl Concept {
-    pub async fn to_embed(&self) -> serenity::CreateEmbed {
+    pub fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/concepts.html#{}", &self.common.name);
         
-        self.common.create_embed(&url).await
+        self.common.create_embed(&url)
     }
 }
 
 impl BuiltinType {
-    pub async fn to_embed(&self) -> serenity::CreateEmbed {
+    pub fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/builtin-types.html#{}", &self.common.name);
         
-        self.common.create_embed(&url).await
+        self.common.create_embed(&url)
     }
 }
 
 impl BasicMember {
-    pub async fn create_embed(&self, url: &str) -> serenity::CreateEmbed {
+    pub fn create_embed(&self, url: &str) -> serenity::CreateEmbed {
         serenity::CreateEmbed::new()
             .title(&self.name)
             .description(&self.description)
@@ -248,7 +248,7 @@ impl fmt::Display for ComplexType {
                 write!(f, "{options_string}")
             },
             Self::Array { value } => {write!(f, "array[{value}]")},
-            Self::Dictionary { key, value } | ComplexType::LuaCustomTable { key, value } => {
+            Self::Dictionary { key, value } | Self::LuaCustomTable { key, value } => {
                 write!(f, "dictionary[{key} 🡪 {value}]")
             },
             Self::Function { parameters } => {
@@ -283,9 +283,6 @@ pub async fn update_api_cache(
     let mut c = cache.write().unwrap();
     *c = new_runtime_api;
     }
-//     println!("Getting data api");
-//     let data_api = get_data_api().await?;
-//     println!("{:?}", data_api);
     Ok(())
 }
 
@@ -299,6 +296,7 @@ pub async fn get_runtime_api() -> Result<RuntimeApiResponse, Error> {
     Ok(response.json::<RuntimeApiResponse>().await?)
 }
 
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, guild_only, subcommands("api_runtime", "api_data"))]
 pub async fn api(
     _ctx: Context<'_>
@@ -306,6 +304,7 @@ pub async fn api(
     Ok(())
 }
 
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, guild_only, subcommands("api_class", "api_event", "api_define", "api_concept", "api_builtintype"), rename="runtime")]
 pub async fn api_runtime(
     _ctx: Context<'_>
@@ -313,6 +312,7 @@ pub async fn api_runtime(
     Ok(())
 }
 
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, rename="class")]
 pub async fn api_class (
     ctx: Context<'_>,
@@ -328,11 +328,15 @@ pub async fn api_class (
 
     let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
-    let search_result = api.classes.iter()
-        .find(|class| class_search.eq_ignore_ascii_case(&class.common.name)).unwrap();
-    let mut embed = search_result.to_embed().await;
-    if property_search.is_some() {
-        let property_name = property_search.unwrap();
+    let Some(search_result) = api.classes.iter()
+        .find(|class| class_search.eq_ignore_ascii_case(&class.common.name)) 
+    else {
+        util::send_custom_error_message(ctx, "Could not find specified class in runtime API documentation").await?;
+        return Ok(());
+    };
+
+    let mut embed = search_result.to_embed();
+    if let Some(property_name) = property_search {
         let method = search_result.methods.clone()
             .into_iter()
             .find(|m| m.common.name == property_name);
@@ -365,6 +369,7 @@ pub async fn api_class (
             }
             ).collect::<Vec<String>>().join(", ");
             embed = embed.field(format!("`{}{} 🡪 {}`", m.common.name, parameters_str, return_values), m.common.description, false);
+
         } else if let Some(a) = attribute {
             let rw = match (a.read, a.write) {
                 (true, true) => "[RW]",
@@ -386,6 +391,7 @@ pub async fn api_class (
     Ok(())
 }
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_class<'a>(
     ctx: Context<'_>,
     partial: &'a str,
@@ -398,6 +404,7 @@ async fn autocomplete_class<'a>(
         .collect::<Vec<String>>()
 }
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_class_property<'a>(
     ctx: Context<'_>,
     partial: &'a str,
@@ -414,11 +421,9 @@ async fn autocomplete_class_property<'a>(
     }
     let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
-    let class = match api.classes.iter()
-        .find(|c| c.common.name == classname) {
-            Some(c) => c,
-            None => {return vec![]},    // Happens when invalid class is used
-        };
+    let Some(class) = api.classes.iter()
+        .find(|c| c.common.name == classname)
+    else {return vec![]};    // Happens when invalid class is used
     
     let methods = class.methods.clone().into_iter().map(|m| m.common);
     let attributes = class.attributes.clone().into_iter().map(|a| a.common);
@@ -429,6 +434,7 @@ async fn autocomplete_class_property<'a>(
         .collect::<Vec<String>>()
 }
 
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, rename="event")]
 pub async fn api_event (
     ctx: Context<'_>,
@@ -441,13 +447,20 @@ pub async fn api_event (
     let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
 
-    let search_result = api.events.iter().find(|event| event_search.eq_ignore_ascii_case(&event.common.name)).unwrap();
+    let Some(search_result) = api.events.iter()
+        .find(|event| event_search.eq_ignore_ascii_case(&event.common.name)) 
+        else {
+            util::send_custom_error_message(ctx, "Could not find specified event in runtime API documentation").await?;
+            return Ok(());
+        };
+
     let builder = CreateReply::default()
-        .embed(search_result.to_embed().await);
+        .embed(search_result.to_embed());
     ctx.send(builder).await?;
     Ok(())
 }
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_event<'a>(
     ctx: Context<'_>,
     partial: &'a str,
@@ -460,6 +473,7 @@ async fn autocomplete_event<'a>(
         .collect::<Vec<String>>()
 }
 
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, rename="define")]
 pub async fn api_define (
     ctx: Context<'_>,
@@ -472,13 +486,19 @@ pub async fn api_define (
     let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
 
-    let search_result = api.defines.iter().find(|define| define_search.eq_ignore_ascii_case(&define.common.name)).unwrap();
+    let Some(search_result) = api.defines.iter()
+        .find(|define| define_search.eq_ignore_ascii_case(&define.common.name)) 
+    else {
+        util::send_custom_error_message(ctx, "Could not find specified define in runtime API documentation").await?;
+        return Ok(());
+    };
     let builder = CreateReply::default()
-        .embed(search_result.to_embed().await);
+        .embed(search_result.to_embed());
     ctx.send(builder).await?;
     Ok(())
 }
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_define<'a>(
     ctx: Context<'_>,
     partial: &'a str,
@@ -491,6 +511,7 @@ async fn autocomplete_define<'a>(
         .collect::<Vec<String>>()
 }
 
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, rename="concept")]
 pub async fn api_concept (
     ctx: Context<'_>,
@@ -503,13 +524,20 @@ pub async fn api_concept (
     let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
 
-    let search_result = api.concepts.iter().find(|concept| concept_search.eq_ignore_ascii_case(&concept.common.name)).unwrap();
+    let Some(search_result) = api.concepts.iter()
+        .find(|concept| concept_search.eq_ignore_ascii_case(&concept.common.name)) 
+    else {
+        util::send_custom_error_message(ctx, "Could not find specified concept in runtime API documentation").await?;
+        return Ok(());
+    };
+
     let builder = CreateReply::default()
-        .embed(search_result.to_embed().await);
+        .embed(search_result.to_embed());
     ctx.send(builder).await?;
     Ok(())
 }
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_concept<'a>(
     ctx: Context<'_>,
     partial: &'a str,
@@ -522,6 +550,7 @@ async fn autocomplete_concept<'a>(
         .collect::<Vec<String>>()
 }
 
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, rename="builtin_type")]
 pub async fn api_builtintype (
     ctx: Context<'_>,
@@ -534,13 +563,19 @@ pub async fn api_builtintype (
     let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
 
-    let search_result = api.builtin_types.iter().find(|builtin_type| builtintype_search.eq_ignore_ascii_case(&builtin_type.common.name)).unwrap();
+    let Some(search_result) = api.builtin_types.iter()
+        .find(|builtin_type| builtintype_search.eq_ignore_ascii_case(&builtin_type.common.name)) 
+    else {
+        util::send_custom_error_message(ctx, "Could not find specified builtin type in runtime API documentation").await?;
+        return Ok(());
+    };
     let builder = CreateReply::default()
-        .embed(search_result.to_embed().await);
+        .embed(search_result.to_embed());
     ctx.send(builder).await?;
     Ok(())
 }
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_builtintype<'a> (
     ctx: Context<'_>,
     partial: &'a str,

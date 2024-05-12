@@ -3,7 +3,7 @@ use poise::serenity_prelude as serenity;
 use poise::reply::CreateReply;
 use std::{fmt, sync::{Arc, RwLock}};
 
-use crate::{Context, Error, custom_errors::CustomError};
+use crate::{custom_errors::CustomError, util, Context, Error};
 
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -110,7 +110,7 @@ pub enum ComplexType {
 }
 
 impl BasicMember {
-    pub async fn create_embed(&self, url: &str) -> serenity::CreateEmbed {
+    pub fn create_embed(&self, url: &str) -> serenity::CreateEmbed {
         serenity::CreateEmbed::new()
             .title(&self.name)
             .description(&self.description)
@@ -120,16 +120,16 @@ impl BasicMember {
 }
 
 impl Prototype {
-    pub async fn to_embed(&self) -> serenity::CreateEmbed {
+    pub fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/defines.html#defines.{}", &self.common.name);
-        self.common.create_embed(&url).await
+        self.common.create_embed(&url)
     }
 }
 
 impl DataStageType {
-    pub async fn to_embed(&self) -> serenity::CreateEmbed {
+    pub fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/defines.html#defines.{}", &self.common.name);
-        self.common.create_embed(&url).await
+        self.common.create_embed(&url)
     }
 }
 
@@ -192,6 +192,7 @@ pub async fn get_data_api() -> Result<DataApiResponse, Error> {
     Ok(response.json::<DataApiResponse>().await?)
 }
 
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, guild_only, subcommands("api_prototype", "api_type"), rename="data")]
 pub async fn api_data(
     _ctx: Context<'_>
@@ -199,6 +200,7 @@ pub async fn api_data(
     Ok(())
 }
 
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, rename="prototype")]
 pub async fn api_prototype (
     ctx: Context<'_>,
@@ -213,16 +215,21 @@ pub async fn api_prototype (
 ) -> Result<(), Error> {
     let cache = ctx.data().data_api_cache.clone();
     let api = cache.read().unwrap().clone();
-    let search_result = api.prototypes.iter()
-        .find(|prototype| prototype_search.eq_ignore_ascii_case(&prototype.common.name)).unwrap();
-    let mut embed = search_result.to_embed().await;
+    
+    let Some(search_result) = api.prototypes.iter()
+        .find(|p| prototype_search.eq_ignore_ascii_case(&p.common.name)) 
+    else {
+        util::send_custom_error_message(ctx, "Could not find specified prototype in data API documentation").await?;
+        return Ok(());
+    };
+    let mut embed = search_result.to_embed();
 
     if let Some(property_name) = property_search {
         let property = search_result.properties.clone()
             .into_iter()
             .find(|m| m.common.name == property_name);
 
-        if let Some(p) = property {             // name optional  :: type    Description
+        if let Some(p) = property {
             let optional = if p.optional {"optional"} else {""};
             embed = embed.field(format!("`{} {} :: {}`", p.common.name, optional, p.r#type), p.common.description, false);
         };
@@ -233,6 +240,7 @@ pub async fn api_prototype (
     Ok(())
 }
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_prototype<'a>(
     ctx: Context<'_>,
     partial: &'a str,
@@ -245,6 +253,7 @@ async fn autocomplete_prototype<'a>(
         .collect::<Vec<String>>()
 }
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_prototype_property<'a>(
     ctx: Context<'_>,
     partial: &'a str,
@@ -261,11 +270,11 @@ async fn autocomplete_prototype_property<'a>(
     }
     let cache = ctx.data().data_api_cache.clone();
     let api = cache.read().unwrap().clone();
-    let prototype = match api.prototypes.iter()
-        .find(|p| p.common.name == prototype_name) {
-            Some(p) => p,
-            None => {return vec![]},    // Happens when invalid class is used
-        };
+
+    let Some(prototype) = api.prototypes.iter()
+        .find(|p| p.common.name == prototype_name) 
+    else {return vec![]};    // Happens when invalid class is used
+
     prototype.properties.clone()
         .into_iter()
         .map(|p| p.common.name)
@@ -273,6 +282,7 @@ async fn autocomplete_prototype_property<'a>(
         .collect::<Vec<String>>()
 }
 
+#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, rename="type")]
 pub async fn api_type (
     ctx: Context<'_>,
@@ -287,9 +297,14 @@ pub async fn api_type (
 ) -> Result<(), Error> {
     let cache = ctx.data().data_api_cache.clone();
     let api = cache.read().unwrap().clone();
-    let search_result = api.types.iter()
-        .find(|datatype| type_search.eq_ignore_ascii_case(&datatype.common.name)).unwrap();
-    let mut embed = search_result.to_embed().await;
+    let Some(search_result) = api.types.iter()
+        .find(|t| type_search.eq_ignore_ascii_case(&t.common.name)) 
+        else {
+            util::send_custom_error_message(ctx, "Could not find specified type in data API documentation").await?;
+            return Ok(());
+        };
+
+    let mut embed = search_result.to_embed();
 
     if let Some(property_name) = property_search {
         if let Some(properties) = &search_result.properties {
@@ -309,6 +324,7 @@ pub async fn api_type (
     Ok(())
 }
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_type<'a>(
     ctx: Context<'_>,
     partial: &'a str,
@@ -321,6 +337,7 @@ async fn autocomplete_type<'a>(
         .collect::<Vec<String>>()
 }
 
+#[allow(clippy::unused_async)]
 async fn autocomplete_type_property<'a>(
     ctx: Context<'_>,
     partial: &'a str,
@@ -337,16 +354,14 @@ async fn autocomplete_type_property<'a>(
     }
     let cache = ctx.data().data_api_cache.clone();
     let api = cache.read().unwrap().clone();
-    let datatype = match api.types.iter()
-        .find(|p| p.common.name == type_name) {
-            Some(p) => p,
-            None => {return vec![]},    // Happens when invalid class is used
-        };
-    if let Some(properties) = &datatype.properties {
-    properties
+
+    let Some(datatype) = api.types.iter()
+        .find(|p| p.common.name == type_name) 
+    else {return vec![]};
+
+    datatype.properties.as_ref().map_or_else(Vec::new, |properties| properties
         .iter()
         .map(|p| p.common.name.clone())
         .filter(|n| n.to_lowercase().contains(&partial.to_lowercase()))
-        .collect::<Vec<String>>()
-    } else {vec![]}
+        .collect::<Vec<String>>())
 }

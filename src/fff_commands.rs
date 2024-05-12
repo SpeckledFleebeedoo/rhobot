@@ -17,7 +17,7 @@ struct FFFData {
 }
 
 impl FFFData {
-    pub fn new(url: String) -> Self {
+    pub const fn new(url: String) -> Self {
         Self {
             url,
             title: None,
@@ -85,12 +85,9 @@ pub async fn fff(
 pub async fn update_fff_channel_description(cache_http: Arc<Http>) {
     // discord.gg/factorio #friday-facts channel
     let fff_channel = ChannelId::from(603392474458882065);
-    let next_fff_time = match next_friday_1pm().await{
-        Some(t) => t,
-        None => {
-            error!("Error while updating FFF timestamp");
-            return ;
-        }
+    let Some(next_fff_time) = next_friday_1pm() else {
+        error!("Error while updating FFF timestamp");
+        return ;
     };
     let topic = format!("FFF <t:{next_fff_time}:R> - \nIn Friday Facts We Trust: https://www.factorio.com/blog/");
     let builder = EditChannel::new().topic(topic);
@@ -101,7 +98,7 @@ pub async fn update_fff_channel_description(cache_http: Arc<Http>) {
 }
 
 // Find unix timestamp of next friday 1pm CET/CEST
-async fn next_friday_1pm() -> Option<i64> {
+fn next_friday_1pm() -> Option<i64> {
     let prague_now: DateTime<Tz> = Prague.from_utc_datetime(&chrono::Utc::now().naive_utc());
     let weekday = prague_now.weekday();
     let mut days_to_friday = (chrono::Weekday::Fri.number_from_sunday() - weekday.number_from_sunday() + 7) % 7;
@@ -109,7 +106,7 @@ async fn next_friday_1pm() -> Option<i64> {
         days_to_friday = 7;
     };
 
-    let next_friday = prague_now.date_naive().and_hms_opt(13, 0, 0).unwrap() + chrono::Duration::days(days_to_friday as i64);
+    let next_friday = prague_now.date_naive().and_hms_opt(13, 0, 0)? + chrono::Duration::days(days_to_friday as i64);
     let next_friday_prague = Prague.from_local_datetime(&next_friday).unwrap();
 
     Some(next_friday_prague.timestamp())

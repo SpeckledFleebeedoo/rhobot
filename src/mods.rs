@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serenity::all::{Colour, CreateEmbed, CreateMessage};
 use sqlx::{Pool, Sqlite};
-use std::sync::{Arc, RwLock};
+use std::{fmt, sync::{Arc, RwLock}};
 
 use crate::Error;
 use crate::custom_errors::CustomError;
@@ -59,6 +59,7 @@ pub struct InfoJson {
 #[serde(rename_all = "kebab-case")]
 pub enum Category {
     #[serde(alias = "")]
+    #[serde(alias = "no-category")]
     Uncategorized,
     Content,
     Overhaul,
@@ -70,18 +71,18 @@ pub enum Category {
     Internal,
 }
 
-impl Category {
-    pub async fn to_string(&self) -> String {
-        match &self {
-            Self::Uncategorized => "No Category".to_owned(),
-            Self::Content => "Content".to_owned(),
-            Self::Overhaul => "Overhaul".to_owned(),
-            Self::Tweaks => "Tweaks".to_owned(),
-            Self::Utilities => "Utilities".to_owned(),
-            Self::Scenarios => "Scenarios".to_owned(),
-            Self::ModPacks => "Mod Packs".to_owned(),
-            Self::Localizations => "Localizations".to_owned(),
-            Self::Internal => "Internal".to_owned(),
+impl fmt::Display for Category {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Category::Uncategorized => write!(f, "No Category"),
+            Category::Content => write!(f, "Content"),
+            Category::Overhaul => write!(f, "Overhaul"),
+            Category::Tweaks => write!(f, "Tweaks"),
+            Category::Utilities => write!(f, "Utilities"),
+            Category::Scenarios => write!(f, "Scenarios"),
+            Category::ModPacks => write!(f, "Mod Packs"),
+            Category::Localizations => write!(f, "Localizations"),
+            Category::Internal => write!(f, "Internal"),
         }
     }
 }
@@ -121,7 +122,7 @@ pub async fn update_database(
 
             let category = match result.category.clone() {
                 None => "".to_owned(),
-                Some(cat) => cat.to_string().await,
+                Some(cat) => format!("{cat}"),
             };
             let latest_release = result.latest_release.clone();
             let factorio_version = match latest_release {

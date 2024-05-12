@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use poise::serenity_prelude as serenity;
 use poise::reply::CreateReply;
-use std::{borrow::Borrow, sync::{Arc, RwLock}};
+use std::{fmt, sync::{Arc, RwLock}};
 
-use crate::{Context, Error, custom_errors::CustomError};
+use crate::{Context, Error, custom_errors::CustomError, api_data::api_data};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BasicMember {
@@ -11,8 +11,9 @@ pub struct BasicMember {
     pub order: i32,
     pub description: String,
 }
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ApiResponse {
+pub struct RuntimeApiResponse {
     pub application: String,
     pub application_version: String,
     pub api_version: i32,
@@ -98,26 +99,21 @@ pub enum Type {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "complex_type")]
+#[serde(tag = "complex_type", rename_all = "snake_case")]
 pub enum ComplexType {
-    #[serde(rename = "type")]
     Type {value: Type, description: String },
-    #[serde(rename = "union")]
     Union { options: Vec<Type>, full_format: bool },
-    #[serde(rename = "array")]
     Array { value: Type },
-    #[serde(rename = "dictionary")]
     Dictionary { key: Type, value: Type },
+    #[serde(rename = "LuaCustomTable")]
     LuaCustomTable { key: Type, value: Type },
-    #[serde(rename = "function")]
     Function {parameters: Vec<Type>},
-    #[serde(rename = "literal")]
     Literal { value: serde_json::Value, description: Option<String> },
+    #[serde(rename = "LuaLazyLoadedValue")]
     LuaLazyLoadedValue {value: Type},
+    #[serde(rename = "LuaStruct")]
     LuaStruct {attributes: Vec<Attribute>},
-    #[serde(rename = "table")]
     Table { parameters: Vec<Parameter> , variant_parameter_groups: Option<Vec<ParameterGroup>>, variant_parameter_description: Option<String> },
-    #[serde(rename = "tuple")]
     Tuple { parameters: Vec<Parameter> , variant_parameter_groups: Option<Vec<ParameterGroup>>, variant_parameter_description: Option<String> },
 }
 
@@ -223,7 +219,6 @@ impl BuiltinType {
 
 impl BasicMember {
     pub async fn create_embed(&self, url: &str) -> serenity::CreateEmbed {
-        
         serenity::CreateEmbed::new()
             .title(&self.name)
             .description(&self.description)
@@ -232,83 +227,79 @@ impl BasicMember {
     }
 }
 
-impl Type {
-    pub fn to_str(&self) -> String {
-        let mut output = String::new();
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Type::Simple(str) => output.push_str(str),
-            Type::Complex(ct) => {
-                match ct.borrow() {
-                    ComplexType::Type { value, .. } => {
-                        output.push_str(&value.to_str());
-                    },
-                    ComplexType::Union { options, .. } => {
-                        let options_string = options.iter()
-                            .map(|opt| opt.to_str())
-                            .collect::<Vec<String>>()
-                            .join(" or ");
-                        output.push_str(&options_string)
-                    },
-                    ComplexType::Array { value } => {
-                        output.push_str(&format!("array[{}]", &value.to_str()));
-                    }
-                    ComplexType::Dictionary{ key, value } | ComplexType::LuaCustomTable{ key, value } => {
-                        output.push_str(&format!("dictionary[{} 🡪 {}]", &key.to_str(), &value.to_str()));
-                    }
-                    ComplexType::Function { parameters } => {
-                        let fun_parameters = parameters.iter()
-                            .map(|param| param.to_str())
-                            .collect::<Vec<String>>()
-                            .join(", ");
-                        output.push_str(&format!("function({})", fun_parameters));
-                    }
-                    ComplexType::Literal { value, .. } => {
-                        match value {
-                            serde_json::Value::String(str) => output.push_str(&format!(r#""{}""#, &str)),
-                            serde_json::Value::Bool(bool) => output.push_str(&bool.to_string()),
-                            serde_json::Value::Number(num) => output.push_str(&num.to_string()),
-                            _ => ()
-                        }
-                    }
-                    ComplexType::LuaLazyLoadedValue { value } => {
-                        output.push_str(&format!("LuaLazyLoadedValue({})", &value.to_str()));
-                    }
-                    ComplexType::LuaStruct { .. } => {
-                        output.push_str("LuaStruct");
-                    }
-                    ComplexType::Table { .. } => {
-                        output.push_str("table");
-                    }
-                    ComplexType::Tuple { .. } => {
-                        output.push_str("tuple");
-                    }
-                }
-            }
+            Self::Simple(t) => write!(f, "{t}"),
+            Self::Complex(ct) => write!(f, "{ct}"),
         }
-        output
+    }
+}
+
+impl fmt::Display for ComplexType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Type { value, .. } => {write!(f, "{value}")},
+            Self::Union { options, .. } => {
+                let options_string = options.iter()
+                    .map(|t| format!("{t}"))
+                    .collect::<Vec<String>>()
+                    .join(" or ");
+                write!(f, "{options_string}")
+            },
+            Self::Array { value } => {write!(f, "array[{value}]")},
+            Self::Dictionary { key, value } | ComplexType::LuaCustomTable { key, value } => {
+                write!(f, "dictionary[{key} 🡪 {value}]")
+            },
+            Self::Function { parameters } => {
+                let fun_parameters = parameters.iter()
+                    .map(|t| format!("{t}"))
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                write!(f, "function({fun_parameters})")
+            },
+            Self::Literal { value, .. } => {
+                match value {
+                    serde_json::Value::String(str) => write!(f, r#""{}""#, &str),
+                    serde_json::Value::Bool(bool) => write!(f, "{bool}"),
+                    serde_json::Value::Number(num) => write!(f, "{num}"),
+                    _ => write!(f, ""),
+                }
+            },
+            Self::LuaLazyLoadedValue { value } => write!(f, "LuaLazyLoadedValue({value})"),
+            Self::LuaStruct { .. } => write!(f, "LuaStruct"),
+            Self::Table { .. } => write!(f, "table"),
+            Self::Tuple { .. } => write!(f, "tuple"),
+        }
     }
 }
 
 pub async fn update_api_cache(
-    cache: Arc<RwLock<ApiResponse>>,
+    cache: Arc<RwLock<RuntimeApiResponse>>,
 ) -> Result<(), Error> {
-    let new_api = get_runtime_api().await?;
+    println!("Updating API cache");
+    {
+    let new_runtime_api = get_runtime_api().await?;
     let mut c = cache.write().unwrap();
-    *c = new_api;
+    *c = new_runtime_api;
+    }
+//     println!("Getting data api");
+//     let data_api = get_data_api().await?;
+//     println!("{:?}", data_api);
     Ok(())
 }
 
-pub async fn get_runtime_api() -> Result<ApiResponse, Error> {
+pub async fn get_runtime_api() -> Result<RuntimeApiResponse, Error> {
     let response = reqwest::get("https://lua-api.factorio.com/latest/runtime-api.json").await?;
 
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(Box::new(CustomError::new("Received HTTP status code that is not 200")))
     };
-    Ok(response.json::<ApiResponse>().await?)
+    Ok(response.json::<RuntimeApiResponse>().await?)
 }
 
-#[poise::command(prefix_command, slash_command, guild_only, subcommands("api_runtime"))]
+#[poise::command(prefix_command, slash_command, guild_only, subcommands("api_runtime", "api_data"))]
 pub async fn api(
     _ctx: Context<'_>
 ) -> Result<(), Error> {
@@ -335,7 +326,7 @@ pub async fn api_class (
     property_search: Option<String>,
 ) -> Result<(), Error> {
 
-    let cache = ctx.data().apicache.clone();
+    let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
     let search_result = api.classes.iter()
         .find(|class| class_search.eq_ignore_ascii_case(&class.common.name)).unwrap();
@@ -350,39 +341,27 @@ pub async fn api_class (
             .find(|a| a.common.name == property_name);
 
         if let Some(m) = method {
-            let parameters_str = match m.takes_table {
-                true => {
+            let parameters_str = if m.takes_table {
                     let mut sorted_params = m.parameters.clone();
                     sorted_params.sort_unstable_by_key(|par| par.common.order);
                     let parameters = sorted_params.into_iter().map(|par| {
-                        let optional = match par.optional {
-                            true => "?",
-                            false => "",
-                        };
+                        let optional = if par.optional { "?" } else { "" };
                         format!("{}{}=...", par.common.name, optional)
                     }).collect::<Vec<String>>().join(", ");
-                    format!(r#"{{{}}}"#, parameters)
-                },
-                false => {
+                    format!(r#"{{{parameters}}}"#)
+                } else {
                     let mut sorted_params = m.parameters.clone();
                     sorted_params.sort_unstable_by_key(|par| par.common.order);
                     let parameters = sorted_params.into_iter().map(|par| {
-                        let optional = match par.optional {
-                            true => "?",
-                            false => "",
-                        };
+                        let optional = if par.optional { "?" } else { "" };
                         format!("{}{}", par.common.name, optional)
                     }).collect::<Vec<String>>().join(", ");
-                    format!(r#"({})"#, parameters)
-                },
+                    format!(r#"({parameters})"#)
             };
             
             let return_values = m.return_values.into_iter().map(|rv| {
-                let optional = match rv.optional {
-                    true => "?",
-                    false => "",
-                };
-                rv.r#type.to_str() + optional
+                let optional = if rv.optional { "?" } else { "" };
+                format!("{}{optional}", rv.r#type)
             }
             ).collect::<Vec<String>>().join(", ");
             embed = embed.field(format!("`{}{} 🡪 {}`", m.common.name, parameters_str, return_values), m.common.description, false);
@@ -393,18 +372,13 @@ pub async fn api_class (
                 (false, true) => "[W]",
                 (false, false) => ""
             };
-            let optional = match a.optional {
-                true => "?",
-                false => "",
-            };
+            let optional = if a.optional { "?" } else { "" };
             embed = embed.field(format!(
-                "`{} {} :: {}{}`", a.common.name, rw, a.r#type.to_str(), optional), 
+                "`{} {} :: {}{}`", a.common.name, rw, a.r#type, optional), 
                 a.common.description, 
                 false
             );
-        }
-
-        
+        };        
     };
     let builder = CreateReply::default()
         .embed(embed);
@@ -416,7 +390,7 @@ async fn autocomplete_class<'a>(
     ctx: Context<'_>,
     partial: &'a str,
 ) -> Vec<String>{
-    let cache = ctx.data().apicache.clone();
+    let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
     api.classes.iter()
         .filter(|c| c.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
@@ -436,14 +410,14 @@ async fn autocomplete_class_property<'a>(
     }
 
     if classname.is_empty() {
-        return vec![];   // Should never happen
+        return vec![];   // Happens when property field is used before class field
     }
-    let cache = ctx.data().apicache.clone();
+    let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
     let class = match api.classes.iter()
         .find(|c| c.common.name == classname) {
             Some(c) => c,
-            None => {return vec![]},    // Only happens when autocomplete is not used
+            None => {return vec![]},    // Happens when invalid class is used
         };
     
     let methods = class.methods.clone().into_iter().map(|m| m.common);
@@ -464,7 +438,7 @@ pub async fn api_event (
     event_search: String,
 ) -> Result<(), Error> {
 
-    let cache = ctx.data().apicache.clone();
+    let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
 
     let search_result = api.events.iter().find(|event| event_search.eq_ignore_ascii_case(&event.common.name)).unwrap();
@@ -478,7 +452,7 @@ async fn autocomplete_event<'a>(
     ctx: Context<'_>,
     partial: &'a str,
 ) -> Vec<String>{
-    let cache = ctx.data().apicache.clone();
+    let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
     api.events.iter()
         .filter(|c| c.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
@@ -495,7 +469,7 @@ pub async fn api_define (
     define_search: String,
 ) -> Result<(), Error> {
 
-    let cache = ctx.data().apicache.clone();
+    let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
 
     let search_result = api.defines.iter().find(|define| define_search.eq_ignore_ascii_case(&define.common.name)).unwrap();
@@ -509,7 +483,7 @@ async fn autocomplete_define<'a>(
     ctx: Context<'_>,
     partial: &'a str,
 ) -> Vec<String>{
-    let cache = ctx.data().apicache.clone();
+    let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
     api.defines.iter()
         .filter(|c| c.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
@@ -526,7 +500,7 @@ pub async fn api_concept (
     concept_search: String,
 ) -> Result<(), Error> {
 
-    let cache = ctx.data().apicache.clone();
+    let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
 
     let search_result = api.concepts.iter().find(|concept| concept_search.eq_ignore_ascii_case(&concept.common.name)).unwrap();
@@ -540,7 +514,7 @@ async fn autocomplete_concept<'a>(
     ctx: Context<'_>,
     partial: &'a str,
 ) -> Vec<String>{
-    let cache = ctx.data().apicache.clone();
+    let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
     api.concepts.iter()
         .filter(|c| c.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
@@ -557,7 +531,7 @@ pub async fn api_builtintype (
     builtintype_search: String,
 ) -> Result<(), Error> {
 
-    let cache = ctx.data().apicache.clone();
+    let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
 
     let search_result = api.builtin_types.iter().find(|builtin_type| builtintype_search.eq_ignore_ascii_case(&builtin_type.common.name)).unwrap();
@@ -571,7 +545,7 @@ async fn autocomplete_builtintype<'a> (
     ctx: Context<'_>,
     partial: &'a str,
 ) -> Vec<String>{
-    let cache = ctx.data().apicache.clone();
+    let cache = ctx.data().runtime_api_cache.clone();
     let api = cache.read().unwrap().clone();
     api.builtin_types.iter()
         .filter(|c| c.common.name.to_lowercase().starts_with(&partial.to_lowercase()))

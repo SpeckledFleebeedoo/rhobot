@@ -148,7 +148,7 @@ pub async fn subscribe_mod(
         .await?;
     ctx.say(format!("Mod {modname} added to subscriptions")).await?;
 
-    let cache = &ctx.data().subscriptioncache;
+    let cache = &ctx.data().mod_subscription_cache;
     let mut w = cache.write().unwrap();
     w.push(
         SubCacheEntry{
@@ -202,7 +202,7 @@ pub async fn subscribe_author(
     let response = format!("Author {author} added to subscriptions");
     ctx.say(response).await?;
 
-    let cache = &ctx.data().subscriptioncache;
+    let cache = &ctx.data().mod_subscription_cache;
     let mut w = cache.write().unwrap();
     w.push(
         SubCacheEntry{
@@ -217,7 +217,7 @@ async fn autocomplete_author(
     ctx: Context<'_>,
     partial: &str,
 ) -> Vec<String> {
-    let cache = &ctx.data().authorcache;
+    let cache = &ctx.data().mod_author_cache;
     let c = cache.read().unwrap();
     c.clone()
         .into_iter()
@@ -255,7 +255,7 @@ async fn autocomplete_unsubscribe(
     partial: &str,
     data_type: AutocompleteType,
 ) -> Vec<String> {
-    let cache = &ctx.data().subscriptioncache;
+    let cache = &ctx.data().mod_subscription_cache;
     let server_id = ctx.guild_id().unwrap().get() as i64;
     let c = cache.read().unwrap();
     match data_type {
@@ -317,7 +317,7 @@ pub async fn find_mod(
     let search_result: String = match ctx {
         poise::Context::Application(_) => modname,
         poise::Context::Prefix(_) => {
-            let cache = &ctx.data().modcache;
+            let cache = &ctx.data().mod_cache;
             let c = cache.read().unwrap().clone();
             let title_list = c.clone()
                 .into_iter()
@@ -381,7 +381,7 @@ async fn autocomplete_modname<'a>(
 
     let mut listed_names: Vec<String> = Vec::new();
 
-    let cache = ctx.data().modcache.clone();
+    let cache = ctx.data().mod_cache.clone();
     let c = cache.read().unwrap().clone();
     let mut list = c.clone().into_iter()
         .filter(move |f| 

@@ -2,7 +2,8 @@ mod mod_commands;
 mod mods;
 mod faq_commands;
 mod fff_commands;
-mod api_commands;
+mod runtime_api;
+mod api_data;
 mod custom_errors;
 mod util;
 
@@ -10,7 +11,6 @@ use clokwerk::{AsyncScheduler, Job};
 use fff_commands::update_fff_channel_description;
 use mods::{get_mod_count, update_database, update_mod_cache, update_sub_cache, update_author_cache, ModCacheEntry, SubCacheEntry};
 use faq_commands::{update_faq_cache, FaqCacheEntry};
-use api_commands::update_api_cache;
 use tokio::time;
 use log::{ error, info};
 use dotenv::dotenv;
@@ -29,11 +29,12 @@ type Context<'a> = poise::Context<'a, Data, Error>;
 // Custom user data passed to all command functions
 pub struct Data {
     database: sqlx::SqlitePool,
-    modcache: Arc<RwLock<Vec<ModCacheEntry>>>,
-    faqcache: Arc<RwLock<Vec<FaqCacheEntry>>>,
-    subscriptioncache: Arc<RwLock<Vec<SubCacheEntry>>>,
-    authorcache: Arc<RwLock<Vec<String>>>,
-    apicache: Arc<RwLock<api_commands::ApiResponse>>,
+    mod_cache: Arc<RwLock<Vec<ModCacheEntry>>>,
+    faq_cache: Arc<RwLock<Vec<FaqCacheEntry>>>,
+    mod_subscription_cache: Arc<RwLock<Vec<SubCacheEntry>>>,
+    mod_author_cache: Arc<RwLock<Vec<String>>>,
+    runtime_api_cache: Arc<RwLock<runtime_api::RuntimeApiResponse>>,
+    data_api_cache: Arc<RwLock<api_data::DataApiResponse>>,
 }
 
 async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
@@ -41,22 +42,23 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
     // They are many errors that can occur, so we only handle the ones we want to customize
     // and forward the rest to the default handler
     match error {
-        poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {:?}", error),
+        poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {error}"),
         poise::FrameworkError::Command { error, ctx, .. } => {
             println!("Error in command `{}`: {:?}", ctx.command().name, error,);
-            let _ = ctx.say(format!("Error while executing command: `{:?}`", error)).await;
+            let _ = ctx.say(format!("Error while executing command: `{error}`")).await;
         }
         poise::FrameworkError::CommandCheckFailed { ctx, .. } => {
             let _ = ctx.say("Error: invalid permissions.").await;
         }
         error => {
             if let Err(e) = poise::builtins::on_error(error).await {
-                println!("Error while handling error: {}", e)
+                println!("Error while handling error: {e}");
             }
         }
     }
 }
 
+#[allow(clippy::too_many_lines)]
 #[tokio::main]
 async fn main() {
 
@@ -86,15 +88,25 @@ async fn main() {
     let authorname_cache = Arc::new(RwLock::new(Vec::new()));
     let authorname_cache_clone = authorname_cache.clone();
     
-    let api = match api_commands::get_runtime_api().await {
+    let runtime_api: runtime_api::RuntimeApiResponse = match runtime_api::get_runtime_api().await {
         Ok(a) => a,
         Err(e) => {
-            error!("Failed to get mods api: {e}");
+            error!("Failed to get modding runtime api: {e}");
             return
         },
     };
-    let api_cache = Arc::new(RwLock::new(api));
-    let api_cache_clone = api_cache.clone();
+    let runtime_api_cache = Arc::new(RwLock::new(runtime_api));
+    let runtime_api_cache_clone = runtime_api_cache.clone();
+
+    let datastage_api: api_data::DataApiResponse = match api_data::get_data_api().await {
+        Ok(a) => a,
+        Err(e) => {
+            error!("Failed to get modding data api: {e}");
+            return
+        },
+    };
+    let data_api_cache = Arc::new(RwLock::new(datastage_api));
+    let data_api_cache_clone = data_api_cache.clone();
 
     // FrameworkOptions contains all of poise's configuration option in one struct
     // Every option can be omitted to use its default value
@@ -113,7 +125,7 @@ async fn main() {
             faq_commands::faq(),
             faq_commands::faq_edit(),
             fff_commands::fff(),
-            api_commands::api(),
+            runtime_api::api(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("+".into()),
@@ -156,11 +168,12 @@ async fn main() {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 Ok(Data {
                     database: db_clone,
-                    modcache: mods_cache_clone,
-                    faqcache: faq_cache_clone,
-                    subscriptioncache: subscription_cache_clone,
-                    authorcache: authorname_cache_clone,
-                    apicache: api_cache_clone,
+                    mod_cache: mods_cache_clone,
+                    faq_cache: faq_cache_clone,
+                    mod_subscription_cache: subscription_cache_clone,
+                    mod_author_cache: authorname_cache_clone,
+                    runtime_api_cache: runtime_api_cache_clone,
+                    data_api_cache: data_api_cache_clone,
                 })
             })
         })
@@ -222,7 +235,7 @@ async fn main() {
                 Ok(_) => info!("Updated subscription cache"),
                 Err(error) => error!("Error while updating author name cache: {error}"),
             };
-            println!("Caches updated")
+            println!("Caches updated");
         };
     });
 
@@ -231,10 +244,14 @@ async fn main() {
     tokio::spawn(async move {
         loop {
             api_update_interval.tick().await;
-            match update_api_cache(api_cache.clone()).await {
+            match runtime_api::update_api_cache(runtime_api_cache.clone()).await {
                 Ok(_) => info!("Updated API cache"),
-                Err(error) => error!("Error while updating api cache: {error}"),
+                Err(error) => error!("Error while updating runtime api cache: {error}"),
             };
+            match api_data::update_api_cache(data_api_cache.clone()).await {
+                Ok(_) => info!("Updated API cache"),
+                Err(error) => error!("Error whille updating data api cache: {error}")
+            }
         };
     });
     
@@ -252,5 +269,5 @@ async fn main() {
         }
     });
 
-    client.unwrap().start().await.unwrap()
+    client.unwrap().start().await.unwrap();
 }

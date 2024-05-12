@@ -43,29 +43,25 @@ pub async fn faq(
     let entry = sqlx::query!(r#"SELECT * FROM faq WHERE title = ?1"#, name)
         .fetch_optional(db)
         .await?;
-    match entry {
-        Some(e) => {
-            let color = Colour::GOLD;
-            let mut embed = CreateEmbed::new()
-                .title(e.title.unwrap())
-                .color(color);
-            if let Some(c) = e.contents {
-                embed = embed.description(c);
-            }
+    if let Some(e) = entry {
+        let color = Colour::GOLD;
+        let mut embed = CreateEmbed::new()
+            .title(e.title.unwrap())
+            .color(color);
+        if let Some(c) = e.contents {
+            embed = embed.description(c);
+        }
 
-            if let Some(i) = e.image {
-                embed = embed.image(i);
-            }
+        if let Some(i) = e.image {
+            embed = embed.image(i);
+        }
 
-            let builder = CreateReply::default().embed(embed);
-            ctx.send(builder).await?;
-        },
-        None => {
-            let response = format!("Requested faq {name} not found");
-            ctx.say(response).await?;
-        },
-    }
-
+        let builder = CreateReply::default().embed(embed);
+        ctx.send(builder).await?;
+    } else {
+        let response = format!("Requested faq {name} not found");
+        ctx.say(response).await?;
+    };
     Ok(())
 }
 
@@ -75,7 +71,7 @@ async fn autocomplete_faq<'a>(
 ) -> Vec<String>{
     println!("Autocompleting mod name");
     let server_id = ctx.guild_id().unwrap().get() as i64;
-    let cache = ctx.data().faqcache.clone();
+    let cache = ctx.data().faq_cache.clone();
     let c = cache.read().unwrap().clone();
     c.iter()
         .filter(|f| f.server_id == server_id && f.name.to_lowercase().starts_with(&partial.to_lowercase()))

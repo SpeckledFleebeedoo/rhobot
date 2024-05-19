@@ -180,49 +180,58 @@ pub struct GlobalObject {
 impl Class {
     pub fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/classes/{}.html", &self.common.name);
-        
-        self.common.create_embed(&url)
+        self.common.create_embed()
+        .author(serenity::CreateEmbedAuthor::new("Class")
+            .url("https://lua-api.factorio.com/latest/classes.html"))
+        .url(url)
     }
 }
 
 impl Event {
     pub fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/events.html#{}", &self.common.name);
-        
-        self.common.create_embed(&url)
+        self.common.create_embed()
+        .author(serenity::CreateEmbedAuthor::new("Event")
+            .url("https://lua-api.factorio.com/latest/events.html"))
+        .url(url)
     }
 }
 
 impl Define {
     pub fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/defines.html#defines.{}", &self.common.name);
-        
-        self.common.create_embed(&url)
+        self.common.create_embed()
+        .author(serenity::CreateEmbedAuthor::new("Define")
+            .url("https://lua-api.factorio.com/latest/defines.html"))
+        .url(url)
     }
 }
 
 impl Concept {
     pub fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/concepts.html#{}", &self.common.name);
-        
-        self.common.create_embed(&url)
+        self.common.create_embed()
+        .author(serenity::CreateEmbedAuthor::new("Concept")
+            .url("https://lua-api.factorio.com/latest/concepts.html"))
+        .url(url)
     }
 }
 
 impl BuiltinType {
     pub fn to_embed(&self) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/builtin-types.html#{}", &self.common.name);
-        
-        self.common.create_embed(&url)
+        self.common.create_embed()
+        .author(serenity::CreateEmbedAuthor::new("Builtin type")
+            .url("https://lua-api.factorio.com/latest/builtin-types.html"))
+        .url(url)
     }
 }
 
 impl BasicMember {
-    pub fn create_embed(&self, url: &str) -> serenity::CreateEmbed {
+    pub fn create_embed(&self) -> serenity::CreateEmbed {
         serenity::CreateEmbed::new()
             .title(&self.name)
             .description(&self.description)
-            .url(url)
             .color(serenity::Colour::GOLD)
     }
 }
@@ -297,7 +306,7 @@ pub async fn get_runtime_api() -> Result<RuntimeApiResponse, Error> {
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, guild_only, subcommands("api_runtime", "api_data"))]
+#[poise::command(prefix_command, slash_command, track_edits, subcommands("api_runtime", "api_data"))]
 pub async fn api(
     _ctx: Context<'_>
 ) -> Result<(), Error> {
@@ -305,7 +314,7 @@ pub async fn api(
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, guild_only, subcommands("api_class", "api_event", "api_define", "api_concept", "api_builtintype"), rename="runtime")]
+#[poise::command(prefix_command, slash_command, track_edits, subcommands("api_class", "api_event", "api_define", "api_concept", "api_builtintype"), rename="runtime")]
 pub async fn api_runtime(
     _ctx: Context<'_>
 ) -> Result<(), Error> {
@@ -313,7 +322,7 @@ pub async fn api_runtime(
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, rename="class")]
+#[poise::command(prefix_command, slash_command, track_edits, rename="class")]
 pub async fn api_class (
     ctx: Context<'_>,
     #[description = "Search term"]
@@ -435,7 +444,7 @@ async fn autocomplete_class_property<'a>(
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, rename="event")]
+#[poise::command(prefix_command, slash_command, track_edits, rename="event")]
 pub async fn api_event (
     ctx: Context<'_>,
     #[description = "Search term"]
@@ -474,7 +483,7 @@ async fn autocomplete_event<'a>(
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, rename="define")]
+#[poise::command(prefix_command, slash_command, track_edits, rename="define")]
 pub async fn api_define (
     ctx: Context<'_>,
     #[description = "Search term"]
@@ -512,7 +521,7 @@ async fn autocomplete_define<'a>(
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, rename="concept")]
+#[poise::command(prefix_command, slash_command, track_edits, rename="concept")]
 pub async fn api_concept (
     ctx: Context<'_>,
     #[description = "Search term"]
@@ -551,7 +560,7 @@ async fn autocomplete_concept<'a>(
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, rename="builtin_type")]
+#[poise::command(prefix_command, slash_command, track_edits, rename="builtin_type")]
 pub async fn api_builtintype (
     ctx: Context<'_>,
     #[description = "Search term"]

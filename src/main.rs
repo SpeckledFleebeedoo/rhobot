@@ -4,6 +4,7 @@ mod faq_commands;
 mod fff_commands;
 mod api_runtime;
 mod api_data;
+mod wiki_commands;
 mod custom_errors;
 mod util;
 
@@ -45,10 +46,12 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
         poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {error}"),
         poise::FrameworkError::Command { error, ctx, .. } => {
             println!("Error in command `{}`: {:?}", ctx.command().name, error,);
-            let _ = ctx.say(format!("Error while executing command: `{error}`")).await;
+            let _ = util::send_custom_error_message(ctx, &format!("{error}")).await;
+            // let _ = ctx.say(format!("Error while executing command: `{error}`")).await;
         }
         poise::FrameworkError::CommandCheckFailed { ctx, .. } => {
-            let _ = ctx.say("Error: invalid permissions.").await;
+            let _ = util::send_custom_error_message(ctx, "invalid permissions").await;
+            // let _ = ctx.say("Error: invalid permissions.").await;
         }
         error => {
             if let Err(e) = poise::builtins::on_error(error).await {
@@ -126,6 +129,7 @@ async fn main() {
             faq_commands::faq_edit(),
             fff_commands::fff(),
             api_runtime::api(),
+            wiki_commands::wiki(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("+".into()),
@@ -202,7 +206,7 @@ async fn main() {
     }
     
     let db_clone_2 = db.clone();
-    let mut mod_update_interval = time::interval(time::Duration::from_secs(60));
+    let mut mod_update_interval = time::interval(time::Duration::from_secs(60));    // Update every minute
     tokio::spawn(async move {
         loop {
             mod_update_interval.tick().await;
@@ -215,7 +219,7 @@ async fn main() {
         }
     });
 
-    let mut cache_update_interval = time::interval(time::Duration::from_secs(5*60));
+    let mut cache_update_interval = time::interval(time::Duration::from_secs(5*60));    // Update every 5 minutes
     tokio::spawn(async move {
         loop {
             cache_update_interval.tick().await;
@@ -239,7 +243,7 @@ async fn main() {
         };
     });
 
-    let mut api_update_interval = time::interval(time::Duration::from_secs(60*60*24));
+    let mut api_update_interval = time::interval(time::Duration::from_secs(60*60*24));  // Update once per day
     api_update_interval.tick().await;   // First tick happens instantly
     tokio::spawn(async move {
         loop {

@@ -2,7 +2,7 @@ use poise::serenity_prelude::{AutocompleteChoice, CreateEmbed, Colour};
 use poise::CreateReply;
 use rust_fuzzy_search::fuzzy_search_best_n;
 
-use crate::{Context, Error};
+use crate::{util, Context, Error};
 use crate::util::{escape_formatting, get_subscribed_authors, get_subscribed_mods, is_mod};
 use crate::mods::{self, ModCacheEntry, SubCacheEntry, SubscriptionType};
 
@@ -337,19 +337,27 @@ pub async fn find_mod(
             found_name[0].name.clone()
         },
     };
-    println!("Finding mod: {search_result}");
     let db = &ctx.data().database;
 
-    let mod_data = sqlx::query!(r#"SELECT * FROM mods WHERE name = ?1"#, search_result)
+    let mod_data =  match sqlx::query!(r#"SELECT * FROM mods WHERE name = ?1"#, search_result)
         .fetch_one(db)
-        .await?;
+        .await {
+            Ok(m) => m,
+            Err(_) => {
+                util::send_custom_error_message(ctx, "Failed to find mod in database").await?;
+                return Ok(());
+            },
+        };
 
     let name = mod_data.name.unwrap();
     let mut title = escape_formatting(mod_data.title.unwrap_or_else(|| name.clone())).await;
     title.truncate(256);
     let thumbnail = match mods::get_mod_thumbnail(&name).await {
         Ok(t) => t,
-        Err(e) => panic!("Error getting mod thumbnail: {e}") // TODO: Replace with return error
+        Err(e) => {
+            util::send_custom_error_message(ctx, &format!("Error getting mod thumbnail: {e}")).await?;
+            "/assets/.thumb.png".to_owned()
+        },
     };
     let url = format!("https://mods.factorio.com/mod/{name}")
         .replace(' ', "%20");
@@ -368,11 +376,7 @@ pub async fn find_mod(
         .field("Downloads", &downloads, true)
         .thumbnail(&thumbnail);
     let builder = CreateReply::default().embed(embed);
-    match ctx.send(builder).await {
-        Ok(_) => {},
-        Err(e) => println!("Error sending message: {e}"),
-    };
-
+    ctx.send(builder).await?;
     Ok(())
 }
 

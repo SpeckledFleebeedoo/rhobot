@@ -110,26 +110,31 @@ pub enum ComplexType {
 }
 
 impl BasicMember {
-    pub fn create_embed(&self, url: &str) -> serenity::CreateEmbed {
+    pub fn create_embed(&self) -> serenity::CreateEmbed {
         serenity::CreateEmbed::new()
             .title(&self.name)
             .description(&self.description)
-            .url(url)
             .color(serenity::Colour::GOLD)
     }
 }
 
 impl Prototype {
     pub fn to_embed(&self) -> serenity::CreateEmbed {
-        let url = format!("https://lua-api.factorio.com/latest/defines.html#defines.{}", &self.common.name);
-        self.common.create_embed(&url)
+        let url = format!("https://lua-api.factorio.com/latest/prototypes/{}.html", &self.common.name);
+        self.common.create_embed()
+        .author(serenity::CreateEmbedAuthor::new("Prototype")
+            .url("https://lua-api.factorio.com/latest/prototypes.html"))
+        .url(url)
     }
 }
 
 impl DataStageType {
     pub fn to_embed(&self) -> serenity::CreateEmbed {
-        let url = format!("https://lua-api.factorio.com/latest/defines.html#defines.{}", &self.common.name);
-        self.common.create_embed(&url)
+        let url = format!("https://lua-api.factorio.com/latest/types/{}.html", &self.common.name);
+        self.common.create_embed()
+        .author(serenity::CreateEmbedAuthor::new("Type")
+            .url("https://lua-api.factorio.com/latest/types.html"))
+        .url(url)
     }
 }
 
@@ -174,7 +179,7 @@ impl fmt::Display for ComplexType {
 pub async fn update_api_cache(
     cache: Arc<RwLock<DataApiResponse>>,
 ) -> Result<(), Error> {
-    println!("Updating data API cache");
+    println!("Updating data stage API cache");
     {
     let new_data_api = get_data_api().await?;
     let mut c = cache.write().unwrap();
@@ -193,7 +198,7 @@ pub async fn get_data_api() -> Result<DataApiResponse, Error> {
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, guild_only, subcommands("api_prototype", "api_type"), rename="data")]
+#[poise::command(prefix_command, slash_command, track_edits, subcommands("api_prototype", "api_type"), rename="data")]
 pub async fn api_data(
     _ctx: Context<'_>
 ) -> Result<(), Error> {
@@ -201,7 +206,7 @@ pub async fn api_data(
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, rename="prototype")]
+#[poise::command(prefix_command, slash_command, track_edits, rename="prototype")]
 pub async fn api_prototype (
     ctx: Context<'_>,
     #[description = "Search term"]
@@ -219,7 +224,7 @@ pub async fn api_prototype (
     let Some(search_result) = api.prototypes.iter()
         .find(|p| prototype_search.eq_ignore_ascii_case(&p.common.name)) 
     else {
-        util::send_custom_error_message(ctx, "Could not find specified prototype in data API documentation").await?;
+        util::send_custom_error_message(ctx, "Could not find specified prototype in data stage API documentation").await?;
         return Ok(());
     };
     let mut embed = search_result.to_embed();
@@ -283,7 +288,7 @@ async fn autocomplete_prototype_property<'a>(
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, rename="type")]
+#[poise::command(prefix_command, slash_command, track_edits, rename="type")]
 pub async fn api_type (
     ctx: Context<'_>,
     #[description = "Search term"]
@@ -300,7 +305,7 @@ pub async fn api_type (
     let Some(search_result) = api.types.iter()
         .find(|t| type_search.eq_ignore_ascii_case(&t.common.name)) 
         else {
-            util::send_custom_error_message(ctx, "Could not find specified type in data API documentation").await?;
+            util::send_custom_error_message(ctx, "Could not find specified type in data stage API documentation").await?;
             return Ok(());
         };
 

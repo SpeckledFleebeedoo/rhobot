@@ -5,8 +5,7 @@ use scraper::{Html, Selector};
 use chrono::{DateTime, Datelike, TimeZone, Timelike};
 use chrono_tz::{Europe::Prague, Tz};
 use log::{error, info};
-use crate::{Context, Error};
-use crate::custom_errors::CustomError;
+use crate::{Context, Error, custom_errors::CustomError, util};
 
 #[derive(Debug)]
 struct FFFData {
@@ -64,22 +63,30 @@ async fn get_fff_data(number: i32) -> Result<FFFData, Error> {
 }
 
 /// Link an FFF
-#[poise::command(prefix_command, slash_command, guild_only)]
+#[poise::command(prefix_command, slash_command, track_edits)]
 pub async fn fff(
     ctx: Context<'_>,
     #[description = "Number of the FFF"]
     number: i32,
 ) -> Result<(), Error> {
-    let fff_data = get_fff_data(number).await?;
-    let embed = CreateEmbed::new()
-        .title(fff_data.title.unwrap_or(String::from("")))
-        .url(fff_data.url)
-        .description(fff_data.description.unwrap_or(String::from("")))
-        .thumbnail(fff_data.image.unwrap_or(String::from("")))
-        .color(Colour::ORANGE);
-    let builder = CreateReply::default().embed(embed);
-    ctx.send(builder).await?;
-    Ok(())
+    // if let Ok(fff_data) = get_fff_data(number).await {
+    match get_fff_data(number).await {
+        Ok(fff_data) => {
+            let embed = CreateEmbed::new()
+                .title(fff_data.title.unwrap_or(String::from("")))
+                .url(fff_data.url)
+                .description(fff_data.description.unwrap_or(String::from("")))
+                .thumbnail(fff_data.image.unwrap_or(String::from("")))
+                .color(Colour::ORANGE);
+            let builder = CreateReply::default().embed(embed);
+            ctx.send(builder).await?;
+            Ok(())
+        },
+        Err(e) => {
+            util::send_custom_error_message(ctx, &e.to_string()).await?;
+            Ok(())
+        },
+    }
 }
 
 pub async fn update_fff_channel_description(cache_http: Arc<Http>) {

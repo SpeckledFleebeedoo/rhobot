@@ -672,6 +672,7 @@ dependencies = [
  "dotenv",
  "env_logger",
  "log",
+ "parse_wiki_text",
  "poise",
  "reqwest",
  "rust-fuzzy-search",
@@ -1527,6 +1528,12 @@ checksum = "c705f256449c60da65e11ff6626e0c16a0a0b96aaa348de61376b249bc340f41"
 dependencies = [
  "regex",
 ]
+
+[[package]]
+name = "parse_wiki_text"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd59a245c58efa02bd73c9462fd9d4c28952d650092c6bcba43b60b4707171dd"
 
 [[package]]
 name = "paste"

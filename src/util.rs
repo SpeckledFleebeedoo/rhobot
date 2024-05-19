@@ -179,12 +179,11 @@ pub async fn on_guild_leave(id: serenity::GuildId, db: Pool<Sqlite>) -> Result<(
 }
 pub async fn send_custom_error_message(ctx: Context<'_>, msg: &str) -> Result<(), Error> {
     let embed = serenity::CreateEmbed::new()
-        .title("Error while executing command:")
+        .title(format!("Error while executing command {}:", ctx.command().name))
         .description(msg)
         .color(serenity::Colour::RED);
     let builder = CreateReply::default()
         .embed(embed);
     ctx.send(builder).await?;
-        
     Ok(())
 }

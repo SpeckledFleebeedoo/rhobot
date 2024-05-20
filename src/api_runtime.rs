@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use poise::serenity_prelude as serenity;
 use poise::reply::CreateReply;
 use std::{fmt, sync::{Arc, RwLock}};
+use log::error;
 
 use crate::{Context, Error, util, custom_errors::CustomError, api_data::api_data};
 
@@ -289,7 +290,12 @@ pub async fn update_api_cache(
     println!("Updating API cache");
     {
     let new_runtime_api = get_runtime_api().await?;
-    let mut c = cache.write().unwrap();
+    let mut c = match cache.write() {
+        Ok(c) => c,
+        Err(e) => {
+            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+        },
+    };
     *c = new_runtime_api;
     }
     Ok(())
@@ -336,7 +342,12 @@ pub async fn api_class (
 ) -> Result<(), Error> {
 
     let cache = ctx.data().runtime_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read() {
+        Ok(c) => c,
+        Err(e) => {
+            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+        },
+    }.clone();
     let Some(search_result) = api.classes.iter()
         .find(|class| class_search.eq_ignore_ascii_case(&class.common.name)) 
     else {
@@ -406,7 +417,13 @@ async fn autocomplete_class<'a>(
     partial: &'a str,
 ) -> Vec<String>{
     let cache = ctx.data().runtime_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read(){
+        Ok(c) => c,
+        Err(e) => {
+            error!{"Error acquiring cache: {e}"}
+            return vec![]
+        },
+    }.clone();
     api.classes.iter()
         .filter(|c| c.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
         .map(|c| c.common.name.clone())
@@ -429,7 +446,13 @@ async fn autocomplete_class_property<'a>(
         return vec![];   // Happens when property field is used before class field
     }
     let cache = ctx.data().runtime_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read(){
+        Ok(c) => c,
+        Err(e) => {
+            error!{"Error acquiring cache: {e}"}
+            return vec![]
+        },
+    }.clone();
     let Some(class) = api.classes.iter()
         .find(|c| c.common.name == classname)
     else {return vec![]};    // Happens when invalid class is used
@@ -454,7 +477,12 @@ pub async fn api_event (
 ) -> Result<(), Error> {
 
     let cache = ctx.data().runtime_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read() {
+        Ok(c) => c,
+        Err(e) => {
+            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+        },
+    }.clone();
 
     let Some(search_result) = api.events.iter()
         .find(|event| event_search.eq_ignore_ascii_case(&event.common.name)) 
@@ -475,7 +503,13 @@ async fn autocomplete_event<'a>(
     partial: &'a str,
 ) -> Vec<String>{
     let cache = ctx.data().runtime_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read(){
+        Ok(c) => c,
+        Err(e) => {
+            error!{"Error acquiring cache: {e}"}
+            return vec![]
+        },
+    }.clone();
     api.events.iter()
         .filter(|c| c.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
         .map(|c| c.common.name.clone())
@@ -493,7 +527,12 @@ pub async fn api_define (
 ) -> Result<(), Error> {
 
     let cache = ctx.data().runtime_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read() {
+        Ok(c) => c,
+        Err(e) => {
+            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+        },
+    }.clone();
 
     let Some(search_result) = api.defines.iter()
         .find(|define| define_search.eq_ignore_ascii_case(&define.common.name)) 
@@ -513,7 +552,13 @@ async fn autocomplete_define<'a>(
     partial: &'a str,
 ) -> Vec<String>{
     let cache = ctx.data().runtime_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read(){
+        Ok(c) => c,
+        Err(e) => {
+            error!{"Error acquiring cache: {e}"}
+            return vec![]
+        },
+    }.clone();
     api.defines.iter()
         .filter(|c| c.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
         .map(|c| c.common.name.clone())
@@ -531,7 +576,12 @@ pub async fn api_concept (
 ) -> Result<(), Error> {
 
     let cache = ctx.data().runtime_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read() {
+        Ok(c) => c,
+        Err(e) => {
+            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+        },
+    }.clone();
 
     let Some(search_result) = api.concepts.iter()
         .find(|concept| concept_search.eq_ignore_ascii_case(&concept.common.name)) 
@@ -552,7 +602,13 @@ async fn autocomplete_concept<'a>(
     partial: &'a str,
 ) -> Vec<String>{
     let cache = ctx.data().runtime_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read(){
+        Ok(c) => c,
+        Err(e) => {
+            error!{"Error acquiring cache: {e}"}
+            return vec![]
+        },
+    }.clone();
     api.concepts.iter()
         .filter(|c| c.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
         .map(|c| c.common.name.clone())
@@ -570,7 +626,12 @@ pub async fn api_builtintype (
 ) -> Result<(), Error> {
 
     let cache = ctx.data().runtime_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read() {
+        Ok(c) => c,
+        Err(e) => {
+            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+        },
+    }.clone();
 
     let Some(search_result) = api.builtin_types.iter()
         .find(|builtin_type| builtintype_search.eq_ignore_ascii_case(&builtin_type.common.name)) 
@@ -590,7 +651,13 @@ async fn autocomplete_builtintype<'a> (
     partial: &'a str,
 ) -> Vec<String>{
     let cache = ctx.data().runtime_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read(){
+        Ok(c) => c,
+        Err(e) => {
+            error!{"Error acquiring cache: {e}"}
+            return vec![]
+        },
+    }.clone();
     api.builtin_types.iter()
         .filter(|c| c.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
         .map(|c| c.common.name.clone())

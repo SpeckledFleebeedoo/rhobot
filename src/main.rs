@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 mod mod_commands;
 mod mods;
 mod faq_commands;
@@ -61,7 +63,7 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
     }
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, clippy::unreadable_literal)]
 #[tokio::main]
 async fn main() {
 
@@ -200,7 +202,7 @@ async fn main() {
         println!("Start initializing mod database");
         let result = update_database(db.clone(), &http_clone, true).await;
         match result {
-            Ok(_) => info!{"Initialized mod database"},
+            Ok(()) => info!{"Initialized mod database"},
             Err(error) => error!("Error while updating mod database: {error}")
         }
     }
@@ -213,7 +215,7 @@ async fn main() {
             println!("Start updating mod database");
             let result = update_database(db_clone_2.clone(), &http_clone, false).await;
             match result {
-                Ok(_) => info!{"Updated mod database"},
+                Ok(()) => info!{"Updated mod database"},
                 Err(error) => error!("Error while updating mod database: {error}")
             }
         }
@@ -249,11 +251,11 @@ async fn main() {
         loop {
             api_update_interval.tick().await;
             match api_runtime::update_api_cache(runtime_api_cache.clone()).await {
-                Ok(_) => info!("Updated API cache"),
+                Ok(()) => info!("Updated API cache"),
                 Err(error) => error!("Error while updating runtime api cache: {error}"),
             };
             match api_data::update_api_cache(data_api_cache.clone()).await {
-                Ok(_) => info!("Updated API cache"),
+                Ok(()) => info!("Updated API cache"),
                 Err(error) => error!("Error whille updating data api cache: {error}")
             }
         };

@@ -2,15 +2,22 @@ use std::iter::once;
 use poise::serenity_prelude as serenity;
 use poise::reply::CreateReply;
 use sqlx::{Pool, Sqlite};
-use crate::{Context, Error};
+use crate::{Context, Error, custom_errors::CustomError};
 
+#[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 pub async fn is_mod(ctx: Context<'_>) -> Result<bool, Error> {
-    let user_permissions = ctx.author_member().await.unwrap().permissions(ctx.cache())?;
+    let user_permissions = match ctx.author_member().await{
+        Some(p) => p.permissions(ctx.cache())?,
+        None => serenity::Permissions::empty(), // Assume user has no permissions
+    };
     if user_permissions.contains(serenity::Permissions::ADMINISTRATOR) {
         return Ok(true);
     };
     let db = &ctx.data().database;
-    let server_id = ctx.guild_id().unwrap().get() as i64;
+    let Some(server) = ctx.guild_id() else {
+        return Err(Box::new(CustomError::new("Could not get server ID")))
+    };
+    let server_id = server.get() as i64;
     let modrole = match sqlx::query!(r#"SELECT modrole FROM servers WHERE server_id = ?1"#, server_id)
         .fetch_one(db)
         .await {
@@ -24,7 +31,7 @@ pub async fn is_mod(ctx: Context<'_>) -> Result<bool, Error> {
                 return Ok(false)
             },
         };
-    let has_role = ctx.author().has_role(ctx.http(), ctx.guild_id().unwrap(), serenity::RoleId::from(modrole as u64)).await?;
+    let has_role = ctx.author().has_role(ctx.http(), server, serenity::RoleId::from(modrole as u64)).await?;
     Ok(has_role)
 }
 
@@ -51,7 +58,7 @@ pub async fn get_subscribed_mods(db: &Pool<Sqlite>, server_id: i64) -> Result<Ve
         .fetch_all(db)
         .await?
         .into_iter()
-        .map(|m| m.mod_name.unwrap())
+        .filter_map(|m| m.mod_name)
         .collect::<Vec<String>>();
     Ok(subscribed_mods)
 }
@@ -60,17 +67,22 @@ pub async fn get_subscribed_authors(db: &Pool<Sqlite>, server_id: i64) -> Result
         .fetch_all(db)
         .await?
         .into_iter()
-        .map(|m| m.author_name.unwrap())
+        .filter_map(|m| m.author_name)
         .collect::<Vec<String>>();
     Ok(subscribed_authors)
 }
 
 /// Show stored information about this server
+#[allow(clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only, ephemeral, category="Settings")]
 pub async fn get_server_info(
     ctx: Context<'_>
 ) -> Result<(), Error> {
-    let server_id = ctx.guild_id().unwrap().get() as i64;
+    let Some(server) = ctx.guild_id() else {
+        return Err(Box::new(CustomError::new("Could not get server ID")))
+    };
+    let server_id = server.get() as i64;
+    
     let db = &ctx.data().database;
     let serverdata = sqlx::query!(r#"SELECT * FROM servers WHERE server_id = ?1"#, server_id)
         .fetch_optional(db)
@@ -102,20 +114,22 @@ pub async fn help(
     poise::builtins::help(
         ctx,
         command.as_deref(),
-        poise::builtins::HelpConfiguration {
-            ..Default::default()
-        },
+        poise::builtins::HelpConfiguration::default(),
     )
     .await?;
     Ok(())
 }
 
 /// Remove all stored data for this server, resetting all settings.
+#[allow(clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only, category="Settings", check="is_mod")]
 pub async fn reset_server_settings(
     ctx: Context<'_>
 ) -> Result<(), Error> {
-    let server_id = ctx.guild_id().unwrap().get() as i64;
+    let Some(server) = ctx.guild_id() else {
+        return Err(Box::new(CustomError::new("Could not get server ID")))
+    };
+    let server_id = server.get() as i64;
     let db = &ctx.data().database;
     sqlx::query!(r#"DELETE FROM servers WHERE server_id = ?1"#, server_id)
         .execute(db)
@@ -160,6 +174,7 @@ pub async fn reset_server_settings(
 //     Ok(())
 // }
 
+#[allow(clippy::cast_possible_wrap)]
 pub async fn on_guild_leave(id: serenity::GuildId, db: Pool<Sqlite>) -> Result<(), Error> {
     let server_id = id.get() as i64;
     sqlx::query!(r#"DELETE FROM servers WHERE server_id = ?1"#, server_id)

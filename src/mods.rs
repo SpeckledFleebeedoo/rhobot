@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use serenity::all::{Colour, CreateEmbed, CreateMessage};
 use sqlx::{Pool, Sqlite};
 use std::{fmt, sync::{Arc, RwLock}};
+use log::error;
 
 use crate::Error;
 use crate::custom_errors::CustomError;
@@ -92,6 +93,7 @@ pub enum ModState{
     New,
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub async fn get_mods(page: i32, initializing: bool) -> Result<ApiResponse, Error> {
 
     let url = if initializing {     // Load entire database at once during initialization, use pagination when updating.
@@ -195,6 +197,7 @@ struct Server {
     show_changelog: bool,
 }
 
+#[allow(clippy::cast_sign_loss)]
 async fn send_mod_update(
         updated_mod: UpdatedMod, 
         db: Pool<Sqlite>, 
@@ -205,12 +208,22 @@ async fn send_mod_update(
         .fetch_all(&db)
         .await?
         .into_iter()
-        .map(|s| Server{
-            id: s.server_id.unwrap(),
-            updates_channel: s.updates_channel,
-            show_changelog: s.show_changelog.unwrap_or(true)})
-        .collect::<Vec<Server>>();
-    for server in server_data {
+        .map(|s| { 
+            Ok(Server{
+                id: s.server_id.ok_or_else(|| Box::new(CustomError::new("Invalid server ID encountered")))?,
+                updates_channel: s.updates_channel,
+                show_changelog: s.show_changelog.unwrap_or(true),
+            })
+        })
+        .collect::<Vec<Result<Server, Error>>>();
+    for server_res in server_data {
+        let server = match server_res {
+            Ok(s) => s,
+            Err(e) => {
+                error!{"Error sending update message: {e}"};
+                continue;
+            },
+        };
         let subscribed_mods = get_subscribed_mods(&db, server.id).await?;
         let subscribed_authors = get_subscribed_authors(&db, server.id).await?;
 
@@ -299,13 +312,13 @@ pub async fn get_mod_changelog(name: &String, lines: Option<i32>) -> Result<Stri
                     break;
                 } else if l.starts_with("    ") {
                     out.push_str(&escape_formatting(
-                        l.strip_prefix("    ").unwrap().to_owned()).await
+                        l.strip_prefix("    ").unwrap_or(l).to_owned()).await
                     );
                     out.push('\n');
                 } else if l.starts_with("  ") {
                     out.push_str("**");
                     out.push_str(&escape_formatting(
-                        l.strip_prefix("  ").unwrap().to_owned()).await
+                        l.strip_prefix("  ").unwrap_or(l).to_owned()).await
                     );
                     out.push_str("**\n");
                 };
@@ -322,6 +335,7 @@ pub async fn get_mod_changelog(name: &String, lines: Option<i32>) -> Result<Stri
     }
 }
 
+#[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
 pub async fn get_mod_count(db: Pool<Sqlite>) -> i32 {
     let record = sqlx::query!(r#"SELECT name FROM mods"#)
         .fetch_all(&db)
@@ -357,17 +371,21 @@ pub async fn update_mod_cache(
         .fetch_all(&db)
         .await?
         .iter()
-        .map(|rec| {
-            ModCacheEntry{
-                name: rec.name.clone().unwrap(),
+        .filter_map(|rec| {
+            Some(ModCacheEntry{
+                name: rec.name.clone()?,    // Silently discards any None values
                 title: rec.title.clone().unwrap_or_default(),
                 author: rec.owner.clone().unwrap_or_default(),
                 downloads_count: rec.downloads_count.unwrap_or_default(),
-            }
+            })
         })
         .collect::<Vec<ModCacheEntry>>();
-    let mut w = cache.write().unwrap();
-    *w = records;
+    match cache.write() {
+        Ok(mut c) => *c = records,
+        Err(e) => {
+            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+        },
+    };
     Ok(())
 }
 
@@ -379,28 +397,32 @@ pub async fn update_sub_cache(
         .fetch_all(&db)
         .await?
         .iter()
-        .map(|rec| {
-            SubCacheEntry{
-                server_id: rec.server_id.unwrap(),
-                subscription: SubscriptionType::Modname(rec.mod_name.clone().unwrap())
-            }
+        .filter_map(|rec| {
+            Some(SubCacheEntry{
+                server_id: rec.server_id?,
+                subscription: SubscriptionType::Modname(rec.mod_name.clone()?)
+            })
         })
         .chain(
             sqlx::query!(r#"SELECT * FROM subscribed_authors"#)
                 .fetch_all(&db)
                 .await?
                 .iter()
-                .map(|rec| {
-                    SubCacheEntry{
-                        server_id: rec.server_id.unwrap(),
-                        subscription: SubscriptionType::Author(rec.author_name.clone().unwrap())
-                    }
+                .filter_map(|rec| {
+                    Some(SubCacheEntry{
+                        server_id: rec.server_id?,
+                        subscription: SubscriptionType::Author(rec.author_name.clone()?)
+                    })
                 })
         )
         .collect::<Vec<SubCacheEntry>>();
 
-    let mut w = cache.write().unwrap();
-    *w = mod_records;
+    match cache.write() {
+        Ok(mut c) => *c = mod_records,
+        Err(e) => {
+            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+        },
+    };
 
     Ok(())
 }
@@ -413,12 +435,16 @@ pub async fn update_author_cache(
         .fetch_all(&db)
         .await?
         .iter()
-        .map(|rec| rec.owner.clone().unwrap())
+        .filter_map(|rec| rec.owner.clone())
         .collect::<Vec<String>>();
     author_records.sort_unstable();
     author_records.dedup();
     
-    let mut w = cache.write().unwrap();
-    *w = author_records;
+    match cache.write() {
+        Ok(mut c) => *c = author_records,
+        Err(e) => {
+            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+        },
+    };
     Ok(())
 }

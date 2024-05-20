@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use poise::serenity_prelude as serenity;
 use poise::reply::CreateReply;
 use std::{fmt, sync::{Arc, RwLock}};
+use log::error;
 
 use crate::{custom_errors::CustomError, util, Context, Error};
 
@@ -180,11 +181,13 @@ pub async fn update_api_cache(
     cache: Arc<RwLock<DataApiResponse>>,
 ) -> Result<(), Error> {
     println!("Updating data stage API cache");
-    {
     let new_data_api = get_data_api().await?;
-    let mut c = cache.write().unwrap();
-    *c = new_data_api;
-    }
+    match cache.write() {
+        Ok(mut c) => *c = new_data_api,
+        Err(e) => {
+            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+        },
+    };
     Ok(())
 }
 
@@ -219,7 +222,12 @@ pub async fn api_prototype (
     property_search: Option<String>,
 ) -> Result<(), Error> {
     let cache = ctx.data().data_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read() {
+        Ok(c) => c,
+        Err(e) => {
+            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+        },
+    }.clone();
     
     let Some(search_result) = api.prototypes.iter()
         .find(|p| prototype_search.eq_ignore_ascii_case(&p.common.name)) 
@@ -251,7 +259,13 @@ async fn autocomplete_prototype<'a>(
     partial: &'a str,
 ) -> Vec<String>{
     let cache = ctx.data().data_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read(){
+        Ok(c) => c,
+        Err(e) => {
+            error!{"Error acquiring cache: {e}"}
+            return vec![]
+        },
+    }.clone();
     api.prototypes.iter()
         .filter(|p| p.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
         .map(|p| p.common.name.clone())
@@ -274,7 +288,13 @@ async fn autocomplete_prototype_property<'a>(
         return vec![];   // Happens when property field is used before class field
     }
     let cache = ctx.data().data_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read(){
+        Ok(c) => c,
+        Err(e) => {
+            error!{"Error acquiring cache: {e}"}
+            return vec![]
+        },
+    }.clone();
 
     let Some(prototype) = api.prototypes.iter()
         .find(|p| p.common.name == prototype_name) 
@@ -301,7 +321,12 @@ pub async fn api_type (
     property_search: Option<String>,
 ) -> Result<(), Error> {
     let cache = ctx.data().data_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read(){
+        Ok(c) => c,
+        Err(e) => {
+            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+        },
+    }.clone();
     let Some(search_result) = api.types.iter()
         .find(|t| type_search.eq_ignore_ascii_case(&t.common.name)) 
         else {
@@ -335,7 +360,13 @@ async fn autocomplete_type<'a>(
     partial: &'a str,
 ) -> Vec<String>{
     let cache = ctx.data().data_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read(){
+        Ok(c) => c,
+        Err(e) => {
+            error!{"Error acquiring cache: {e}"}
+            return vec![]
+        },
+    }.clone();
     api.types.iter()
         .filter(|p| p.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
         .map(|p| p.common.name.clone())
@@ -358,7 +389,13 @@ async fn autocomplete_type_property<'a>(
         return vec![];   // Happens when property field is used before class field
     }
     let cache = ctx.data().data_api_cache.clone();
-    let api = cache.read().unwrap().clone();
+    let api = match cache.read(){
+        Ok(c) => c,
+        Err(e) => {
+            error!{"Error acquiring cache: {e}"}
+            return vec![]
+        },
+    }.clone();
 
     let Some(datatype) = api.types.iter()
         .find(|p| p.common.name == type_name) 

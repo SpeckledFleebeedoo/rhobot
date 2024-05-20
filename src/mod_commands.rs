@@ -1,10 +1,12 @@
 use poise::serenity_prelude::{AutocompleteChoice, CreateEmbed, Colour};
 use poise::CreateReply;
 use rust_fuzzy_search::fuzzy_search_best_n;
+use log::error;
 
-use crate::{util, Context, Error};
-use crate::util::{escape_formatting, get_subscribed_authors, get_subscribed_mods, is_mod};
-use crate::mods::{self, ModCacheEntry, SubCacheEntry, SubscriptionType};
+use crate::{Context, Error, custom_errors::CustomError,
+    util::{self, escape_formatting, get_subscribed_authors, get_subscribed_mods, is_mod},
+    mods::{self, ModCacheEntry, SubCacheEntry, SubscriptionType}
+};
 
 enum AutocompleteType{
     Mod,
@@ -12,6 +14,7 @@ enum AutocompleteType{
 }
 
 /// Set the channel to send mod update messages to. Bot will not work without one.
+#[allow(clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only, check="is_mod", category="Settings")]
 pub async fn set_updates_channel(
     ctx: Context<'_>,
@@ -45,6 +48,7 @@ pub async fn set_updates_channel(
 }
 
 /// Set which role is allowed to edit bot settings. Admins can always edit settings.
+#[allow(clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only, check="is_mod", category="Settings")]
 pub async fn set_modrole(
     ctx: Context<'_>,
@@ -78,12 +82,16 @@ pub async fn set_modrole(
 }
 
 /// Turn showing changelogs in update feed on or off
+#[allow(clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only, check="is_mod", category="Settings")]
 pub async fn show_changelogs(
     ctx: Context<'_>,
     show_changelogs: bool,
 ) -> Result<(), Error> {
-    let server_id = ctx.guild_id().unwrap().get() as i64;
+    let Some(server) = ctx.guild_id() else {
+        return Err(Box::new(CustomError::new("Could not get server ID")))
+    };
+    let server_id = server.get() as i64;
     let db = &ctx.data().database;
     match sqlx::query!(r#"SELECT server_id FROM servers WHERE server_id = ?1"#, server_id)
             .fetch_optional(db)
@@ -127,7 +135,7 @@ pub async fn subscribe(
 }
 
 /// Subscribe to a mod
-#[allow(clippy::unused_async)]
+#[allow(clippy::unused_async, clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only, check="is_mod", rename="mod")]
 pub async fn subscribe_mod(
     ctx: Context<'_>,
@@ -135,7 +143,10 @@ pub async fn subscribe_mod(
     #[autocomplete = "autocomplete_modname"]
     modname: String,
 ) -> Result<(), Error> {
-    let server_id = ctx.guild_id().unwrap().get() as i64;
+    let Some(server) = ctx.guild_id() else {
+        return Err(Box::new(CustomError::new("Could not get server ID")))
+    };
+    let server_id = server.get() as i64;
     let db = &ctx.data().database;
 
     sqlx::query!(r#"INSERT OR REPLACE INTO subscribed_mods (server_id, mod_name) VALUES (?1, ?2)"#, server_id, modname)
@@ -144,19 +155,23 @@ pub async fn subscribe_mod(
     ctx.say(format!("Mod {modname} added to subscriptions")).await?;
 
     let cache = &ctx.data().mod_subscription_cache;
-    let mut w = cache.write().unwrap();
-    w.push(
-        SubCacheEntry{
-            server_id,
-            subscription: SubscriptionType::Modname(modname),
+    match cache.write() {
+        Ok(mut c) => c.push(
+            SubCacheEntry{
+                server_id,
+                subscription: SubscriptionType::Modname(modname),
+            }
+        ),
+        Err(e) => {
+            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
         }
-    );
+    }
     Ok(())
 }
 
 
 /// Unsubscribe from a mod
-#[allow(clippy::unused_async)]
+#[allow(clippy::unused_async, clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only, check="is_mod", rename="mod")]
 pub async fn unsubscribe_mod(
     ctx: Context<'_>,
@@ -164,7 +179,10 @@ pub async fn unsubscribe_mod(
     #[autocomplete = "autocomplete_subscribed_modname"]
     modname: String,
 ) -> Result<(), Error> {
-    let server_id = ctx.guild_id().unwrap().get() as i64;
+    let Some(server) = ctx.guild_id() else {
+        return Err(Box::new(CustomError::new("Could not get server ID")))
+    };
+    let server_id = server.get() as i64;
     let db = &ctx.data().database;
     sqlx::query!(r#"DELETE FROM subscribed_mods WHERE server_id = ?1 AND mod_name = ?2"#, server_id, modname)
         .execute(db)
@@ -183,7 +201,7 @@ async fn autocomplete_subscribed_modname(
 }
 
 /// Subscribe to a mod author
-#[allow(clippy::unused_async)]
+#[allow(clippy::unused_async, clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only, check="is_mod", rename="author")]
 pub async fn subscribe_author(
     ctx: Context<'_>,
@@ -191,7 +209,10 @@ pub async fn subscribe_author(
     #[autocomplete = "autocomplete_author"]
     author: String,
 ) -> Result<(), Error> {
-    let server_id = ctx.guild_id().unwrap().get() as i64;
+    let Some(server) = ctx.guild_id() else {
+        return Err(Box::new(CustomError::new("Could not get server ID")))
+    };
+    let server_id = server.get() as i64;
     let db = &ctx.data().database;
 
     sqlx::query!(r#"INSERT OR REPLACE INTO subscribed_authors (server_id, author_name) VALUES (?1, ?2)"#, server_id, author)
@@ -201,13 +222,17 @@ pub async fn subscribe_author(
     ctx.say(response).await?;
 
     let cache = &ctx.data().mod_subscription_cache;
-    let mut w = cache.write().unwrap();
-    w.push(
-        SubCacheEntry{
-            server_id,
-            subscription: SubscriptionType::Author(author),
+    match cache.write() {
+        Ok(mut c) => c.push(
+            SubCacheEntry{
+                server_id,
+                subscription: SubscriptionType::Author(author),
+            }
+        ),
+        Err(e) => {
+            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
         }
-    );
+    }
     Ok(())
 }
 
@@ -217,15 +242,20 @@ async fn autocomplete_author(
     partial: &str,
 ) -> Vec<String> {
     let cache = &ctx.data().mod_author_cache;
-    let c = cache.read().unwrap();
-    c.clone()
-        .into_iter()
+    let author_cache = match cache.read(){
+        Ok(c) => c,
+        Err(e) => {
+            error!{"Error acquiring cache: {e}"}
+            return vec![]
+        },
+    }.clone();
+    author_cache.into_iter()
         .filter(|entry| entry.starts_with(partial))
         .collect::<Vec<String>>()
 }
 
 /// Unsubscribe from a mod author
-#[allow(clippy::unused_async)]
+#[allow(clippy::unused_async, clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only, check="is_mod", rename="author")]
 pub async fn unsubscribe_author(
     ctx: Context<'_>,
@@ -233,7 +263,10 @@ pub async fn unsubscribe_author(
     #[autocomplete = "autocomplete_subscribed_author"]
     author: String,
 ) -> Result<(), Error> {
-    let server_id = ctx.guild_id().unwrap().get() as i64;
+    let Some(server) = ctx.guild_id() else {
+        return Err(Box::new(CustomError::new("Could not get server ID")))
+    };
+    let server_id = server.get() as i64;
     let db = &ctx.data().database;
     sqlx::query!(r#"DELETE FROM subscribed_authors WHERE server_id = ?1 AND author_name = ?2"#, server_id, author)
         .execute(db)
@@ -250,21 +283,31 @@ async fn autocomplete_subscribed_author(
 ) -> Vec<String> {
     autocomplete_unsubscribe(ctx, partial, &AutocompleteType::Author)
 }
-
+#[allow(clippy::cast_possible_wrap)]
 fn autocomplete_unsubscribe(
     ctx: Context<'_>,
     partial: &str,
     data_type: &AutocompleteType,
 ) -> Vec<String> {
     let cache = &ctx.data().mod_subscription_cache;
-    let server_id = ctx.guild_id().unwrap().get() as i64;
-    let c = cache.read().unwrap();
+    let Some(server) = ctx.guild_id() else {
+        error!("Could not get server ID while autocompleting faq name"); 
+        return vec![]
+    };
+    let server_id = server.get() as i64;
+    let subscription_cache = match cache.read(){
+        Ok(c) => c,
+        Err(e) => {
+            error!{"Error acquiring cache: {e}"}
+            return vec![]
+        },
+    };
     match data_type {
         AutocompleteType::Mod => {
-            c.clone()
+            subscription_cache.clone()
                 .into_iter()
                 .filter(|entry| entry.server_id == server_id)
-                .flat_map(|entry| match entry.subscription {
+                .filter_map(|entry| match entry.subscription {
                     SubscriptionType::Author(_) => None,
                     SubscriptionType::Modname(name) => Some(name),
                 })
@@ -272,10 +315,10 @@ fn autocomplete_unsubscribe(
                 .collect::<Vec<String>>()
         },
         AutocompleteType::Author => {
-            c.clone()
+            subscription_cache.clone()
                 .into_iter()
                 .filter(|entry| entry.server_id == server_id)
-                .flat_map(|entry| match entry.subscription {
+                .filter_map(|entry| match entry.subscription {
                     SubscriptionType::Author(name) => Some(name),
                     SubscriptionType::Modname(_) => None,
                 })
@@ -286,12 +329,15 @@ fn autocomplete_unsubscribe(
 }
 
 /// List which mods and authors the server is currently subscribed to.
-#[allow(clippy::unused_async)]
+#[allow(clippy::unused_async, clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only, category="Subscriptions")]
 pub async fn show_subscriptions(
     ctx: Context<'_>,
 ) -> Result<(), Error> {
-    let server_id = ctx.guild_id().unwrap().get() as i64;
+    let Some(server) = ctx.guild_id() else {
+        return Err(Box::new(CustomError::new("Could not get server ID")))
+    };
+    let server_id = server.get() as i64;
     let db = &ctx.data().database;
 
     let subscribed_mods = get_subscribed_mods(db, server_id)
@@ -321,8 +367,13 @@ pub async fn find_mod(
         poise::Context::Application(_) => modname,
         poise::Context::Prefix(_) => {
             let cache = &ctx.data().mod_cache;
-            let c = cache.read().unwrap().clone();
-            let title_list = c.clone()
+            let modcache = match cache.read() {
+                Ok(c) => c,
+                Err(e) => {
+                    return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+                },
+            }.clone();
+            let title_list = modcache.clone()
                 .into_iter()
                 .map(|f| f.title)
                 .collect::<Vec<String>>();
@@ -331,7 +382,7 @@ pub async fn find_mod(
                 .collect::<Vec<&str>>();
             let query = modname.split('|').collect::<Vec<&str>>()[0];
             let title = fuzzy_search_best_n(query, &title_list_unowned, 1)[0].0.to_owned();
-            let found_name = c.into_iter()
+            let found_name = modcache.into_iter()
                 .filter(|f| f.title == title)
                 .collect::<Vec<ModCacheEntry>>();
             found_name[0].name.clone()
@@ -339,17 +390,15 @@ pub async fn find_mod(
     };
     let db = &ctx.data().database;
 
-    let mod_data =  match sqlx::query!(r#"SELECT * FROM mods WHERE name = ?1"#, search_result)
+    let Ok(mod_data) = sqlx::query!(r#"SELECT * FROM mods WHERE name = ?1"#, search_result)
         .fetch_one(db)
-        .await {
-            Ok(m) => m,
-            Err(_) => {
+        .await else {
                 util::send_custom_error_message(ctx, "Failed to find mod in database").await?;
                 return Ok(());
-            },
         };
 
-    let name = mod_data.name.unwrap();
+    let Some(name) = mod_data.name
+        else {return Err(Box::new(CustomError::new("Failed to find mod in database")))};
     let mut title = escape_formatting(mod_data.title.unwrap_or_else(|| name.clone())).await;
     title.truncate(256);
     let thumbnail = match mods::get_mod_thumbnail(&name).await {
@@ -390,8 +439,14 @@ async fn autocomplete_modname<'a>(
     let mut listed_names: Vec<String> = Vec::new();
 
     let cache = ctx.data().mod_cache.clone();
-    let c = cache.read().unwrap().clone();
-    let mut list = c.clone().into_iter()
+    let modcache = match cache.read(){
+        Ok(c) => c,
+        Err(e) => {
+            error!{"Error acquiring cache: {e}"}
+            return vec![]
+        },
+    }.clone();
+    let mut list = modcache.clone().into_iter()
         .filter(move |f| 
             f.title.to_lowercase().starts_with(&partial.to_lowercase()) 
             || f.author.to_lowercase().starts_with(&partial.to_lowercase())
@@ -408,7 +463,7 @@ async fn autocomplete_modname<'a>(
         return list;
     };
 
-    let mut title_contains = c.iter()
+    let mut title_contains = modcache.iter()
         .filter(|f| 
             !(listed_names.contains(&f.name))  // Exclude previously found names
             && f.title.to_lowercase().contains(&partial.to_lowercase()))
@@ -424,7 +479,7 @@ async fn autocomplete_modname<'a>(
         return list;
     };
 
-    let mut name_contains = c.iter()
+    let mut name_contains = modcache.iter()
     .filter(|f| 
         !(listed_names.contains(&f.name))  // Exclude previously found names
         && f.name.to_lowercase().contains(&partial.to_lowercase()))

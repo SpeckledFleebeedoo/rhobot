@@ -2,8 +2,9 @@ use sqlx::{Pool, Sqlite};
 use std::sync::{Arc, RwLock};
 use poise::serenity_prelude::{CreateEmbed, Colour};
 use poise::CreateReply;
+use log::error;
 
-use crate::{Context, Error};
+use crate::{Context, Error, custom_errors::CustomError};
 
 #[derive(Debug, Clone)]
 pub struct FaqCacheEntry {
@@ -21,18 +22,23 @@ pub async fn update_faq_cache(
         .iter()
         .map(|r| {
             FaqCacheEntry{
-                server_id: r.server_id.unwrap(),
-                name: r.title.clone().unwrap(),
+                server_id: r.server_id.unwrap_or_default(), // Return 0 in case of issues
+                name: r.title.clone().unwrap_or_default(),  // Return empty string in case of issues
             }
         })
         .collect::<Vec<FaqCacheEntry>>();
-    let mut c = cache.write().unwrap();
-    *c = records;
+
+    match cache.write() {
+        Ok(mut c) => {*c = records},
+        Err(e) => {
+            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+        },
+    };
     Ok(())
 }
 
 /// Frequently Asked Questions
-#[allow(clippy::unused_async)]
+#[allow(clippy::unused_async, clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only)]
 pub async fn faq(
     ctx: Context<'_>,
@@ -41,13 +47,18 @@ pub async fn faq(
     name: String,
 ) -> Result<(), Error> {
     let db = &ctx.data().database;
-    let entry = sqlx::query!(r#"SELECT * FROM faq WHERE title = ?1"#, name)
+    let Some(server) = ctx.guild_id() else {
+        return Err(Box::new(CustomError::new("Could not get server ID")))
+    };
+    let server_id = server.get() as i64;
+    let entry = sqlx::query!(r#"SELECT * FROM faq WHERE title = ?1 AND server_id = ?2"#, name, server_id)
         .fetch_optional(db)
         .await?;
     if let Some(e) = entry {
         let color = Colour::GOLD;
+        let Some(title) = e.title else {return Err(Box::new(CustomError::new("Failed to get faq title from database")))};
         let mut embed = CreateEmbed::new()
-            .title(e.title.unwrap())
+            .title(title)
             .color(color);
         if let Some(c) = e.contents {
             embed = embed.description(c);
@@ -66,16 +77,25 @@ pub async fn faq(
     Ok(())
 }
 
-#[allow(clippy::unused_async)]
+#[allow(clippy::unused_async, clippy::cast_possible_wrap)]
 async fn autocomplete_faq<'a>(
     ctx: Context<'_>,
     partial: &'a str,
 ) -> Vec<String>{
-    println!("Autocompleting mod name");
-    let server_id = ctx.guild_id().unwrap().get() as i64;
+    let Some(server) = ctx.guild_id() else {
+        error!("Could not get server ID while autocompleting faq name"); 
+        return vec![]
+    };
+    let server_id = server.get() as i64;
     let cache = ctx.data().faq_cache.clone();
-    let c = cache.read().unwrap().clone();
-    c.iter()
+    let faqcache = match cache.read(){
+        Ok(c) => c,
+        Err(e) => {
+            error!{"Error acquiring cache: {e}"}
+            return vec![]
+        },
+    };
+    faqcache.iter()
         .filter(|f| f.server_id == server_id && f.name.to_lowercase().starts_with(&partial.to_lowercase()))
         .map(|f| f.name.clone())
         .collect::<Vec<String>>()
@@ -90,7 +110,7 @@ pub async fn faq_edit(
 }
 
 /// Add and faq entry
-#[allow(clippy::unused_async)]
+#[allow(clippy::unused_async, clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only)]
 pub async fn new(
     ctx: Context<'_>,
@@ -101,7 +121,10 @@ pub async fn new(
     #[description = "Link to an image."]
     image: String,
 ) -> Result<(), Error> {
-    let server_id = ctx.guild_id().unwrap().get() as i64;
+    let Some(server) = ctx.guild_id() else {
+        return Err(Box::new(CustomError::new("Could not get server ID")))
+    };
+    let server_id = server.get() as i64;
     let db = &ctx.data().database;
 
     if (sqlx::query!(r#"SELECT title FROM faq WHERE server_id = ?1"#, server_id) // Check if name already exists
@@ -123,7 +146,7 @@ pub async fn new(
 }
 
 /// Remove an faq entry
-#[allow(clippy::unused_async)]
+#[allow(clippy::unused_async, clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only)]
 pub async fn remove(
     ctx: Context<'_>,
@@ -131,7 +154,10 @@ pub async fn remove(
     #[autocomplete = "autocomplete_faq"]
     name: String
 ) -> Result<(), Error> {
-    let server_id = ctx.guild_id().unwrap().get() as i64;
+    let Some(server) = ctx.guild_id() else {
+        return Err(Box::new(CustomError::new("Could not get server ID")))
+    };
+    let server_id = server.get() as i64;
     let db = &ctx.data().database;
     match sqlx::query!(r#"DELETE FROM faq WHERE server_id = ?1 AND title = ?2"#, server_id, name) // Check if name already exists
         .execute(db)
@@ -148,7 +174,7 @@ pub async fn remove(
 }
 
 /// Link two faq titles to the same content
-#[allow(clippy::unused_async)]
+#[allow(clippy::unused_async, clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only)]
 pub async fn link(
     ctx: Context<'_>,
@@ -158,7 +184,10 @@ pub async fn link(
     #[description = "Existing FAQ entry to link to"]
     link_to: String,
 ) -> Result<(), Error> {
-    let server_id = ctx.guild_id().unwrap().get() as i64;
+    let Some(server) = ctx.guild_id() else {
+        return Err(Box::new(CustomError::new("Could not get server ID")))
+    };
+    let server_id = server.get() as i64;
     let db = &ctx.data().database;
     if (sqlx::query!(r#"SELECT title FROM faq WHERE server_id = ?1"#, server_id) // Check if name already exists
         .fetch_optional(db)

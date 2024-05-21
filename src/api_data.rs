@@ -4,7 +4,7 @@ use poise::reply::CreateReply;
 use std::{fmt, sync::{Arc, RwLock}};
 use log::error;
 
-use crate::{custom_errors::CustomError, util, Context, Error};
+use crate::{custom_errors::CustomError, Context, Error};
 
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -232,8 +232,7 @@ pub async fn api_prototype (
     let Some(search_result) = api.prototypes.iter()
         .find(|p| prototype_search.eq_ignore_ascii_case(&p.common.name)) 
     else {
-        util::send_custom_error_message(ctx, "Could not find specified prototype in data stage API documentation").await?;
-        return Ok(());
+        return Err(Box::new(CustomError::new("Could not find specified prototype in data stage API documentation")));
     };
     let mut embed = search_result.to_embed();
 
@@ -330,8 +329,7 @@ pub async fn api_type (
     let Some(search_result) = api.types.iter()
         .find(|t| type_search.eq_ignore_ascii_case(&t.common.name)) 
         else {
-            util::send_custom_error_message(ctx, "Could not find specified type in data stage API documentation").await?;
-            return Ok(());
+            return Err(Box::new(CustomError::new("Could not find specified type in data stage API documentation")));
         };
 
     let mut embed = search_result.to_embed();

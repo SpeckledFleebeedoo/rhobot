@@ -3,8 +3,8 @@ use poise::CreateReply;
 use rust_fuzzy_search::fuzzy_search_best_n;
 use log::error;
 
-use crate::{Context, Error, custom_errors::CustomError,
-    util::{self, escape_formatting, get_subscribed_authors, get_subscribed_mods, is_mod},
+use crate::{Context, Error, custom_errors::CustomError, Data,
+    util::{escape_formatting, get_subscribed_authors, get_subscribed_mods, is_mod},
     mods::{self, ModCacheEntry, SubCacheEntry, SubscriptionType}
 };
 
@@ -363,51 +363,54 @@ pub async fn find_mod(
     #[rest]
     modname: String,
 ) -> Result<(), Error> {
-    let search_result: String = match ctx {
-        poise::Context::Application(_) => modname,
-        poise::Context::Prefix(_) => {
-            let cache = &ctx.data().mod_cache;
-            let modcache = match cache.read() {
-                Ok(c) => c,
-                Err(e) => {
-                    return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
-                },
-            }.clone();
-            let title_list = modcache.clone()
-                .into_iter()
-                .map(|f| f.title)
-                .collect::<Vec<String>>();
-            let title_list_unowned = title_list.iter()
-                .map(std::convert::AsRef::as_ref)
-                .collect::<Vec<&str>>();
-            let query = modname.split('|').collect::<Vec<&str>>()[0];
-            let title = fuzzy_search_best_n(query, &title_list_unowned, 1)[0].0.to_owned();
-            let found_name = modcache.into_iter()
-                .filter(|f| f.title == title)
-                .collect::<Vec<ModCacheEntry>>();
-            found_name[0].name.clone()
-        },
+    let embed = match ctx {
+        poise::Context::Application(_) => mod_search(&modname, false, ctx.data()).await?,
+        poise::Context::Prefix(_) => mod_search(&modname, true, ctx.data()).await?,
     };
-    let db = &ctx.data().database;
+    let builder = CreateReply::default().embed(embed);
+    ctx.send(builder).await?;
+    Ok(())
+}
+
+pub async fn mod_search(modname: &str, imprecise_search: bool, data: &Data) -> Result<CreateEmbed, Error> {
+    let search_result = if imprecise_search {
+        let cache = data.mod_cache.clone();
+        let modcache = match cache.read() {
+            Ok(c) => c,
+            Err(e) => {
+                return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            },
+        }.clone();
+        let title_list = modcache.clone()
+            .into_iter()
+            .map(|f| f.title)
+            .collect::<Vec<String>>();
+        let title_list_unowned = title_list.iter()
+            .map(std::convert::AsRef::as_ref)
+            .collect::<Vec<&str>>();
+        let query = modname.split('|').collect::<Vec<&str>>()[0];
+        let title = fuzzy_search_best_n(query, &title_list_unowned, 1)[0].0.to_owned();
+        let found_name = modcache.into_iter()
+            .filter(|f| f.title == title)
+            .collect::<Vec<ModCacheEntry>>();
+        found_name[0].clone().name
+    } else {
+        modname.to_owned()
+    };
+
+    let db = &data.database;
 
     let Ok(mod_data) = sqlx::query!(r#"SELECT * FROM mods WHERE name = ?1"#, search_result)
         .fetch_one(db)
         .await else {
-                util::send_custom_error_message(ctx, "Failed to find mod in database").await?;
-                return Ok(());
+                return Err(Box::new(CustomError::new( "Failed to find mod in database")));
         };
 
     let Some(name) = mod_data.name
         else {return Err(Box::new(CustomError::new("Failed to find mod in database")))};
     let mut title = escape_formatting(mod_data.title.unwrap_or_else(|| name.clone())).await;
     title.truncate(256);
-    let thumbnail = match mods::get_mod_thumbnail(&name).await {
-        Ok(t) => t,
-        Err(e) => {
-            util::send_custom_error_message(ctx, &format!("Error getting mod thumbnail: {e}")).await?;
-            "/assets/.thumb.png".to_owned()
-        },
-    };
+    let thumbnail = mods::get_mod_thumbnail(&name).await.map_or_else(|_| "/assets/.thumb.png".to_owned(), |t| t);
     let url = format!("https://mods.factorio.com/mod/{name}")
         .replace(' ', "%20");
     let mut summary = escape_formatting(mod_data.summary.unwrap_or(String::new())).await;
@@ -421,12 +424,10 @@ pub async fn find_mod(
         .url(url)
         .description(&summary)
         .color(color)
-        .field("Author", &owner, true)
-        .field("Downloads", &downloads, true)
+        .field("Author", owner, true)
+        .field("Downloads", downloads, true)
         .thumbnail(&thumbnail);
-    let builder = CreateReply::default().embed(embed);
-    ctx.send(builder).await?;
-    Ok(())
+    Ok(embed)
 }
 
 #[allow(clippy::unused_async)]

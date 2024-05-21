@@ -49,11 +49,9 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
         poise::FrameworkError::Command { error, ctx, .. } => {
             println!("Error in command `{}`: {:?}", ctx.command().name, error,);
             let _ = util::send_custom_error_message(ctx, &format!("{error}")).await;
-            // let _ = ctx.say(format!("Error while executing command: `{error}`")).await;
         }
         poise::FrameworkError::CommandCheckFailed { ctx, .. } => {
             let _ = util::send_custom_error_message(ctx, "invalid permissions").await;
-            // let _ = ctx.say("Error: invalid permissions.").await;
         }
         error => {
             if let Err(e) = poise::builtins::on_error(error).await {
@@ -154,12 +152,15 @@ async fn main() {
         // Enforce command checks even for owners (enforced by default)
         // Set to true to bypass checks, which is useful for testing
         skip_checks_for_owners: false,
-        event_handler: |_ctx, event, _framework, data| {
+        event_handler: |ctx, event, _framework, data| {
             Box::pin(async move {
                 if let serenity::FullEvent::GuildDelete { incomplete, full: _} = event {
                     if !incomplete.unavailable {
                         util::on_guild_leave(incomplete.id, data.database.clone()).await?;
                     }
+                }
+                if let serenity::FullEvent::Message { new_message } = event {
+                    util::on_message(ctx.clone(), new_message, data).await?;
                 }
                 Ok(())
             })

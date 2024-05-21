@@ -2,7 +2,8 @@ use std::iter::once;
 use poise::serenity_prelude as serenity;
 use poise::reply::CreateReply;
 use sqlx::{Pool, Sqlite};
-use crate::{Context, Error, custom_errors::CustomError};
+use crate::{Context, Error, custom_errors::CustomError, Data, wiki_commands, mod_commands};
+use regex::Regex;
 
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 pub async fn is_mod(ctx: Context<'_>) -> Result<bool, Error> {
@@ -200,5 +201,52 @@ pub async fn send_custom_error_message(ctx: Context<'_>, msg: &str) -> Result<()
     let builder = CreateReply::default()
         .embed(embed);
     ctx.send(builder).await?;
+    Ok(())
+}
+
+#[allow(clippy::unnecessary_unwrap)]
+pub async fn on_message(ctx: serenity::Context, msg: &serenity::Message, data: &Data) -> Result<(), Error> {
+    if msg.author.bot {return Ok(())};
+    println!("Handling message");
+    let wiki_regex = Regex::new(r"\[\[(.*?)\]\]").unwrap();
+    let neg_wiki_regex = Regex::new(r"\`[\S\s]*?\[\[(.*?)\]\][\S\s]*?\`").unwrap();
+    let wiki_captures = wiki_regex.captures(&msg.content);
+    if wiki_captures.is_some() {println!("Handling inline wiki command")};
+    let neg_wiki_captures = neg_wiki_regex.captures(&msg.content);
+    let wiki_search = if wiki_captures.is_none() || neg_wiki_captures.is_some() {
+        None
+    } else {
+        Some(wiki_captures.unwrap()[1].to_owned())
+    };
+    
+    let mod_regex = Regex::new(r">>(.*?)<<").unwrap();
+    let neg_mod_regex = Regex::new(r"\`[\S\s]*?>>(.*?)<<[\S\s]*?\`").unwrap();
+    let mod_captures = mod_regex.captures(&msg.content);
+    if mod_captures.is_some() {println!("Handling inline mod command")};
+    let neg_mod_captures = neg_mod_regex.captures(&msg.content);
+    let mod_search = if mod_captures.is_none() || neg_mod_captures.is_some() {
+        None
+    } else {
+        Some(mod_captures.unwrap()[1].to_owned())
+    };
+
+    if let Some(result_str) = wiki_search {
+        let results = wiki_commands::opensearch_mediawiki(&result_str).await?;
+        let Some(res) = results.first() else {
+            println!("No results found");
+            return Ok(())
+        };
+    
+        let embed = wiki_commands::get_wiki_page(res).await?;
+        let http = ctx.http.clone();
+        let builder: serenity::CreateMessage = serenity::CreateMessage::new().embed(embed).reference_message(msg);
+        msg.channel_id.send_message(http, builder).await?;
+    };
+    if let Some(result_str) = mod_search {
+        let embed = mod_commands::mod_search(&result_str, true, data).await?;
+        let http = ctx.http.clone();
+        let builder: serenity::CreateMessage = serenity::CreateMessage::new().embed(embed).reference_message(msg);
+        msg.channel_id.send_message(http, builder).await?;
+    }
     Ok(())
 }

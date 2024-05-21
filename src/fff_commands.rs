@@ -5,7 +5,7 @@ use scraper::{Html, Selector};
 use chrono::{DateTime, Datelike, TimeZone, Timelike};
 use chrono_tz::{Europe::Prague, Tz};
 use log::{error, info};
-use crate::{Context, Error, custom_errors::CustomError, util};
+use crate::{Context, Error, custom_errors::CustomError};
 
 #[derive(Debug)]
 struct FFFData {
@@ -78,23 +78,16 @@ pub async fn fff(
     #[description = "Number of the FFF"]
     number: i32,
 ) -> Result<(), Error> {
-    match get_fff_data(number).await {
-        Ok(fff_data) => {
-            let embed = CreateEmbed::new()
-                .title(fff_data.title.unwrap_or_default())
-                .url(fff_data.url)
-                .description(fff_data.description.unwrap_or_default())
-                .thumbnail(fff_data.image.unwrap_or_default())
-                .color(Colour::ORANGE);
-            let builder = CreateReply::default().embed(embed);
-            ctx.send(builder).await?;
-            Ok(())
-        },
-        Err(e) => {
-            util::send_custom_error_message(ctx, &e.to_string()).await?;
-            Ok(())
-        },
-    }
+    let fff_data = get_fff_data(number).await?;
+    let embed = CreateEmbed::new()
+        .title(fff_data.title.unwrap_or_default())
+        .url(fff_data.url)
+        .description(fff_data.description.unwrap_or_default())
+        .thumbnail(fff_data.image.unwrap_or_default())
+        .color(Colour::ORANGE);
+    let builder = CreateReply::default().embed(embed);
+    ctx.send(builder).await?;
+    Ok(())
 }
 
 #[allow(clippy::unreadable_literal)]

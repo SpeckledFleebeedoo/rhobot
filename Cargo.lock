@@ -674,6 +674,7 @@ dependencies = [
  "log",
  "parse_wiki_text",
  "poise",
+ "regex",
  "reqwest",
  "rust-fuzzy-search",
  "scraper",

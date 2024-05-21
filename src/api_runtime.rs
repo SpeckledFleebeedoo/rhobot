@@ -4,7 +4,7 @@ use poise::reply::CreateReply;
 use std::{fmt, sync::{Arc, RwLock}};
 use log::error;
 
-use crate::{Context, Error, util, custom_errors::CustomError, api_data::api_data};
+use crate::{Context, Error, custom_errors::CustomError, api_data::api_data};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BasicMember {
@@ -351,8 +351,7 @@ pub async fn api_class (
     let Some(search_result) = api.classes.iter()
         .find(|class| class_search.eq_ignore_ascii_case(&class.common.name)) 
     else {
-        util::send_custom_error_message(ctx, "Could not find specified class in runtime API documentation").await?;
-        return Ok(());
+        return Err(Box::new(CustomError::new("Could not find specified class in runtime API documentation")));
     };
 
     let mut embed = search_result.to_embed();
@@ -487,8 +486,7 @@ pub async fn api_event (
     let Some(search_result) = api.events.iter()
         .find(|event| event_search.eq_ignore_ascii_case(&event.common.name)) 
         else {
-            util::send_custom_error_message(ctx, "Could not find specified event in runtime API documentation").await?;
-            return Ok(());
+            return Err(Box::new(CustomError::new("Could not find specified event in runtime API documentation")));
         };
 
     let builder = CreateReply::default()
@@ -537,8 +535,7 @@ pub async fn api_define (
     let Some(search_result) = api.defines.iter()
         .find(|define| define_search.eq_ignore_ascii_case(&define.common.name)) 
     else {
-        util::send_custom_error_message(ctx, "Could not find specified define in runtime API documentation").await?;
-        return Ok(());
+        return Err(Box::new(CustomError::new("Could not find specified define type in runtime API documentation")));
     };
     let builder = CreateReply::default()
         .embed(search_result.to_embed());
@@ -586,8 +583,7 @@ pub async fn api_concept (
     let Some(search_result) = api.concepts.iter()
         .find(|concept| concept_search.eq_ignore_ascii_case(&concept.common.name)) 
     else {
-        util::send_custom_error_message(ctx, "Could not find specified concept in runtime API documentation").await?;
-        return Ok(());
+        return Err(Box::new(CustomError::new("Could not find specified concept type in runtime API documentation")))
     };
 
     let builder = CreateReply::default()
@@ -636,8 +632,7 @@ pub async fn api_builtintype (
     let Some(search_result) = api.builtin_types.iter()
         .find(|builtin_type| builtintype_search.eq_ignore_ascii_case(&builtin_type.common.name)) 
     else {
-        util::send_custom_error_message(ctx, "Could not find specified builtin type in runtime API documentation").await?;
-        return Ok(());
+        return Err(Box::new(CustomError::new("Could not find specified builtin type in runtime API documentation")))
     };
     let builder = CreateReply::default()
         .embed(search_result.to_embed());

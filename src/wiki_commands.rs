@@ -1,7 +1,7 @@
 use parse_wiki_text::{Node, Configuration};
 use poise::serenity_prelude::{CreateEmbed, Colour};
-use crate::{Context, Error};
 use poise::CreateReply;
+use crate::{custom_errors::CustomError, Context, Error};
 use std::{fmt, fmt::Write};
 use serde::Deserialize;
 
@@ -142,7 +142,7 @@ struct WikiData {
     _urls: Vec<String>,
 }
 
-async fn opensearch_mediawiki(name: &str) -> Result<Vec<String>, Error> {
+pub async fn opensearch_mediawiki(name: &str) -> Result<Vec<String>, Error> {
     let url = reqwest::Url::parse_with_params("https://wiki.factorio.com/api.php", &[
         ("action", "opensearch"),
         ("format", "json"),
@@ -153,7 +153,41 @@ async fn opensearch_mediawiki(name: &str) -> Result<Vec<String>, Error> {
     ])?;
     let response = reqwest::get(url).await?;
     let json: WikiData = response.json().await?;
-    Ok(json.titles)
+    if json.titles.is_empty() {
+        return Ok(vec![]);
+    };
+    // All language codes to account for future wiki expansion. 
+    let langcodes = ["/aa", "/ab", "/ae", "/af", "/ak", "/am", "/an", "/ar", "/ar-ae", "/ar-bh", 
+    "/ar-dz", "/ar-eg", "/ar-iq", "/ar-jo", "/ar-kw", "/ar-lb", "/ar-ly", "/ar-ma", "/ar-om", "/ar-qa", "/ar-sa", 
+    "/ar-sy", "/ar-tn", "/ar-ye", "/as", "/av", "/ay", "/az", "/ba", "/be", "/bg", "/bh", "/bi", "/bm", "/bn", 
+    "/bo", "/br", "/bs", "/ca", "/ce", "/ch", "/co", "/cr", "/cs", "/cu", "/cv", "/cy", "/da", "/de", "/de-at", 
+    "/de-ch", "/de-de", "/de-li", "/de-lu", "/div", "/dv", "/dz", "/ee", "/el", "/en", "/en-au", "/en-bz", "/en-ca", 
+    "/en-cb", "/en-gb", "/en-ie", "/en-jm", "/en-nz", "/en-ph", "/en-tt", "/en-us", "/en-za", "/en-zw", "/eo", 
+    "/es", "/es-ar", "/es-bo", "/es-cl", "/es-co", "/es-cr", "/es-do", "/es-ec", "/es-es", "/es-gt", "/es-hn", 
+    "/es-mx", "/es-ni", "/es-pa", "/es-pe", "/es-pr", "/es-py", "/es-sv", "/es-us", "/es-uy", "/es-ve", "/et", 
+    "/eu", "/fa", "/ff", "/fi", "/fj", "/fo", "/fr", "/fr-be", "/fr-ca", "/fr-ch", "/fr-fr", "/fr-lu", "/fr-mc", 
+    "/fy", "/ga", "/gd", "/gl", "/gn", "/gu", "/gv", "/ha", "/he", "/hi", "/ho", "/hr", "/hr-ba", "/hr-hr", "/ht", 
+    "/hu", "/hy", "/hz", "/ia", "/id", "/ie", "/ig", "/ii", "/ik", "/in", "/io", "/is", "/it", "/it-ch", "/it-it", 
+    "/iu", "/iw", "/ja", "/ji", "/jv", "/jw", "/ka", "/kg", "/ki", "/kj", "/kk", "/kl", "/km", "/kn", "/ko", "/kok", 
+    "/kr", "/ks", "/ku", "/kv", "/kw", "/ky", "/kz", "/la", "/lb", "/lg", "/li", "/ln", "/lo", "/ls", "/lt", "/lu", 
+    "/lv", "/mg", "/mh", "/mi", "/mk", "/ml", "/mn", "/mo", "/mr", "/ms", "/ms-bn", "/ms-my", "/mt", "/my", "/na", 
+    "/nb", "/nd", "/ne", "/ng", "/nl", "/nl-be", "/nl-nl", "/nn", "/no", "/nr", "/ns", "/nv", "/ny", "/oc", "/oj", 
+    "/om", "/or", "/os", "/pa", "/pi", "/pl", "/ps", "/pt", "/pt-br", "/pt-pt", "/qu", "/qu-bo", "/qu-ec", "/qu-pe", 
+    "/rm", "/rn", "/ro", "/ru", "/rw", "/sa", "/sb", "/sc", "/sd", "/se", "/se-fi", "/se-no", "/se-se", "/sg", "/sh", 
+    "/si", "/sk", "/sl", "/sm", "/sn", "/so", "/sq", "/sr", "/sr-ba", "/sr-sp", "/ss", "/st", "/su", "/sv", "/sv-fi", 
+    "/sv-se", "/sw", "/sx", "/syr", "/ta", "/te", "/tg", "/th", "/ti", "/tk", "/tl", "/tn", "/to", "/tr", "/ts", 
+    "/tt", "/tw", "/ty", "/ug", "/uk", "/ur", "/us", "/uz", "/ve", "/vi", "/vo", "/wa", "/wo", "/xh", "/yi", "/yo", 
+    "/za", "/zh", "/zh-cn", "/zh-hk", "/zh-mo", "/zh-sg", "/zh-tw", "/zu"];
+
+    let mut output = Vec::new();
+
+    for name in json.titles {
+        if langcodes.iter().any(|&langcode| name.ends_with(langcode)) {
+            continue
+        };
+        output.push(name);
+    };
+    Ok(output)
 }
 
 /// Link a wiki page
@@ -165,7 +199,26 @@ pub async fn wiki(
     #[rest]
     name: String,
 ) -> Result<(), Error> {
-    let article = get_mediawiki_page(&name).await?;
+    let search_result: String = match ctx {
+        poise::Context::Application(_) => name,
+        poise::Context::Prefix(_) => {
+            let results = opensearch_mediawiki(&name).await?;
+            let Some(res) = results.first() else {
+                return Err(Box::new(CustomError::new("Wiki search returned no results")))
+            };
+            res.to_owned()
+        },
+    };
+    
+    let embed = get_wiki_page(&search_result).await?;
+    let builder = CreateReply::default().embed(embed);
+    ctx.send(builder).await?;
+    Ok(())
+
+}
+
+pub async fn get_wiki_page(search_result: &str) -> Result<CreateEmbed, Error> {
+    let article = get_mediawiki_page(search_result).await?;
 
     // Parser configuration for wiki.factorio.com
     let configuration = Configuration::new(&parse_wiki_text::ConfigurationSource { 
@@ -208,10 +261,7 @@ pub async fn wiki(
         .url(format!("https://wiki.factorio.com/{}", &article.title.replace(' ', "_")))
         .description(&formatted_text)
         .color(Colour::ORANGE);
-    let builder = CreateReply::default().embed(embed);
-    ctx.send(builder).await?;
-    Ok(())
-
+    Ok(embed)
 }
 
 async fn autocomplete_wiki<'a>(
@@ -221,47 +271,11 @@ async fn autocomplete_wiki<'a>(
     if partial.is_empty() {
         return vec!["Main Page".to_owned()]
     }
-    let results = match opensearch_mediawiki(partial).await {
+    match opensearch_mediawiki(partial).await {
         Ok(r) => r,
         Err(e) => {
             println!("Error searching wiki: {e}");
-            return vec![];
+            vec![]
         }
-    };
-    if results.is_empty() {
-        return vec![];
-    };
-
-    // All language codes to account for future wiki expansion. 
-    let langcodes = ["/aa", "/ab", "/ae", "/af", "/ak", "/am", "/an", "/ar", "/ar-ae", "/ar-bh", 
-    "/ar-dz", "/ar-eg", "/ar-iq", "/ar-jo", "/ar-kw", "/ar-lb", "/ar-ly", "/ar-ma", "/ar-om", "/ar-qa", "/ar-sa", 
-    "/ar-sy", "/ar-tn", "/ar-ye", "/as", "/av", "/ay", "/az", "/ba", "/be", "/bg", "/bh", "/bi", "/bm", "/bn", 
-    "/bo", "/br", "/bs", "/ca", "/ce", "/ch", "/co", "/cr", "/cs", "/cu", "/cv", "/cy", "/da", "/de", "/de-at", 
-    "/de-ch", "/de-de", "/de-li", "/de-lu", "/div", "/dv", "/dz", "/ee", "/el", "/en", "/en-au", "/en-bz", "/en-ca", 
-    "/en-cb", "/en-gb", "/en-ie", "/en-jm", "/en-nz", "/en-ph", "/en-tt", "/en-us", "/en-za", "/en-zw", "/eo", 
-    "/es", "/es-ar", "/es-bo", "/es-cl", "/es-co", "/es-cr", "/es-do", "/es-ec", "/es-es", "/es-gt", "/es-hn", 
-    "/es-mx", "/es-ni", "/es-pa", "/es-pe", "/es-pr", "/es-py", "/es-sv", "/es-us", "/es-uy", "/es-ve", "/et", 
-    "/eu", "/fa", "/ff", "/fi", "/fj", "/fo", "/fr", "/fr-be", "/fr-ca", "/fr-ch", "/fr-fr", "/fr-lu", "/fr-mc", 
-    "/fy", "/ga", "/gd", "/gl", "/gn", "/gu", "/gv", "/ha", "/he", "/hi", "/ho", "/hr", "/hr-ba", "/hr-hr", "/ht", 
-    "/hu", "/hy", "/hz", "/ia", "/id", "/ie", "/ig", "/ii", "/ik", "/in", "/io", "/is", "/it", "/it-ch", "/it-it", 
-    "/iu", "/iw", "/ja", "/ji", "/jv", "/jw", "/ka", "/kg", "/ki", "/kj", "/kk", "/kl", "/km", "/kn", "/ko", "/kok", 
-    "/kr", "/ks", "/ku", "/kv", "/kw", "/ky", "/kz", "/la", "/lb", "/lg", "/li", "/ln", "/lo", "/ls", "/lt", "/lu", 
-    "/lv", "/mg", "/mh", "/mi", "/mk", "/ml", "/mn", "/mo", "/mr", "/ms", "/ms-bn", "/ms-my", "/mt", "/my", "/na", 
-    "/nb", "/nd", "/ne", "/ng", "/nl", "/nl-be", "/nl-nl", "/nn", "/no", "/nr", "/ns", "/nv", "/ny", "/oc", "/oj", 
-    "/om", "/or", "/os", "/pa", "/pi", "/pl", "/ps", "/pt", "/pt-br", "/pt-pt", "/qu", "/qu-bo", "/qu-ec", "/qu-pe", 
-    "/rm", "/rn", "/ro", "/ru", "/rw", "/sa", "/sb", "/sc", "/sd", "/se", "/se-fi", "/se-no", "/se-se", "/sg", "/sh", 
-    "/si", "/sk", "/sl", "/sm", "/sn", "/so", "/sq", "/sr", "/sr-ba", "/sr-sp", "/ss", "/st", "/su", "/sv", "/sv-fi", 
-    "/sv-se", "/sw", "/sx", "/syr", "/ta", "/te", "/tg", "/th", "/ti", "/tk", "/tl", "/tn", "/to", "/tr", "/ts", 
-    "/tt", "/tw", "/ty", "/ug", "/uk", "/ur", "/us", "/uz", "/ve", "/vi", "/vo", "/wa", "/wo", "/xh", "/yi", "/yo", 
-    "/za", "/zh", "/zh-cn", "/zh-hk", "/zh-mo", "/zh-sg", "/zh-tw", "/zu"];
-
-    let mut output = Vec::new();
-
-    for result in results {
-        if langcodes.iter().any(|&langcode| result.ends_with(langcode)) {
-            continue
-        };
-        output.push(result);
-    };
-    output
+    }
 }

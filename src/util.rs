@@ -36,7 +36,7 @@ pub async fn is_mod(ctx: Context<'_>) -> Result<bool, Error> {
     Ok(has_role)
 }
 
-pub async fn escape_formatting(unformatted_string: String) -> String {
+pub async fn escape_formatting(unformatted_string: &str) -> String {
     // This is supposedly cheaper than using the String::replace function.
     unformatted_string
         .chars()
@@ -207,7 +207,6 @@ pub async fn send_custom_error_message(ctx: Context<'_>, msg: &str) -> Result<()
 #[allow(clippy::unnecessary_unwrap)]
 pub async fn on_message(ctx: serenity::Context, msg: &serenity::Message, data: &Data) -> Result<(), Error> {
     if msg.author.bot {return Ok(())};
-    println!("Handling message");
     let wiki_regex = Regex::new(r"\[\[(.*?)\]\]").unwrap();
     let neg_wiki_regex = Regex::new(r"\`[\S\s]*?\[\[(.*?)\]\][\S\s]*?\`").unwrap();
     let wiki_captures = wiki_regex.captures(&msg.content);

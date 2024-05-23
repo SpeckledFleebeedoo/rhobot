@@ -257,12 +257,12 @@ async fn make_update_message(
         ModState::New => Colour::from_rgb(0x2E, 0xCC, 0x71),
     };
     let mut title = match updated_mod.state {
-        ModState::Updated => format!("Updated mod:\n{}", escape_formatting(updated_mod.title.clone()).await),
-        ModState::New => format!("New mod:\n{}", escape_formatting(updated_mod.title.clone()).await),
+        ModState::Updated => format!("Updated mod:\n{}", escape_formatting(&updated_mod.title).await),
+        ModState::New => format!("New mod:\n{}", escape_formatting(&updated_mod.title).await),
     };
     title.truncate(265);
     let changelog = if show_changelog { updated_mod.changelog.clone() } else { String::new() };
-    let author_link = format!("[{}](https://mods.factorio.com/user/{})", escape_formatting(updated_mod.author.clone()).await, &updated_mod.author);
+    let author_link = format!("{} ([more](https://mods.factorio.com/user/{}))", escape_formatting(&updated_mod.author).await, &updated_mod.author);
     let embed = CreateEmbed::new()
         .title(&title)
         .url(url)
@@ -312,13 +312,13 @@ pub async fn get_mod_changelog(name: &String, lines: Option<i32>) -> Result<Stri
                     break;
                 } else if l.starts_with("    ") {
                     out.push_str(&escape_formatting(
-                        l.strip_prefix("    ").unwrap_or(l).to_owned()).await
+                        l.strip_prefix("    ").unwrap_or(l)).await
                     );
                     out.push('\n');
                 } else if l.starts_with("  ") {
                     out.push_str("**");
                     out.push_str(&escape_formatting(
-                        l.strip_prefix("  ").unwrap_or(l).to_owned()).await
+                        l.strip_prefix("  ").unwrap_or(l)).await
                     );
                     out.push_str("**\n");
                 };

@@ -408,14 +408,14 @@ pub async fn mod_search(modname: &str, imprecise_search: bool, data: &Data) -> R
 
     let Some(name) = mod_data.name
         else {return Err(Box::new(CustomError::new("Failed to find mod in database")))};
-    let mut title = escape_formatting(mod_data.title.unwrap_or_else(|| name.clone())).await;
+    let mut title = escape_formatting(&mod_data.title.unwrap_or_else(|| name.clone())).await;
     title.truncate(256);
     let thumbnail = mods::get_mod_thumbnail(&name).await.map_or_else(|_| "/assets/.thumb.png".to_owned(), |t| t);
     let url = format!("https://mods.factorio.com/mod/{name}")
         .replace(' ', "%20");
-    let mut summary = escape_formatting(mod_data.summary.unwrap_or(String::new())).await;
+    let mut summary = escape_formatting(&mod_data.summary.unwrap_or(String::new())).await;
     summary.truncate(4096);
-    let owner = escape_formatting(mod_data.owner.unwrap_or(String::new())).await;
+    let owner = escape_formatting(&mod_data.owner.unwrap_or(String::new())).await;
     let downloads = mod_data.downloads_count.unwrap_or(0).to_string();
     let color = Colour::from_rgb(0x2E, 0xCC, 0x71);
 

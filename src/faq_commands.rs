@@ -39,11 +39,58 @@ pub async fn update_faq_cache(
 
 /// Frequently Asked Questions
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
-#[poise::command(prefix_command, slash_command, guild_only)]
-pub async fn faq(
+#[poise::command(slash_command, guild_only, rename = "faq")]
+pub async fn faq_slash(
     ctx: Context<'_>,
     #[description = "Name of the faq entry"]
     #[autocomplete = "autocomplete_faq"]
+    name: String,
+) -> Result<(), Error> {
+    faq_core(ctx, name).await?;
+    Ok(())
+}
+
+/// Frequently Asked Questions
+#[allow(clippy::unused_async, clippy::cast_possible_wrap)]
+#[poise::command(prefix_command, guild_only, rename = "faq", hide_in_help)]
+pub async fn faq_prefix(
+    ctx: Context<'_>,
+    #[description = "Name of the faq entry"]
+    #[autocomplete = "autocomplete_faq"]
+    name: Option<String>,
+) -> Result<(), Error> {
+    if let Some(n) = name {
+        faq_core(ctx, n).await?;
+    } else {
+        list_faqs(ctx).await?;
+    }
+    Ok(())
+}
+
+async fn list_faqs(
+    ctx: Context<'_>,
+) -> Result<(), Error> {
+    let db = &ctx.data().database;
+    let Some(server) = ctx.guild_id() else {
+        return Err(Box::new(CustomError::new("Could not get server ID")))
+    };
+    let server_id = server.get() as i64;
+    let db_entries = sqlx::query!(r#"SELECT title FROM faq WHERE server_id = ?"#, server_id)
+        .fetch_all(db)
+        .await?;
+    let faq_names = db_entries.iter().flat_map(|f| f.title.to_owned()).collect::<Vec<String>>();
+    let color = Colour::GOLD;
+    let embed = CreateEmbed::new()
+        .title("List of FAQ tags")
+        .description(faq_names.join(", "))
+        .color(color);
+    let builder = CreateReply::default().embed(embed);
+    ctx.send(builder).await?;
+    Ok(())
+}
+
+async fn faq_core(
+    ctx: Context<'_>,
     name: String,
 ) -> Result<(), Error> {
     let db = &ctx.data().database;
@@ -60,12 +107,12 @@ pub async fn faq(
         let mut embed = CreateEmbed::new()
             .title(title)
             .color(color);
-        if let Some(c) = e.contents {
-            embed = embed.description(c);
+        if let Some(content) = e.contents {
+            embed = embed.description(content);
         }
 
-        if let Some(i) = e.image {
-            embed = embed.image(i);
+        if let Some(img) = e.image {
+            embed = embed.image(img);
         }
 
         let builder = CreateReply::default().embed(embed);
@@ -102,7 +149,7 @@ async fn autocomplete_faq<'a>(
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, guild_only, subcommands("new", "remove", "link"))]
+#[poise::command(prefix_command, slash_command, guild_only, subcommands("new", "remove", "link"), aliases("faq-edit"))]
 pub async fn faq_edit(
     _ctx: Context<'_>
 ) -> Result<(), Error> {
@@ -111,7 +158,7 @@ pub async fn faq_edit(
 
 /// Add and faq entry
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
-#[poise::command(prefix_command, slash_command, guild_only)]
+#[poise::command(prefix_command, slash_command, guild_only, aliases("edit, add"))]
 pub async fn new(
     ctx: Context<'_>,
     #[description = "Name of the faq"]
@@ -127,7 +174,7 @@ pub async fn new(
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
 
-    if (sqlx::query!(r#"SELECT title FROM faq WHERE server_id = ?1"#, server_id) // Check if name already exists
+    if (sqlx::query!(r#"SELECT title FROM faq WHERE server_id = ?1 AND title = ?2"#, server_id, name) // Check if name already exists
         .fetch_optional(db)
         .await?).is_some() {
         // Return "faq already exists" message
@@ -147,7 +194,7 @@ pub async fn new(
 
 /// Remove an faq entry
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
-#[poise::command(prefix_command, slash_command, guild_only)]
+#[poise::command(prefix_command, slash_command, guild_only, aliases("delete"))]
 pub async fn remove(
     ctx: Context<'_>,
     #[description = "FAQ entry to remove"]

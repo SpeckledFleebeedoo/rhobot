@@ -131,7 +131,7 @@ pub async fn update_database(
             let record = sqlx::query!(r#"SELECT released_at FROM mods WHERE name = $1"#, result.name).fetch_optional(&db).await?;
 
             if let Some(rec) = record { // Mod found in database
-                if rec.released_at.unwrap_or(0) == timestamp {
+                if rec.released_at == timestamp {
                     println!("Already known mod found: {}", result.title);
                     old_mod_encountered = true;
                     break;
@@ -210,7 +210,7 @@ async fn send_mod_update(
         .into_iter()
         .map(|s| { 
             Ok(Server{
-                id: s.server_id.ok_or_else(|| Box::new(CustomError::new("Invalid server ID encountered")))?,
+                id: s.server_id,
                 updates_channel: s.updates_channel,
                 show_changelog: s.show_changelog.unwrap_or(true),
             })
@@ -367,17 +367,17 @@ pub async fn update_mod_cache(
     cache: Arc<RwLock<Vec<ModCacheEntry>>>, 
     db: Pool<Sqlite>
 ) -> Result<(), Error> {
-    let records = sqlx::query!(r#"SELECT name, title, owner, category, downloads_count FROM mods WHERE factorio_version = $1 ORDER BY downloads_count DESC"#, "1.1")
+    let records = sqlx::query!(r#"SELECT name, title, owner, downloads_count FROM mods WHERE factorio_version = $1 ORDER BY downloads_count DESC"#, "1.1")
         .fetch_all(&db)
         .await?
         .iter()
-        .filter_map(|rec| {
-            Some(ModCacheEntry{
-                name: rec.name.clone()?,    // Silently discards any None values
-                title: rec.title.clone().unwrap_or_default(),
-                author: rec.owner.clone().unwrap_or_default(),
-                downloads_count: rec.downloads_count.unwrap_or_default(),
-            })
+        .map(|rec| {
+            ModCacheEntry{
+                name: rec.name.clone(),
+                title: rec.title.clone().unwrap_or_default(), // Default if mod has no name (title)
+                author: rec.owner.clone(),
+                downloads_count: rec.downloads_count,
+            }
         })
         .collect::<Vec<ModCacheEntry>>();
     match cache.write() {
@@ -397,11 +397,11 @@ pub async fn update_sub_cache(
         .fetch_all(&db)
         .await?
         .iter()
-        .filter_map(|rec| {
-            Some(SubCacheEntry{
-                server_id: rec.server_id?,
-                subscription: SubscriptionType::Modname(rec.mod_name.clone()?)
-            })
+        .map(|rec| {
+            SubCacheEntry{
+                server_id: rec.server_id,
+                subscription: SubscriptionType::Modname(rec.mod_name.clone())
+            }
         })
         .chain(
             sqlx::query!(r#"SELECT * FROM subscribed_authors"#)
@@ -434,8 +434,8 @@ pub async fn update_author_cache(
     let mut author_records = sqlx::query!(r#"SELECT owner FROM mods"#)
         .fetch_all(&db)
         .await?
-        .iter()
-        .filter_map(|rec| rec.owner.clone())
+        .into_iter()
+        .map(|rec| rec.owner)
         .collect::<Vec<String>>();
     author_records.sort_unstable();
     author_records.dedup();

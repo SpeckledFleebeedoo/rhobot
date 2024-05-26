@@ -28,14 +28,12 @@ pub async fn set_updates_channel(
         .fetch_optional(db)
         .await?).is_some() {
         // Update server data if it does exist
-        println!("Setting channel {channel_id} as mod updates channel for server {server_id}");
         sqlx::query!(r#"UPDATE servers SET updates_channel = $1 WHERE server_id = $2"#,
         channel_id, server_id)
             .execute(db)
             .await?;
     } else {
         // Add server and set setting if it does not exist
-        println!("Adding server {server_id} to database with updates channel {channel_id}");
         sqlx::query!(r#"INSERT INTO servers (server_id, updates_channel) VALUES ($1, $2)"#,
         server_id, channel_id)
             .execute(db)
@@ -62,14 +60,12 @@ pub async fn set_modrole(
         .fetch_optional(db)
         .await?).is_some() {
         // Update server data if it does exist
-        println!("Setting role {role_id} as mod role for server {server_id}");
         sqlx::query!(r#"UPDATE servers SET modrole = $1 WHERE server_id = $2"#,
         role_id, server_id)
             .execute(db)
             .await?;
     } else {
         // Add server and set setting if it does not exist
-        println!("Adding server {server_id} to database with mod role {role_id}");
         sqlx::query!(r#"INSERT INTO servers (server_id, modrole) VALUES ($1, $2)"#,
         server_id, role_id)
             .execute(db)
@@ -403,8 +399,7 @@ pub async fn mod_search(modname: &str, imprecise_search: bool, data: &Data) -> R
                 return Err(Box::new(CustomError::new( "Failed to find mod in database")));
         };
 
-    let Some(name) = mod_data.name
-        else {return Err(Box::new(CustomError::new("Failed to find mod in database")))};
+    let name = mod_data.name;
     let mut title = escape_formatting(&mod_data.title.unwrap_or_else(|| name.clone())).await;
     title.truncate(256);
     let thumbnail = mods::get_mod_thumbnail(&name).await.unwrap_or_else(|_| "/assets/.thumb.png".to_owned());
@@ -412,8 +407,8 @@ pub async fn mod_search(modname: &str, imprecise_search: bool, data: &Data) -> R
         .replace(' ', "%20");
     let mut summary = escape_formatting(&mod_data.summary.unwrap_or(String::new())).await;
     summary.truncate(4096);
-    let owner = escape_formatting(&mod_data.owner.unwrap_or(String::new())).await;
-    let downloads = mod_data.downloads_count.unwrap_or(0).to_string();
+    let owner = escape_formatting(&mod_data.owner).await;
+    let downloads = mod_data.downloads_count.to_string();
     let color = Colour::from_rgb(0x2E, 0xCC, 0x71);
 
     let embed = CreateEmbed::new()
@@ -432,8 +427,6 @@ async fn autocomplete_modname<'a>(
     ctx: Context<'_>,
     partial: &'a str,
 ) -> Vec<AutocompleteChoice> {
-    println!("Autocompleting mod name");
-
     let mut listed_names: Vec<String> = Vec::new();
 
     let cache = ctx.data().mod_cache.clone();

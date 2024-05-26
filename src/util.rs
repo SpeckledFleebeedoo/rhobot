@@ -59,7 +59,7 @@ pub async fn get_subscribed_mods(db: &Pool<Sqlite>, server_id: i64) -> Result<Ve
         .fetch_all(db)
         .await?
         .into_iter()
-        .filter_map(|m| m.mod_name)
+        .map(|m| m.mod_name)
         .collect::<Vec<String>>();
     Ok(subscribed_mods)
 }
@@ -90,7 +90,7 @@ pub async fn get_server_info(
             let modrole = data.modrole.map_or_else(|| "Not set".to_owned(), |role| format!("<@&{role}>"));
             let show_changelog = data.show_changelog.map_or_else(|| "Not set (default to true)".to_owned(), |b| b.to_string());
             let response = format!("**Stored information for this server:**\nServer ID: {:?}\nUpdates channel: {}\nmodrole: {}\nShow changelogs: {}",
-                data.server_id.unwrap_or(0), updates_channel, modrole, show_changelog);
+                data.server_id, updates_channel, modrole, show_changelog);
             ctx.say(response).await?;
         },
         None => {

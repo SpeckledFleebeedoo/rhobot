@@ -279,7 +279,7 @@ async fn autocomplete_prototype_property<'a>(
     let mut prototype_name = String::new();
     if let poise::Context::Application(appcontext) = ctx {
         if let serenity::ResolvedValue::String(st) = appcontext.args[0].value {
-            prototype_name = st.to_owned();
+            st.clone_into(&mut prototype_name);
         }
     }
 
@@ -379,7 +379,7 @@ async fn autocomplete_type_property<'a>(
     let mut type_name = String::new();
     if let poise::Context::Application(appcontext) = ctx {
         if let serenity::ResolvedValue::String(st) = appcontext.args[0].value {
-            type_name = st.to_owned();
+            st.clone_into(&mut type_name);
         }
     }
 

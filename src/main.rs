@@ -4,6 +4,7 @@ mod mod_commands;
 mod mods;
 mod faq_commands;
 mod fff_commands;
+mod fun_commands;
 mod api_runtime;
 mod api_data;
 mod wiki_commands;
@@ -133,6 +134,7 @@ async fn main() {
             fff_commands::fff(),
             api_runtime::api(),
             wiki_commands::wiki(),
+            fun_commands::expansion(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("+".into()),

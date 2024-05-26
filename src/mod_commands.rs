@@ -407,7 +407,7 @@ pub async fn mod_search(modname: &str, imprecise_search: bool, data: &Data) -> R
         else {return Err(Box::new(CustomError::new("Failed to find mod in database")))};
     let mut title = escape_formatting(&mod_data.title.unwrap_or_else(|| name.clone())).await;
     title.truncate(256);
-    let thumbnail = mods::get_mod_thumbnail(&name).await.map_or_else(|_| "/assets/.thumb.png".to_owned(), |t| t);
+    let thumbnail = mods::get_mod_thumbnail(&name).await.unwrap_or_else(|_| "/assets/.thumb.png".to_owned());
     let url = format!("https://mods.factorio.com/mod/{name}")
         .replace(' ', "%20");
     let mut summary = escape_formatting(&mod_data.summary.unwrap_or(String::new())).await;

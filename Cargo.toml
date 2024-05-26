@@ -9,8 +9,8 @@ edition = "2021"
 unsafe_code = "warn"
 
 [lints.clippy]
-nursery = "warn"
-pedantic = "warn"
+nursery = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
 unwrap_used = "warn"
 expect_used = "warn"
 missing_panics_doc = "allow" # unless you actually want to document stuff :)
@@ -34,3 +34,4 @@ chrono-tz = "0.9.0"
 serde_json = "1.0.116"
 parse_wiki_text = "0.1.5"
 regex = { version = "1.10.4", features = ["std"] }
+rand = "0.8.5"

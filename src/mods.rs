@@ -233,10 +233,10 @@ async fn send_mod_update(
             None => continue,
         };
 
-        if subscribed_mods.is_empty() && subscribed_authors.is_empty() {
-            make_update_message(&updated_mod, updates_channel, server.show_changelog, cache_http).await?;
-        }
-        else if subscribed_mods.contains(&updated_mod.name) || subscribed_authors.contains(&updated_mod.author) {
+        if (subscribed_mods.is_empty() && subscribed_authors.is_empty()) || // No subscriptions
+            subscribed_mods.contains(&updated_mod.name) ||      // Subscribed to mod
+            subscribed_authors.contains(&updated_mod.author)    // Subscribed to author
+        {
             make_update_message(&updated_mod, updates_channel, server.show_changelog, cache_http).await?;
         }
     }

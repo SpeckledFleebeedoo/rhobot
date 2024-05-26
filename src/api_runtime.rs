@@ -438,7 +438,7 @@ async fn autocomplete_class_property<'a>(
     let mut classname = String::new();
     if let poise::Context::Application(appcontext) = ctx {
         if let serenity::ResolvedValue::String(st) = appcontext.args[0].value {
-            classname = st.to_owned();
+            st.clone_into(&mut classname);
         }
     }
 

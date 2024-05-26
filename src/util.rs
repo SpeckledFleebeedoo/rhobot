@@ -131,6 +131,22 @@ pub async fn reset_server_settings(
     Ok(())
 }
 
+/// Print bot info
+#[poise::command(prefix_command, slash_command)]
+pub async fn info(
+    ctx: Context<'_>
+) -> Result<(), Error> {
+    let embed = serenity::CreateEmbed::new()
+        .title("Factorio Mod Notifier")
+        .field("Creator", "SpeckledFleebeedoo#8679 (<@247640901805932544>)", false)
+        .field("Source", "[GitHub](https://www.github.com/SpeckledFleebeedoo/Factorio-mod-notifier-rs)", true)
+        .field("Invite link", "[Invite](https://discord.com/api/oauth2/authorize?client_id=872540831599456296&permissions=274877925376&scope=bot%20applications.commands)", true)
+        .field("info", "To set up the bot on a new server, use /set_channel. No notifications will be sent without a channel set.", false);
+    let builder = CreateReply::default().embed(embed);
+    ctx.send(builder).await?;
+    Ok(())
+}
+
 // /// Manually add entries to the database. Owner only.
 // #[poise::command(prefix_command, slash_command, guild_only, owners_only, category="Management")]
 // pub async fn migrate_serverdb_entry(

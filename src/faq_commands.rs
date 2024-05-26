@@ -4,7 +4,7 @@ use poise::serenity_prelude as serenity;
 use poise::CreateReply;
 use log::error;
 
-use crate::{Context, Error, custom_errors::CustomError, util, SEPARATOR};
+use crate::{Context, Error, custom_errors::CustomError, util, util::is_mod, SEPARATOR};
 
 #[derive(Debug, Clone)]
 pub struct FaqCacheEntry {
@@ -201,9 +201,9 @@ async fn autocomplete_faq<'a>(
         .collect::<Vec<String>>()
 }
 
-/// For adding, removing or linking FAQ entries
+/// Add, remove or link FAQ entries
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, guild_only, subcommands("new", "remove", "link"), aliases("faq-edit", "faqedit"), subcommand_required)]
+#[poise::command(prefix_command, slash_command, guild_only, check="is_mod", category="Settings", subcommands("new", "remove", "link"), aliases("faq-edit", "faqedit"), subcommand_required)]
 pub async fn faq_edit(
     _ctx: Context<'_>
 ) -> Result<(), Error> {

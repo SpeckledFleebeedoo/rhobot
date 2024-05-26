@@ -311,6 +311,7 @@ pub async fn get_runtime_api() -> Result<RuntimeApiResponse, Error> {
     Ok(response.json::<RuntimeApiResponse>().await?)
 }
 
+/// Link a page in the mod making API. Slash commands only.
 #[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, track_edits, subcommands("api_runtime", "api_data"))]
 pub async fn api(

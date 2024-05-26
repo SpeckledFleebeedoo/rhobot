@@ -15,7 +15,7 @@ use fff_commands::update_fff_channel_description;
 use mods::{get_mod_count, update_database, update_mod_cache, update_sub_cache, update_author_cache, ModCacheEntry, SubCacheEntry};
 use faq_commands::{update_faq_cache, FaqCacheEntry};
 use tokio::time;
-use log::{ error, info};
+use log::{error, info};
 use dotenv::dotenv;
 
 use poise::serenity_prelude as serenity;
@@ -28,6 +28,9 @@ use std::{
 // Types used by all command functions
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
+
+// Command separator for adding comments
+const SEPARATOR: char = '|';
 
 // Custom user data passed to all command functions
 pub struct Data {
@@ -125,8 +128,7 @@ async fn main() {
             mod_commands::set_updates_channel(),
             mod_commands::set_modrole(),
             mod_commands::show_changelogs(),
-            faq_commands::faq_prefix(),
-            faq_commands::faq_slash(),
+            faq_commands::faq(),
             faq_commands::faq_edit(),
             fff_commands::fff(),
             api_runtime::api(),

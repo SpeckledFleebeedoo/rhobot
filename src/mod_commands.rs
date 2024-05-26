@@ -3,8 +3,8 @@ use poise::CreateReply;
 use rust_fuzzy_search::fuzzy_search_best_n;
 use log::error;
 
-use crate::{Context, Error, custom_errors::CustomError, Data,
-    util::{escape_formatting, get_subscribed_authors, get_subscribed_mods, is_mod},
+use crate::{Context, Error, custom_errors::CustomError, Data, SEPARATOR,
+    util::{escape_formatting, get_subscribed_authors, get_subscribed_mods, is_mod, get_server_id},
     mods::{self, ModCacheEntry, SubCacheEntry, SubscriptionType}
 };
 
@@ -24,19 +24,19 @@ pub async fn set_updates_channel(
     let server_id = channel.guild_id.get() as i64;
     let db = &ctx.data().database;
 
-    if (sqlx::query!(r#"SELECT * FROM servers WHERE server_id = ?1"#, server_id)
+    if (sqlx::query!(r#"SELECT * FROM servers WHERE server_id = $1"#, server_id)
         .fetch_optional(db)
         .await?).is_some() {
         // Update server data if it does exist
         println!("Setting channel {channel_id} as mod updates channel for server {server_id}");
-        sqlx::query!(r#"UPDATE servers SET updates_channel = ?1 WHERE server_id = ?2"#,
+        sqlx::query!(r#"UPDATE servers SET updates_channel = $1 WHERE server_id = $2"#,
         channel_id, server_id)
             .execute(db)
             .await?;
     } else {
         // Add server and set setting if it does not exist
         println!("Adding server {server_id} to database with updates channel {channel_id}");
-        sqlx::query!(r#"INSERT INTO servers (server_id, updates_channel) VALUES (?1, ?2)"#,
+        sqlx::query!(r#"INSERT INTO servers (server_id, updates_channel) VALUES ($1, $2)"#,
         server_id, channel_id)
             .execute(db)
             .await?;
@@ -58,19 +58,19 @@ pub async fn set_modrole(
     let server_id = role.guild_id.get() as i64;
     let db = &ctx.data().database;
     
-    if (sqlx::query!(r#"SELECT * FROM servers WHERE server_id = ?1"#, server_id)
+    if (sqlx::query!(r#"SELECT * FROM servers WHERE server_id = $1"#, server_id)
         .fetch_optional(db)
         .await?).is_some() {
         // Update server data if it does exist
         println!("Setting role {role_id} as mod role for server {server_id}");
-        sqlx::query!(r#"UPDATE servers SET modrole = ?1 WHERE server_id = ?2"#,
+        sqlx::query!(r#"UPDATE servers SET modrole = $1 WHERE server_id = $2"#,
         role_id, server_id)
             .execute(db)
             .await?;
     } else {
         // Add server and set setting if it does not exist
         println!("Adding server {server_id} to database with mod role {role_id}");
-        sqlx::query!(r#"INSERT INTO servers (server_id, modrole) VALUES (?1, ?2)"#,
+        sqlx::query!(r#"INSERT INTO servers (server_id, modrole) VALUES ($1, $2)"#,
         server_id, role_id)
             .execute(db)
             .await?;
@@ -82,34 +82,30 @@ pub async fn set_modrole(
 }
 
 /// Turn showing changelogs in update feed on or off
-#[allow(clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only, check="is_mod", category="Settings")]
 pub async fn show_changelogs(
     ctx: Context<'_>,
     show_changelogs: bool,
 ) -> Result<(), Error> {
-    let Some(server) = ctx.guild_id() else {
-        return Err(Box::new(CustomError::new("Could not get server ID")))
-    };
-    let server_id = server.get() as i64;
+    let server_id = get_server_id(ctx)?;
     let db = &ctx.data().database;
-    match sqlx::query!(r#"SELECT server_id FROM servers WHERE server_id = ?1"#, server_id)
+    match sqlx::query!(r#"SELECT server_id FROM servers WHERE server_id = $1"#, server_id)
             .fetch_optional(db)
             .await? {
         Some(_) => {
             // Update server data if it does exist
-            sqlx::query!(r#"UPDATE servers SET show_changelog = ?1 WHERE server_id = ?2"#, 
+            sqlx::query!(r#"UPDATE servers SET show_changelog = $1 WHERE server_id = $2"#, 
             show_changelogs, server_id)
             .execute(db)
             .await?;
         },
         None => {
             // Add server and set setting if it does not exist
-            sqlx::query!(r#"INSERT INTO servers (server_id, show_changelog) VALUES (?1, ?2)"#,
+            sqlx::query!(r#"INSERT INTO servers (server_id, show_changelog) VALUES ($1, $2)"#,
             server_id, show_changelogs)
             .execute(db)
             .await?;
-        }
+        },
     };
     if show_changelogs { ctx.say("Now showing changelogs in mod updates feed.").await?
     } else { ctx.say("No longer showing changelogs in mod updates feed.").await? };
@@ -149,7 +145,7 @@ pub async fn subscribe_mod(
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
 
-    sqlx::query!(r#"INSERT OR REPLACE INTO subscribed_mods (server_id, mod_name) VALUES (?1, ?2)"#, server_id, modname)
+    sqlx::query!(r#"INSERT OR REPLACE INTO subscribed_mods (server_id, mod_name) VALUES ($1, $2)"#, server_id, modname)
         .execute(db)
         .await?;
     ctx.say(format!("Mod {modname} added to subscriptions")).await?;
@@ -184,7 +180,7 @@ pub async fn unsubscribe_mod(
     };
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
-    sqlx::query!(r#"DELETE FROM subscribed_mods WHERE server_id = ?1 AND mod_name = ?2"#, server_id, modname)
+    sqlx::query!(r#"DELETE FROM subscribed_mods WHERE server_id = $1 AND mod_name = $2"#, server_id, modname)
         .execute(db)
         .await?;
     let response = format!("Mod {modname} removed from subscriptions");
@@ -215,7 +211,7 @@ pub async fn subscribe_author(
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
 
-    sqlx::query!(r#"INSERT OR REPLACE INTO subscribed_authors (server_id, author_name) VALUES (?1, ?2)"#, server_id, author)
+    sqlx::query!(r#"INSERT OR REPLACE INTO subscribed_authors (server_id, author_name) VALUES ($1, $2)"#, server_id, author)
         .execute(db)
         .await?;
     let response = format!("Author {author} added to subscriptions");
@@ -268,7 +264,7 @@ pub async fn unsubscribe_author(
     };
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
-    sqlx::query!(r#"DELETE FROM subscribed_authors WHERE server_id = ?1 AND author_name = ?2"#, server_id, author)
+    sqlx::query!(r#"DELETE FROM subscribed_authors WHERE server_id = $1 AND author_name = $2"#, server_id, author)
         .execute(db)
         .await?;
     let response = format!("Author {author} removed from subscriptions");
@@ -363,9 +359,10 @@ pub async fn find_mod(
     #[rest]
     modname: String,
 ) -> Result<(), Error> {
+    let command = modname.split(SEPARATOR).next().unwrap_or(&modname);
     let embed = match ctx {
-        poise::Context::Application(_) => mod_search(&modname, false, ctx.data()).await?,
-        poise::Context::Prefix(_) => mod_search(&modname, true, ctx.data()).await?,
+        poise::Context::Application(_) => mod_search(command, false, ctx.data()).await?,
+        poise::Context::Prefix(_) => mod_search(command, true, ctx.data()).await?,
     };
     let builder = CreateReply::default().embed(embed);
     ctx.send(builder).await?;
@@ -400,7 +397,7 @@ pub async fn mod_search(modname: &str, imprecise_search: bool, data: &Data) -> R
 
     let db = &data.database;
 
-    let Ok(mod_data) = sqlx::query!(r#"SELECT * FROM mods WHERE name = ?1"#, search_result)
+    let Ok(mod_data) = sqlx::query!(r#"SELECT * FROM mods WHERE name = $1"#, search_result)
         .fetch_one(db)
         .await else {
                 return Err(Box::new(CustomError::new( "Failed to find mod in database")));

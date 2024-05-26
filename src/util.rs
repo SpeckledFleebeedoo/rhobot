@@ -19,7 +19,7 @@ pub async fn is_mod(ctx: Context<'_>) -> Result<bool, Error> {
         return Err(Box::new(CustomError::new("Could not get server ID")))
     };
     let server_id = server.get() as i64;
-    let modrole = match sqlx::query!(r#"SELECT modrole FROM servers WHERE server_id = ?1"#, server_id)
+    let modrole = match sqlx::query!(r#"SELECT modrole FROM servers WHERE server_id = $1"#, server_id)
         .fetch_one(db)
         .await {
             Ok(role) => {match role.modrole {
@@ -55,7 +55,7 @@ pub async fn escape_formatting(unformatted_string: &str) -> String {
 }
 
 pub async fn get_subscribed_mods(db: &Pool<Sqlite>, server_id: i64) -> Result<Vec<String>, Error> {
-    let subscribed_mods = sqlx::query!(r#"SELECT mod_name FROM subscribed_mods WHERE server_id = ?1"#, server_id)
+    let subscribed_mods = sqlx::query!(r#"SELECT mod_name FROM subscribed_mods WHERE server_id = $1"#, server_id)
         .fetch_all(db)
         .await?
         .into_iter()
@@ -64,7 +64,7 @@ pub async fn get_subscribed_mods(db: &Pool<Sqlite>, server_id: i64) -> Result<Ve
     Ok(subscribed_mods)
 }
 pub async fn get_subscribed_authors(db: &Pool<Sqlite>, server_id: i64) -> Result<Vec<String>, Error> {
-    let subscribed_authors = sqlx::query!(r#"SELECT author_name FROM subscribed_authors WHERE server_id = ?1"#, server_id)
+    let subscribed_authors = sqlx::query!(r#"SELECT author_name FROM subscribed_authors WHERE server_id = $1"#, server_id)
         .fetch_all(db)
         .await?
         .into_iter()
@@ -74,18 +74,14 @@ pub async fn get_subscribed_authors(db: &Pool<Sqlite>, server_id: i64) -> Result
 }
 
 /// Show stored information about this server
-#[allow(clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only, ephemeral, category="Settings")]
 pub async fn get_server_info(
     ctx: Context<'_>
 ) -> Result<(), Error> {
-    let Some(server) = ctx.guild_id() else {
-        return Err(Box::new(CustomError::new("Could not get server ID")))
-    };
-    let server_id = server.get() as i64;
+    let server_id = get_server_id(ctx)?;
     
     let db = &ctx.data().database;
-    let serverdata = sqlx::query!(r#"SELECT * FROM servers WHERE server_id = ?1"#, server_id)
+    let serverdata = sqlx::query!(r#"SELECT * FROM servers WHERE server_id = $1"#, server_id)
         .fetch_optional(db)
         .await?;
     match serverdata {
@@ -122,17 +118,13 @@ pub async fn help(
 }
 
 /// Remove all stored data for this server, resetting all settings.
-#[allow(clippy::cast_possible_wrap)]
 #[poise::command(prefix_command, slash_command, guild_only, category="Settings", check="is_mod")]
 pub async fn reset_server_settings(
     ctx: Context<'_>
 ) -> Result<(), Error> {
-    let Some(server) = ctx.guild_id() else {
-        return Err(Box::new(CustomError::new("Could not get server ID")))
-    };
-    let server_id = server.get() as i64;
+    let server_id = get_server_id(ctx)?;
     let db = &ctx.data().database;
-    sqlx::query!(r#"DELETE FROM servers WHERE server_id = ?1"#, server_id)
+    sqlx::query!(r#"DELETE FROM servers WHERE server_id = $1"#, server_id)
         .execute(db)
         .await?;
     ctx.say("Server data reset").await?;
@@ -159,14 +151,14 @@ pub async fn reset_server_settings(
 //         None => None,
 //     };
 
-//     sqlx::query!(r#"INSERT INTO servers (server_id, updates_channel, modrole) VALUES (?1, ?2, ?3)"#, id, ch, role)
+//     sqlx::query!(r#"INSERT INTO servers (server_id, updates_channel, modrole) VALUES ($1, $2, $3)"#, id, ch, role)
 //         .execute(db)
 //         .await?;
 //     if subscribed_mods.is_some() {
 //         let unwrapped_mods = subscribed_mods.unwrap();
 //         let mods = unwrapped_mods.split(", ").collect::<Vec<&str>>();
 //         for modname in mods {
-//             sqlx::query!(r#"INSERT INTO subscribed_mods (server_id, mod_name) VALUES (?1, ?2)"#, server_id, modname)
+//             sqlx::query!(r#"INSERT INTO subscribed_mods (server_id, mod_name) VALUES ($1, $2)"#, server_id, modname)
 //             .execute(db)
 //             .await?;
 //         };
@@ -178,16 +170,16 @@ pub async fn reset_server_settings(
 #[allow(clippy::cast_possible_wrap)]
 pub async fn on_guild_leave(id: serenity::GuildId, db: Pool<Sqlite>) -> Result<(), Error> {
     let server_id = id.get() as i64;
-    sqlx::query!(r#"DELETE FROM servers WHERE server_id = ?1"#, server_id)
+    sqlx::query!(r#"DELETE FROM servers WHERE server_id = $1"#, server_id)
         .execute(&db)
         .await?;
-    sqlx::query!(r#"DELETE FROM subscribed_mods WHERE server_id = ?1"#, server_id)
+    sqlx::query!(r#"DELETE FROM subscribed_mods WHERE server_id = $1"#, server_id)
         .execute(&db)
         .await?;
-    sqlx::query!(r#"DELETE FROM subscribed_authors WHERE server_id = ?1"#, server_id)
+    sqlx::query!(r#"DELETE FROM subscribed_authors WHERE server_id = $1"#, server_id)
         .execute(&db)
         .await?;
-    sqlx::query!(r#"DELETE FROM faq WHERE server_id = ?1"#, server_id)
+    sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1"#, server_id)
         .execute(&db)
         .await?;
     println!("Left guild {server_id}");
@@ -248,4 +240,18 @@ pub async fn on_message(ctx: serenity::Context, msg: &serenity::Message, data: &
         msg.channel_id.send_message(http, builder).await?;
     }
     Ok(())
+}
+
+/// Capitalizes the first character in s.
+pub fn capitalize(s: &str) -> String {
+    let mut c = s.chars();
+    c.next().map_or_else(String::new, |f| f.to_uppercase().collect::<String>() + c.as_str())
+}
+
+#[allow(clippy::cast_possible_wrap)]
+pub fn get_server_id(ctx: Context<'_>) -> Result<i64, Error> {
+    let Some(server) = ctx.guild_id() else {
+        return Err(Box::new(CustomError::new("Could not get server ID")))
+    };
+    Ok(server.get() as i64)
 }

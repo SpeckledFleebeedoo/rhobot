@@ -1,7 +1,7 @@
 use parse_wiki_text::{Node, Configuration};
 use poise::serenity_prelude::{CreateEmbed, Colour};
 use poise::CreateReply;
-use crate::{custom_errors::CustomError, Context, Error};
+use crate::{custom_errors::CustomError, Context, Error, SEPARATOR};
 use std::{fmt, fmt::Write};
 use serde::Deserialize;
 
@@ -199,10 +199,11 @@ pub async fn wiki(
     #[rest]
     name: String,
 ) -> Result<(), Error> {
+    let command = name.split(SEPARATOR).next().unwrap_or(&name);
     let search_result: String = match ctx {
-        poise::Context::Application(_) => name,
+        poise::Context::Application(_) => command.to_owned(),
         poise::Context::Prefix(_) => {
-            let results = opensearch_mediawiki(&name).await?;
+            let results = opensearch_mediawiki(command).await?;
             let Some(res) = results.first() else {
                 return Err(Box::new(CustomError::new("Wiki search returned no results")))
             };

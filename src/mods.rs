@@ -128,7 +128,7 @@ pub async fn update_database(
             let timestamp = chrono::DateTime::parse_from_rfc3339(&released_at).map_or(0, |datetime| datetime.timestamp());
 
             let state;
-            let record = sqlx::query!(r#"SELECT released_at FROM mods WHERE name = ?1"#, result.name).fetch_optional(&db).await?;
+            let record = sqlx::query!(r#"SELECT released_at FROM mods WHERE name = $1"#, result.name).fetch_optional(&db).await?;
 
             if let Some(rec) = record { // Mod found in database
                 if rec.released_at.unwrap_or(0) == timestamp {
@@ -145,7 +145,7 @@ pub async fn update_database(
             
             sqlx::query!(r#"INSERT OR REPLACE INTO mods 
                     (name, title, owner, summary, category, downloads_count, factorio_version, version, released_at)
-                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"#, 
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"#, 
                     result.name,
                     result.title,
                     result.owner,
@@ -367,7 +367,7 @@ pub async fn update_mod_cache(
     cache: Arc<RwLock<Vec<ModCacheEntry>>>, 
     db: Pool<Sqlite>
 ) -> Result<(), Error> {
-    let records = sqlx::query!(r#"SELECT name, title, owner, category, downloads_count FROM mods WHERE factorio_version = ?1 ORDER BY downloads_count DESC"#, "1.1")
+    let records = sqlx::query!(r#"SELECT name, title, owner, category, downloads_count FROM mods WHERE factorio_version = $1 ORDER BY downloads_count DESC"#, "1.1")
         .fetch_all(&db)
         .await?
         .iter()

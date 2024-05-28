@@ -4,6 +4,7 @@ use poise::CreateReply;
 use crate::{custom_errors::CustomError, Context, Error, SEPARATOR};
 use std::{fmt, fmt::Write};
 use serde::Deserialize;
+use log::error;
 
 struct NodeWrap<'a>{n: &'a parse_wiki_text::Node<'a>}
 
@@ -275,7 +276,7 @@ async fn autocomplete_wiki<'a>(
     match opensearch_mediawiki(partial).await {
         Ok(r) => r,
         Err(e) => {
-            println!("Error searching wiki: {e}");
+            error!("Error searching wiki: {e}");
             vec![]
         }
     }

@@ -5,6 +5,7 @@ use sqlx::{Pool, Sqlite};
 use crate::{Context, Error, custom_errors::CustomError, Data, wiki_commands, mod_commands};
 use regex::Regex;
 use serde::Deserialize;
+use log::info;
 
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 pub async fn is_mod(ctx: Context<'_>) -> Result<bool, Error> {
@@ -171,7 +172,7 @@ struct NewFaqEntry {
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(slash_command, guild_only, owners_only, hide_in_help, category="Management")]
+#[poise::command(slash_command, prefix_command, guild_only, owners_only, hide_in_help, category="Management")]
 pub async fn import_legacy_faqs(
     ctx: Context<'_>,
     faq_json: serenity::Attachment,
@@ -238,7 +239,7 @@ pub async fn on_guild_leave(id: serenity::GuildId, db: Pool<Sqlite>) -> Result<(
     sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1"#, server_id)
         .execute(&db)
         .await?;
-    println!("Left guild {server_id}");
+    info!("Left guild {server_id}");
     Ok(())
 }
 pub async fn send_custom_error_message(ctx: Context<'_>, msg: &str) -> Result<(), Error> {
@@ -258,7 +259,6 @@ pub async fn on_message(ctx: serenity::Context, msg: &serenity::Message, data: &
     let wiki_regex = Regex::new(r"\[\[(.*?)\]\]").unwrap();
     let neg_wiki_regex = Regex::new(r"\`[\S\s]*?\[\[(.*?)\]\][\S\s]*?\`").unwrap();
     let wiki_captures = wiki_regex.captures(&msg.content);
-    if wiki_captures.is_some() {println!("Handling inline wiki command")};
     let neg_wiki_captures = neg_wiki_regex.captures(&msg.content);
     let wiki_search = if wiki_captures.is_none() || neg_wiki_captures.is_some() {
         None
@@ -269,7 +269,6 @@ pub async fn on_message(ctx: serenity::Context, msg: &serenity::Message, data: &
     let mod_regex = Regex::new(r">>(.*?)<<").unwrap();
     let neg_mod_regex = Regex::new(r"\`[\S\s]*?>>(.*?)<<[\S\s]*?\`").unwrap();
     let mod_captures = mod_regex.captures(&msg.content);
-    if mod_captures.is_some() {println!("Handling inline mod command")};
     let neg_mod_captures = neg_mod_regex.captures(&msg.content);
     let mod_search = if mod_captures.is_none() || neg_mod_captures.is_some() {
         None
@@ -280,7 +279,6 @@ pub async fn on_message(ctx: serenity::Context, msg: &serenity::Message, data: &
     if let Some(result_str) = wiki_search {
         let results = wiki_commands::opensearch_mediawiki(&result_str).await?;
         let Some(res) = results.first() else {
-            println!("No results found");
             return Ok(())
         };
     

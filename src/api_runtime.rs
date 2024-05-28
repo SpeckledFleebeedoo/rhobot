@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use poise::serenity_prelude as serenity;
 use poise::reply::CreateReply;
 use std::{fmt, sync::{Arc, RwLock}};
-use log::error;
+use log::{error, info};
 
 use crate::{Context, Error, custom_errors::CustomError, api_data::api_data};
 
@@ -287,7 +287,7 @@ impl fmt::Display for ComplexType {
 pub async fn update_api_cache(
     cache: Arc<RwLock<RuntimeApiResponse>>,
 ) -> Result<(), Error> {
-    println!("Updating API cache");
+    info!("Updating API cache");
     {
     let new_runtime_api = get_runtime_api().await?;
     let mut c = match cache.write() {

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use poise::serenity_prelude as serenity;
 use poise::reply::CreateReply;
 use std::{fmt, sync::{Arc, RwLock}};
-use log::error;
+use log::{error, info};
 
 use crate::{custom_errors::CustomError, Context, Error};
 
@@ -180,7 +180,7 @@ impl fmt::Display for ComplexType {
 pub async fn update_api_cache(
     cache: Arc<RwLock<DataApiResponse>>,
 ) -> Result<(), Error> {
-    println!("Updating data stage API cache");
+    info!("Updating data stage API cache");
     let new_data_api = get_data_api().await?;
     match cache.write() {
         Ok(mut c) => *c = new_data_api,

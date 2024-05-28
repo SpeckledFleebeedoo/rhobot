@@ -51,7 +51,7 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
     match error {
         poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {error}"),
         poise::FrameworkError::Command { error, ctx, .. } => {
-            println!("Error in command `{}`: {:?}", ctx.command().name, error,);
+            error!("Error in command `{}`: {:?}", ctx.command().name, error,);
             let _ = util::send_custom_error_message(ctx, &format!("{error}")).await;
         }
         poise::FrameworkError::CommandCheckFailed { ctx, .. } => {
@@ -59,7 +59,7 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
         }
         error => {
             if let Err(e) = poise::builtins::on_error(error).await {
-                println!("Error while handling error: {e}");
+                error!("Error while handling error: {e}");
             }
         }
     }
@@ -249,7 +249,7 @@ async fn main() {
                 Ok(()) => info!("Updated subscription cache"),
                 Err(error) => error!("Error while updating author name cache: {error}"),
             };
-            println!("Caches updated");
+            info!("Caches updated");
         };
     });
 

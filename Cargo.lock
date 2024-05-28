@@ -664,30 +664,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
-name = "factorio_mod_notifier"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "chrono-tz",
- "clokwerk",
- "dotenv",
- "env_logger",
- "log",
- "parse_wiki_text",
- "poise",
- "rand",
- "regex",
- "reqwest",
- "rust-fuzzy-search",
- "scraper",
- "serde",
- "serde_json",
- "serenity",
- "sqlx",
- "tokio",
-]
-
-[[package]]
 name = "fastrand"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1886,6 +1862,30 @@ dependencies = [
  "web-sys",
  "webpki-roots 0.25.4",
  "winreg",
+]
+
+[[package]]
+name = "rhoBot"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "chrono-tz",
+ "clokwerk",
+ "dotenv",
+ "env_logger",
+ "log",
+ "parse_wiki_text",
+ "poise",
+ "rand",
+ "regex",
+ "reqwest",
+ "rust-fuzzy-search",
+ "scraper",
+ "serde",
+ "serde_json",
+ "serenity",
+ "sqlx",
+ "tokio",
 ]
 
 [[package]]

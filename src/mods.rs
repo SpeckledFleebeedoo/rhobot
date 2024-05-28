@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serenity::all::{Colour, CreateEmbed, CreateMessage};
 use sqlx::{Pool, Sqlite};
 use std::{fmt, sync::{Arc, RwLock}};
-use log::error;
+use log::{error, info};
 
 use crate::Error;
 use crate::custom_errors::CustomError;
@@ -132,15 +132,15 @@ pub async fn update_database(
 
             if let Some(rec) = record { // Mod found in database
                 if rec.released_at == timestamp {
-                    println!("Already known mod found: {}", result.title);
+                    info!("Already known mod found: {}", result.title);
                     old_mod_encountered = true;
                     break;
                 }
                 state = ModState::Updated;
-                println!("Updated mod found: {}", result.title);
+                info!("Updated mod found: {}", result.title);
             } else { // Mod not found in database
                 state = ModState::New;
-                println!("New mod found: {}", result.title);
+                info!("New mod found: {}", result.title);
             };
             
             sqlx::query!(r#"INSERT OR REPLACE INTO mods 
@@ -177,7 +177,7 @@ pub async fn update_database(
             break;  // Break after first loop as it retrieves all mods at once when initializing.
         }
     }
-    println!("Database updated!");
+    info!("Database updated!");
     Ok(())
 }
 
@@ -203,7 +203,7 @@ async fn send_mod_update(
         db: Pool<Sqlite>, 
         cache_http: &Arc<poise::serenity_prelude::Http>
     ) -> Result<(), Error> {
-    println!("Sending mod update message for {}", updated_mod.title);
+    info!("Sending mod update message for {}", updated_mod.title);
     let server_data = sqlx::query!(r#"SELECT * FROM servers"#)
         .fetch_all(&db)
         .await?
@@ -274,7 +274,7 @@ async fn make_update_message(
     let builder = CreateMessage::new().embed(embed);
     match updates_channel.send_message(cache_http, builder).await {
         Ok(_) => {},
-        Err(e) => println!("Error sending message: {e}"),
+        Err(e) => error!("Error sending message: {e}"),
     };
     Ok(())
 }
@@ -292,7 +292,7 @@ pub async fn get_mod_thumbnail(name: &String) -> Result<String, Error> {
 }
 
 pub async fn get_mod_changelog(name: &String, lines: Option<i32>) -> Result<String, Error> {
-    println!("Getting mod changelog for {name}");
+    info!("Getting mod changelog for {name}");
     let versionsplit = "-".repeat(99);
     let url = format!("https://mods.factorio.com/api/mods/{name}/full");
     let response = reqwest::get(url).await?;

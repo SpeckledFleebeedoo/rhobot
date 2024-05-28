@@ -1,8 +1,8 @@
-# Factorio Mod Notifier
+# ρBot
 
 ## Description
 
-Factorio Mod Notifier is Discord bot written in Rust which can send mod update notifications to Discord servers, written primarily for the [Factorio discord server](https://discord.gg/factorio).
+ρBot is Discord bot written in Rust which can send mod update notifications to Discord servers, written primarily for the [Factorio discord server](https://discord.gg/factorio).
 
 Rewrite of and replacement for [SpeckledFleebeedoo/Factorio-Mod-Notifier](https://github.com/SpeckledFleebeedoo/Factorio-mod-notifier) and [arielbeje/ubot](https://github.com/arielbeje/ubot).
 
@@ -20,7 +20,7 @@ Rewrite of and replacement for [SpeckledFleebeedoo/Factorio-Mod-Notifier](https:
 
 ## Installation
 
-1. Clone the repository: `git clone https://github.com/SpeckledFleebeedoo/Factorio-mod-notifier-rs.git`
+1. Clone the repository: `git clone https://github.com/SpeckledFleebeedoo/rhobot.git`
 2. Create a .env file from the included [template](.env.template) and set a discord bot token. 
 3. [Install Rust](https://www.rust-lang.org/tools/install)
 4. Create a database: `sqlx database create` (requires `sqlx-cli`)

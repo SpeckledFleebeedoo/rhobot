@@ -159,7 +159,7 @@ async fn get_faq_entry(db: &Pool<Sqlite>, server_id: i64, name: &str) -> Result<
         name, server_id
     )
         .fetch_optional(db)
-        .await?.map_or_else(|| Err(Box::new(CustomError::new("Could not get FAQ entry from database"))), Ok)?
+        .await?.map_or_else(|| Err(Box::new(CustomError::new(&format!("Could not get FAQ entry {name} from database")))), Ok)?
     )
 }
 
@@ -315,7 +315,7 @@ pub async fn remove(
     };
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
-    match sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1 AND title = $2"#, server_id, name_lc)
+    match sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1 AND (title = $2 OR link = $2)"#, server_id, name_lc)
         .execute(db)
         .await?
         .rows_affected() {
@@ -355,14 +355,26 @@ pub async fn link(
         .is_some()
     {
         return Err(Box::new(CustomError::new(&format!("Error: An faq entry with title {name_lc} already exists"))));
-    }
+    };
 
-    let timestamp = ctx.created_at().timestamp();
-    let author_id = ctx.author().id.get() as i64;
-    sqlx::query!(r#"INSERT INTO faq (server_id, title, edit_time, author, link)
-    VALUES ($1, $2, $3, $4, $5)"#, server_id, name_lc, timestamp, author_id, link_to_lc)
-    .execute(db)
-    .await?;
-    ctx.say(format!("FAQ link {name_lc} added to database, linking to {link_to_lc}")).await?;
+    // Find entry to link to
+    let linked_entry_opt = sqlx::query_as!(FaqEntry, 
+        r#"SELECT title, contents, image, link FROM faq WHERE server_id = $1 AND title = $2"#, server_id, link_to_lc)
+        .fetch_optional(db)
+        .await?;
+
+    // Check if link target is link. Resolve chain if needed.
+    if let Some(linked_entry) = linked_entry_opt {
+        let link_no_chain = linked_entry.link.map_or(link_to_lc, |link| link);
+        let timestamp = ctx.created_at().timestamp();
+        let author_id = ctx.author().id.get() as i64;
+        sqlx::query!(r#"INSERT INTO faq (server_id, title, edit_time, author, link)
+            VALUES ($1, $2, $3, $4, $5)"#, server_id, name_lc, timestamp, author_id, link_no_chain)
+            .execute(db)
+            .await?;
+        ctx.say(format!("FAQ link {name_lc} added to database, linking to {link_no_chain}")).await?;
+    } else {
+        return Err(Box::new(CustomError::new(&format!("Error: Could not find FAQ entry {link_to_lc} to link to"))));
+    };
     Ok(())
 }

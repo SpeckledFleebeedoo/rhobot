@@ -4,6 +4,7 @@ use poise::reply::CreateReply;
 use sqlx::{Pool, Sqlite};
 use crate::{Context, Error, custom_errors::CustomError, Data, wiki_commands, mod_commands};
 use regex::Regex;
+use serde::Deserialize;
 
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 pub async fn is_mod(ctx: Context<'_>) -> Result<bool, Error> {
@@ -137,9 +138,9 @@ pub async fn info(
     ctx: Context<'_>
 ) -> Result<(), Error> {
     let embed = serenity::CreateEmbed::new()
-        .title("Factorio Mod Notifier")
+        .title("ρBot")
         .field("Creator", "SpeckledFleebeedoo#8679 (<@247640901805932544>)", false)
-        .field("Source", "[GitHub](https://www.github.com/SpeckledFleebeedoo/Factorio-mod-notifier-rs)", true)
+        .field("Source", "[GitHub](https://www.github.com/SpeckledFleebeedoo/rhobot)", true)
         .field("Invite link", "[Invite](https://discord.com/api/oauth2/authorize?client_id=872540831599456296&permissions=274877925376&scope=bot%20applications.commands)", true)
         .field("info", "To set up the bot on a new server, use /set_channel. No notifications will be sent without a channel set.", false);
     let builder = CreateReply::default().embed(embed);
@@ -147,41 +148,80 @@ pub async fn info(
     Ok(())
 }
 
-// /// Manually add entries to the database. Owner only.
-// #[poise::command(prefix_command, slash_command, guild_only, owners_only, category="Management")]
-// pub async fn migrate_serverdb_entry(
-//     ctx: Context<'_>,
-//     server_id: String,
-//     updates_channel: Option<String>,
-//     mod_role: Option<String>,
-//     subscribed_mods: Option<String>,
-// ) -> Result<(), Error> {
-//     let db = &ctx.data().database;
-//     let id = server_id.parse::<i64>().unwrap();
-//     let ch = match updates_channel {
-//         Some(c) => Some(c.parse::<i64>().unwrap()),
-//         None => None,
-//     };
-//     let role = match mod_role {
-//         Some(r) => Some(r.parse::<i64>().unwrap()),
-//         None => None,
-//     };
+#[derive(Deserialize, Debug, Clone)]
+struct LegacyFaqEntry {
+    serverid: i64,
+    title: String,
+    content: String,
+    image: String,
+    creator: i64,
+    timestamp: String,
+    link: String,
+}
 
-//     sqlx::query!(r#"INSERT INTO servers (server_id, updates_channel, modrole) VALUES ($1, $2, $3)"#, id, ch, role)
-//         .execute(db)
-//         .await?;
-//     if subscribed_mods.is_some() {
-//         let unwrapped_mods = subscribed_mods.unwrap();
-//         let mods = unwrapped_mods.split(", ").collect::<Vec<&str>>();
-//         for modname in mods {
-//             sqlx::query!(r#"INSERT INTO subscribed_mods (server_id, mod_name) VALUES ($1, $2)"#, server_id, modname)
-//             .execute(db)
-//             .await?;
-//         };
-//     };
-//     ctx.say(format!("entry for server {server_id} added to database")).await?;
-//     Ok(())
-// }
+#[derive(Debug, Clone)]
+struct NewFaqEntry {
+    server_id: i64,
+    title: String,
+    content: Option<String>,
+    image: Option<String>,
+    creator: i64,
+    timestamp: i64,
+    link: Option<String>,
+}
+
+#[allow(clippy::unused_async)]
+#[poise::command(slash_command, guild_only, owners_only, hide_in_help, category="Management")]
+pub async fn import_legacy_faqs(
+    ctx: Context<'_>,
+    faq_json: serenity::Attachment,
+) -> Result<(), Error> {
+    let content = faq_json.download().await?;
+    let file_str = std::str::from_utf8(&content)?;
+    let faqs: Vec<LegacyFaqEntry> = serde_json::from_str(file_str)?;
+    let db = &ctx.data().database;
+    for faq in faqs {
+        let new_faq = NewFaqEntry {
+            server_id: faq.serverid,
+            title: capitalize(&faq.title.to_lowercase()),
+            content: if faq.content.is_empty() {None} else {Some(faq.content.clone())},
+            image: if faq.image.is_empty() {None} else {Some(faq.image.clone())},
+            creator: faq.creator,
+            timestamp: chrono::DateTime::parse_from_rfc3339(&faq.timestamp).map_or(0, |datetime| datetime.timestamp()),
+            link: if faq.link.is_empty() {None} else {Some(capitalize(&faq.link.to_lowercase()),)},
+        };
+
+        sqlx::query!(r#"
+            INSERT INTO faq (server_id, title, contents, image, edit_time, author, link) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7)"#, 
+            new_faq.server_id,
+            new_faq.title,
+            new_faq.content,
+            new_faq.image,
+            new_faq.timestamp,
+            new_faq.creator,
+            new_faq.link
+        )
+            .execute(db)
+            .await?;
+    };
+    ctx.say("Successfully imported all FAQ entries").await?;
+    Ok(())
+}
+
+#[allow(clippy::unused_async)]
+#[poise::command(slash_command, guild_only, owners_only, hide_in_help, category="Management")]
+pub async fn drop_faqs(
+    ctx: Context<'_>,
+) -> Result<(), Error> {
+    let db = &ctx.data().database;
+    let server_id = get_server_id(ctx)?;
+    sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1"#, server_id)
+        .execute(db)
+        .await?;
+    ctx.say("All FAQ entries for this server deleted").await?;
+    Ok(())
+}
 
 #[allow(clippy::cast_possible_wrap)]
 pub async fn on_guild_leave(id: serenity::GuildId, db: Pool<Sqlite>) -> Result<(), Error> {

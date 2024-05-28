@@ -135,6 +135,8 @@ async fn main() {
             api_runtime::api(),
             wiki_commands::wiki(),
             fun_commands::expansion(),
+            util::import_legacy_faqs(),
+            util::drop_faqs(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("+".into()),

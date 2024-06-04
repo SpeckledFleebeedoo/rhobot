@@ -92,7 +92,7 @@ pub async fn fff(
             CreateEmbed::new()
                 .title("Factorio Friday Facts")
                 .url("https://www.factorio.com/blog")
-                .thumbnail("https://factorio.com/static/img/factorio-banner-main.jpg")
+                .thumbnail("https://factorio.com/static/img/factorio-wheel.png")
                 .color(Colour::ORANGE)
         }
     };

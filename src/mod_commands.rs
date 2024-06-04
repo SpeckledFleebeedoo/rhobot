@@ -404,7 +404,7 @@ pub async fn mod_search(modname: &str, imprecise_search: bool, data: &Data) -> R
     let Ok(mod_data) = sqlx::query!(r#"SELECT * FROM mods WHERE name = $1"#, search_result)
         .fetch_one(db)
         .await else {
-                return Err(Box::new(CustomError::new( "Failed to find mod in database")));
+                return Err(Box::new(CustomError::new( &format!("Failed to find mod {search_result} in database"))));
         };
 
     let name = mod_data.name;

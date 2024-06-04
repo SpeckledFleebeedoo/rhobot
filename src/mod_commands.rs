@@ -332,13 +332,21 @@ pub async fn show_subscriptions(
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
 
-    let subscribed_mods = get_subscribed_mods(db, server_id)
-        .await?
-        .join("\n");
+    let subscribed_mods_vec = get_subscribed_mods(db, server_id)
+        .await?;
+    let subscribed_mods = if subscribed_mods_vec.is_empty() {
+        String::from("_None_")
+    } else {
+        subscribed_mods_vec.join("\n")
+    };
 
-    let subscribed_authors = get_subscribed_authors(db, server_id)
-        .await?
-        .join("\n");
+    let subscribed_authors_vec = get_subscribed_authors(db, server_id)
+        .await?;
+    let subscribed_authors = if subscribed_authors_vec.is_empty() {
+        String::from("_None_")
+    } else {
+        subscribed_authors_vec.join("\n")
+    };
 
     let response = format!("**Subscribed mods:**\n{subscribed_mods}\n**Subscribed authors:**\n{subscribed_authors}");
     ctx.say(response).await?;

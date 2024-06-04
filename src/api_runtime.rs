@@ -9,8 +9,18 @@ use crate::{Context, Error, custom_errors::CustomError, api_data::api_data};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BasicMember {
     pub name: String,
+    #[serde(default)]   // Needed temporarily as LuaStruct attributes have inadvertedly lost their order. Should be fixed in 1.1.109
     pub order: i32,
     pub description: String,
+    pub lists: Option<Vec<String>>,
+    pub examples: Option<Vec<String>>,
+    pub images: Option<Vec<Image>>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Image {
+    pub filename: String,
+    caption: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -22,7 +32,6 @@ pub struct RuntimeApiResponse {
     pub classes: Vec<Class>,
     pub events: Vec<Event>,
     pub defines: Vec<Define>,
-    pub builtin_types: Vec<BuiltinType>,
     pub concepts: Vec<Concept>,
     pub global_objects: Vec<GlobalObject>,
     pub global_functions: Vec<Method>,
@@ -32,31 +41,39 @@ pub struct RuntimeApiResponse {
 pub struct Class {
     #[serde(flatten)]
     pub common: BasicMember,
-    pub notes: Option<Vec<String>>,
-    pub examples: Option<Vec<String>>,
     pub methods: Vec<Method>,
     pub attributes: Vec<Attribute>,
     pub operators: Vec<Operator>,
     pub r#abstract: bool,
-    pub base_classes: Option<Vec<String>>
+    pub parent: Option<String>,
+    pub visibility: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Method {
     #[serde(flatten)]
     pub common: BasicMember,
-    pub notes: Option<Vec<String>>,
-    pub examples: Option<Vec<String>>,
     pub raises: Option<Vec<EventRaised>>,
     pub subclasses: Option<Vec<String>>,
     pub parameters: Vec<Parameter>,
     pub variant_parameter_groups: Option<Vec<ParameterGroup>>,
     pub variant_parameter_description: Option<String>,
-    pub variadic_type: Option<Type>,
-    pub variadic_description: Option<String>,
-    pub takes_table: bool,
-    pub table_is_optional: Option<bool>,
+    pub variadic_parameter: Option<VariadicParameter>,
+    pub format: MethodFormat,
     pub return_values: Vec<ReturnValue>,
+}
+
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct VariadicParameter {
+    pub r#type: Option<Type>,
+    pub description: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MethodFormat {
+    takes_table: bool,
+    table_optional: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -69,18 +86,18 @@ pub struct EventRaised {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Parameter {
-    #[serde(flatten)]
-    pub common: BasicMember,
+    pub name: String,
+    pub order: i32,
+    pub description: String,
     pub r#type: Type,
     pub optional: bool,
 }
 
-// Does not use `common` as description needs to be optional for this type.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ParameterGroup {
     pub name: String,
     pub order: i32,
-    pub description: Option<String>,
+    pub description: String,
     pub parameters: Vec<Parameter>,
 }
 
@@ -103,6 +120,7 @@ pub enum Type {
 #[serde(tag = "complex_type", rename_all = "snake_case")]
 pub enum ComplexType {
     Type {value: Type, description: String },
+    Builtin,
     Union { options: Vec<Type>, full_format: bool },
     Array { value: Type },
     Dictionary { key: Type, value: Type },
@@ -115,15 +133,14 @@ pub enum ComplexType {
     #[serde(rename = "LuaStruct")]
     LuaStruct {attributes: Vec<Attribute>},
     Table { parameters: Vec<Parameter> , variant_parameter_groups: Option<Vec<ParameterGroup>>, variant_parameter_description: Option<String> },
-    Tuple { parameters: Vec<Parameter> , variant_parameter_groups: Option<Vec<ParameterGroup>>, variant_parameter_description: Option<String> },
+    Tuple { values: Vec<Type> },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Attribute {
     #[serde(flatten)]
     pub common: BasicMember,
-    pub notes: Option<Vec<String>>,
-    pub examples: Option<Vec<String>>,
+    pub visibility: Option<Vec<String>>,
     pub raises: Option<Vec<EventRaised>>,
     pub subclasses: Option<Vec<String>>,
     pub r#type: Type,
@@ -143,9 +160,8 @@ pub enum Operator {
 pub struct Event {
     #[serde(flatten)]
     pub common: BasicMember,
-    pub notes: Option<Vec<String>>,
-    pub examples: Option<Vec<String>>,
-    pub data: Vec<Parameter>
+    pub data: Vec<Parameter>,
+    pub filter: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -157,24 +173,17 @@ pub struct Define {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct BuiltinType {
-    #[serde(flatten)]
-    pub common: BasicMember,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Concept {
     #[serde(flatten)]
     pub common: BasicMember,
-    pub notes: Option<Vec<String>>,
-    pub examples: Option<Vec<String>>,
     pub r#type: Type,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GlobalObject {
-    #[serde(flatten)]
-    pub common: BasicMember,
+    pub name: String,
+    pub order: i32,
+    pub description: String,
     pub r#type: Type,
 }
 
@@ -218,16 +227,6 @@ impl Concept {
     }
 }
 
-impl BuiltinType {
-    pub fn to_embed(&self) -> serenity::CreateEmbed {
-        let url = format!("https://lua-api.factorio.com/latest/builtin-types.html#{}", &self.common.name);
-        self.common.create_embed()
-        .author(serenity::CreateEmbedAuthor::new("Builtin type")
-            .url("https://lua-api.factorio.com/latest/builtin-types.html"))
-        .url(url)
-    }
-}
-
 impl BasicMember {
     pub fn create_embed(&self) -> serenity::CreateEmbed {
         serenity::CreateEmbed::new()
@@ -250,6 +249,7 @@ impl fmt::Display for ComplexType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Type { value, .. } => {write!(f, "{value}")},
+            Self::Builtin => write!(f, "builtin"),
             Self::Union { options, .. } => {
                 let options_string = options.iter()
                     .map(|t| format!("{t}"))
@@ -313,7 +313,7 @@ pub async fn get_runtime_api() -> Result<RuntimeApiResponse, Error> {
 
 /// Link a page in the mod making API. Slash commands only.
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, subcommands("api_runtime", "api_data"))]
+#[poise::command(prefix_command, slash_command, track_edits, subcommands("api_runtime", "api_data", "api_page"))]
 pub async fn api(
     _ctx: Context<'_>
 ) -> Result<(), Error> {
@@ -321,7 +321,7 @@ pub async fn api(
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, subcommands("api_class", "api_event", "api_define", "api_concept", "api_builtintype"), rename="runtime")]
+#[poise::command(prefix_command, slash_command, track_edits, subcommands("api_class", "api_event", "api_define", "api_concept"), rename="runtime")]
 pub async fn api_runtime(
     _ctx: Context<'_>
 ) -> Result<(), Error> {
@@ -365,20 +365,20 @@ pub async fn api_class (
             .find(|a| a.common.name == property_name);
 
         if let Some(m) = method {
-            let parameters_str = if m.takes_table {
+            let parameters_str = if m.format.takes_table {
                     let mut sorted_params = m.parameters.clone();
-                    sorted_params.sort_unstable_by_key(|par| par.common.order);
+                    sorted_params.sort_unstable_by_key(|par| par.order);
                     let parameters = sorted_params.into_iter().map(|par| {
                         let optional = if par.optional { "?" } else { "" };
-                        format!("{}{}=...", par.common.name, optional)
+                        format!("{}{}=...", par.name, optional)
                     }).collect::<Vec<String>>().join(", ");
                     format!(r#"{{{parameters}}}"#)
                 } else {
                     let mut sorted_params = m.parameters.clone();
-                    sorted_params.sort_unstable_by_key(|par| par.common.order);
+                    sorted_params.sort_unstable_by_key(|par| par.order);
                     let parameters = sorted_params.into_iter().map(|par| {
                         let optional = if par.optional { "?" } else { "" };
-                        format!("{}{}", par.common.name, optional)
+                        format!("{}{}", par.name, optional)
                     }).collect::<Vec<String>>().join(", ");
                     format!(r#"({parameters})"#)
             };
@@ -612,50 +612,70 @@ async fn autocomplete_concept<'a>(
         .collect::<Vec<String>>()
 }
 
+#[derive(Debug, poise::ChoiceParameter)]
+enum ApiPage{
+    Home,
+    Lifecycle,
+    #[name = "Libraries and Functions"]
+    Libraries,
+    Classes,
+    Events,
+    Concepts,
+    Defines,
+    Prototypes,
+    Types,
+    #[name = "Prototype Inheritance Tree"]
+    PrototypeTree
+}
+
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, rename="builtin_type")]
-pub async fn api_builtintype (
+#[poise::command(prefix_command, slash_command, track_edits, rename="page")]
+pub async fn api_page (
     ctx: Context<'_>,
-    #[description = "Search term"]
-    #[autocomplete = "autocomplete_builtintype"]
-    #[rename = "builtin_type"]
-    builtintype_search: String,
+    #[description = "API page to link"]
+    page: ApiPage,
 ) -> Result<(), Error> {
 
-    let cache = ctx.data().runtime_api_cache.clone();
-    let api = match cache.read() {
-        Ok(c) => c,
-        Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
-        },
-    }.clone();
-
-    let Some(search_result) = api.builtin_types.iter()
-        .find(|builtin_type| builtintype_search.eq_ignore_ascii_case(&builtin_type.common.name)) 
-    else {
-        return Err(Box::new(CustomError::new("Could not find specified builtin type in runtime API documentation")))
+    let (name, url) = match page {
+    ApiPage::Home => ("Home", "https://lua-api.factorio.com/latest/"),
+    ApiPage::Lifecycle => ("Lifecycle", "https://lua-api.factorio.com/latest/auxiliary/data-lifecycle.html"),
+    ApiPage::Libraries => ("Libraries and Functions", "https://lua-api.factorio.com/latest/auxiliary/libraries.html"),
+    ApiPage::Classes => ("Classes", "https://lua-api.factorio.com/latest/classes.html"),
+    ApiPage::Events => ("Events", "https://lua-api.factorio.com/latest/events.html"),
+    ApiPage::Concepts => ("Concepts", "https://lua-api.factorio.com/latest/concepts.html"),
+    ApiPage::Defines => ("Defines", "https://lua-api.factorio.com/latest/defines.html"),
+    ApiPage::Prototypes => ("Prototypes", "https://lua-api.factorio.com/latest/prototypes.html"),
+    ApiPage::Types => ("Types", "https://lua-api.factorio.com/latest/types.html"),
+    ApiPage::PrototypeTree => ("Prototype Inheritance Tree", "https://lua-api.factorio.com/latest/tree.html"),
     };
+    
+    let embed = serenity::CreateEmbed::new()
+        .title(name)
+        .description(url)
+        .color(serenity::Colour::GOLD);
     let builder = CreateReply::default()
-        .embed(search_result.to_embed());
+        .embed(embed);
     ctx.send(builder).await?;
     Ok(())
 }
 
-#[allow(clippy::unused_async)]
-async fn autocomplete_builtintype<'a> (
-    ctx: Context<'_>,
-    partial: &'a str,
-) -> Vec<String>{
-    let cache = ctx.data().runtime_api_cache.clone();
-    let api = match cache.read(){
-        Ok(c) => c,
-        Err(e) => {
-            error!{"Error acquiring cache: {e}"}
-            return vec![]
-        },
-    }.clone();
-    api.builtin_types.iter()
-        .filter(|c| c.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
-        .map(|c| c.common.name.clone())
-        .collect::<Vec<String>>()
+
+#[allow(unused_imports)]
+mod tests {
+
+    use super::*;
+    use std::io::Read;
+    
+    #[tokio::test]
+    async fn decode_api() {
+        let file = std::fs::File::open("runtime-api-v5.json");
+        assert!(file.is_ok(), "Failed to read file");
+
+        let buf_reader = std::io::BufReader::new(file.unwrap());
+        let api_data: Result<RuntimeApiResponse, serde_json::Error> = serde_json::from_reader(buf_reader);
+        match api_data {
+            Ok(_) => {},
+            Err(e) => {panic!("{}", e)}
+        };
+    }
 }

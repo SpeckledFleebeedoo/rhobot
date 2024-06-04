@@ -76,15 +76,26 @@ async fn get_fff_data(number: i32) -> Result<FFFData, Error> {
 pub async fn fff(
     ctx: Context<'_>,
     #[description = "Number of the FFF"]
-    number: i32,
+    number: Option<i32>,
 ) -> Result<(), Error> {
-    let fff_data = get_fff_data(number).await?;
-    let embed = CreateEmbed::new()
-        .title(fff_data.title.unwrap_or_default())
-        .url(fff_data.url)
-        .description(fff_data.description.unwrap_or_default())
-        .thumbnail(fff_data.image.unwrap_or_default())
-        .color(Colour::ORANGE);
+    let embed = match number {
+        Some(n) => {
+            let fff_data = get_fff_data(n).await?;
+            CreateEmbed::new()
+                .title(fff_data.title.unwrap_or_default())
+                .url(fff_data.url)
+                .description(fff_data.description.unwrap_or_default())
+                .thumbnail(fff_data.image.unwrap_or_default())
+                .color(Colour::ORANGE)
+        },
+        None => {
+            CreateEmbed::new()
+                .title("Factorio Friday Facts")
+                .url("https://www.factorio.com/blog")
+                .thumbnail("https://factorio.com/static/img/factorio-banner-main.jpg")
+                .color(Colour::ORANGE)
+        }
+    };
     let builder = CreateReply::default().embed(embed);
     ctx.send(builder).await?;
     Ok(())

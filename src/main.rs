@@ -51,7 +51,7 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
     match error {
         poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {error}"),
         poise::FrameworkError::Command { error, ctx, .. } => {
-            error!("Error in command `{}`: {:?}", ctx.command().name, error,);
+            error!("Error in command `{}`: {}", ctx.command().name, error,);
             let _ = util::send_custom_error_message(ctx, &format!("{error}")).await;
         }
         poise::FrameworkError::CommandCheckFailed { ctx, .. } => {
@@ -220,7 +220,6 @@ async fn main() {
     tokio::spawn(async move {
         loop {
             mod_update_interval.tick().await;
-            println!("Start updating mod database");
             let result = update_database(db_clone_2.clone(), &http_clone, false).await;
             match result {
                 Ok(()) => info!{"Updated mod database"},

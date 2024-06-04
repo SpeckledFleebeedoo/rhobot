@@ -12,6 +12,9 @@ pub struct BasicMember {
     pub name: String,
     pub order: i32,
     pub description: String,
+    pub lists: Option<Vec<String>>,
+    pub examples: Option<Vec<String>>,
+    pub images: Option<Vec<Image>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -28,9 +31,7 @@ pub struct DataApiResponse {
 pub struct Prototype {
     #[serde(flatten)]
     pub common: BasicMember,
-    pub lists: Option<Vec<String>>,
-    pub examples: Option<Vec<String>>,
-    pub images: Option<Vec<Image>>,
+    pub visibility: Option<Vec<String>>,
     pub parent: Option<String>,
     pub r#abstract: bool,
     pub typename: Option<String>,
@@ -44,9 +45,6 @@ pub struct Prototype {
 pub struct DataStageType {
     #[serde(flatten)]
     pub common: BasicMember,
-    pub lists: Option<Vec<String>>,
-    pub examples: Option<Vec<String>>,
-    pub images: Option<Vec<Image>>,
     pub parent: Option<String>,
     pub r#abstract: bool,
     pub inline: bool,
@@ -64,9 +62,6 @@ pub struct Image {
 pub struct Property {
     #[serde(flatten)]
     pub common: BasicMember,
-    pub lists: Option<Vec<String>>,
-    pub examples: Option<Vec<String>>,
-    pub images: Option<Vec<Image>>,
     pub alt_name: Option<String>,
     pub r#override: bool,
     pub r#type: Type,
@@ -404,4 +399,24 @@ async fn autocomplete_type_property<'a>(
         .map(|p| p.common.name.clone())
         .filter(|n| n.to_lowercase().contains(&partial.to_lowercase()))
         .collect::<Vec<String>>())
+}
+
+#[allow(unused_imports)]
+mod tests {
+
+    use super::*;
+    use std::io::Read;
+    
+    #[tokio::test]
+    async fn decode_api() {
+        let file = std::fs::File::open("prototype-api-v5.json");
+        assert!(file.is_ok(), "Failed to read file");
+
+        let buf_reader = std::io::BufReader::new(file.unwrap());
+        let api_data: Result<DataApiResponse, serde_json::Error> = serde_json::from_reader(buf_reader);
+        match api_data {
+            Ok(_) => {},
+            Err(e) => {panic!("{}", e)}
+        };
+    }
 }

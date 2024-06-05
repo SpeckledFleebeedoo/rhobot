@@ -112,11 +112,11 @@ async fn faq_core(
         .await?;
 
     // Check if entry found
-    let entry = if let Some(e) = entry_option { e } else {
+    let (entry, close_match) = if let Some(e) = entry_option { (e, false) } else {
         // If no entry found, check for near matches
         let closest_match = find_closest_faq(ctx, &name_lc, server_id)?;
         if let Some(match_name) = closest_match {
-            get_faq_entry(db, server_id, &match_name).await?
+            (get_faq_entry(db, server_id, &match_name).await?, true)
         } else {
             // If no near matches, return no results message
             let errmsg = format!(
@@ -136,9 +136,14 @@ async fn faq_core(
 
     // Make and send embed for found entry
     let color = serenity::Colour::GOLD;
+    let title = if close_match {
+        format!(r#"Could not find "{name_lc}" in FAQ tags. Did you mean "{}"?"#, entry_final.title)
+    } else {
+        entry_final.title
+    };
 
     let mut embed = serenity::CreateEmbed::new()
-        .title(entry_final.title)
+        .title(title)
         .color(color);
     if let Some(content) = entry_final.contents {
         embed = embed.description(content);
@@ -172,9 +177,12 @@ fn find_closest_faq(ctx: Context<'_>, name: &str, server_id: i64) -> Result<Opti
         },
     }.clone();
     let server_faqs = faq_cache.iter().filter(|f| f.server_id == server_id).map(|f| f.title.as_str()).collect::<Vec<&str>>();
-    let matches = rust_fuzzy_search::fuzzy_search_best_n(name, &server_faqs, 1);
+    let matches = rust_fuzzy_search::fuzzy_search_best_n(name, &server_faqs, 10);
     let best_match = matches.first();
-    Ok(best_match.map(|m| m.0.to_owned()))
+    Ok(best_match
+        .filter(|m| m.1 > 0.5)
+        .map(|m| m.0.to_owned())
+    )
 }
 
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]

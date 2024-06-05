@@ -363,7 +363,7 @@ pub async fn find_mod(
     #[rest]
     modname: String,
 ) -> Result<(), Error> {
-    let command = modname.split(SEPARATOR).next().unwrap_or(&modname);
+    let command = modname.split(SEPARATOR).next().unwrap_or(&modname).trim();
     let embed = match ctx {
         poise::Context::Application(_) => mod_search(command, false, ctx.data()).await?,
         poise::Context::Prefix(_) => mod_search(command, true, ctx.data()).await?,

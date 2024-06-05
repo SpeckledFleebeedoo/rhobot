@@ -200,7 +200,7 @@ pub async fn wiki(
     #[rest]
     name: String,
 ) -> Result<(), Error> {
-    let command = name.split(SEPARATOR).next().unwrap_or(&name);
+    let command = name.split(SEPARATOR).next().unwrap_or(&name).trim();
     let search_result: String = match ctx {
         poise::Context::Application(_) => command.to_owned(),
         poise::Context::Prefix(_) => {

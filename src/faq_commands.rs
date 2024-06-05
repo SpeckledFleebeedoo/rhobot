@@ -98,7 +98,7 @@ async fn faq_core(
     ctx: Context<'_>,
     name: String,
 ) -> Result<(), Error> {
-    let command = name.split(SEPARATOR).next().unwrap_or(&name);
+    let command = name.split(SEPARATOR).next().unwrap_or(&name).trim();
     let name_lc = util::capitalize(&command.to_lowercase());
     let db = &ctx.data().database;
     let server_id = util::get_server_id(ctx)?;

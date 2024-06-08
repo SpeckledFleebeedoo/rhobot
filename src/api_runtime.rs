@@ -9,7 +9,6 @@ use crate::{Context, Error, custom_errors::CustomError, api_data::api_data};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BasicMember {
     pub name: String,
-    #[serde(default)]   // Needed temporarily as LuaStruct attributes have inadvertedly lost their order. Should be fixed in 1.1.109
     pub order: i32,
     pub description: String,
     pub lists: Option<Vec<String>>,

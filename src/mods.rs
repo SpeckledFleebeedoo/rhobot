@@ -260,7 +260,7 @@ async fn make_update_message(
         ModState::Updated => format!("Updated mod:\n{}", escape_formatting(&updated_mod.title).await),
         ModState::New => format!("New mod:\n{}", escape_formatting(&updated_mod.title).await),
     };
-    title.truncate(265);
+    title.truncate(256);
     let changelog = if show_changelog { updated_mod.changelog.clone() } else { String::new() };
     let author_link = format!("{} ([more](https://mods.factorio.com/user/{}))", escape_formatting(&updated_mod.author).await, &updated_mod.author);
     let embed = CreateEmbed::new()

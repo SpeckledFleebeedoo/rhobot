@@ -1,6 +1,6 @@
 use poise::serenity_prelude::{AutocompleteChoice, CreateEmbed, Colour};
 use poise::CreateReply;
-use rust_fuzzy_search::fuzzy_search_best_n;
+use rust_fuzzy_search::fuzzy_search;
 use log::error;
 
 use crate::{Context, Error, custom_errors::CustomError, Data, SEPARATOR,
@@ -382,19 +382,37 @@ pub async fn mod_search(modname: &str, imprecise_search: bool, data: &Data) -> R
                 return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
             },
         }.clone();
-        let title_list = modcache.clone()
-            .into_iter()
-            .map(|f| f.title)
-            .collect::<Vec<String>>();
-        let title_list_unowned = title_list.iter()
-            .map(std::convert::AsRef::as_ref)
-            .collect::<Vec<&str>>();
-        let query = modname.split('|').collect::<Vec<&str>>()[0];
-        let title = fuzzy_search_best_n(query, &title_list_unowned, 1)[0].0.to_owned();
-        let found_name = modcache.into_iter()
-            .filter(|f| f.title == title)
-            .collect::<Vec<ModCacheEntry>>();
-        found_name[0].clone().name
+        let name_lc = modname.to_lowercase();
+
+        let mod_titles = modcache.iter()
+            .map(|f| f.title.clone())
+            .collect::<Box<[String]>>();
+        let lowercase_mod_titles = mod_titles.iter()
+            .map(|t| t.to_lowercase())
+            .collect::<Box<[String]>>();
+        let comparison_titles = lowercase_mod_titles.iter()
+            .map(String::as_ref)
+            .collect::<Box<[&str]>>();
+
+        let title_match_values = fuzzy_search(&name_lc, &comparison_titles);
+
+        let mut titles_values = mod_titles.iter().zip(title_match_values.iter())
+            .map(|m| (m.0, m.1.1))
+            .collect::<Box<[_]>>();
+        titles_values.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        // println!("{:#?}", &titles_values[0..10]);
+
+        if let Some(best_match) = titles_values.first() {
+            if best_match.1 < 0.67 {
+                return Err(Box::new(CustomError::new( &format!("Failed to find mod {modname} in database"))));
+            }
+            let found_name = modcache.into_iter()
+                .filter(|f| f.title == *best_match.0)
+                .collect::<Box<[ModCacheEntry]>>();
+            found_name[0].clone().name
+        } else {
+            return Err(Box::new(CustomError::new( &format!("Failed to find mod {modname} in database"))));
+        }
     } else {
         modname.to_owned()
     };

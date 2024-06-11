@@ -190,7 +190,7 @@ pub async fn get_data_api() -> Result<DataApiResponse, Error> {
     let response = reqwest::get("https://lua-api.factorio.com/latest/prototype-api.json").await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
-        _ => return Err(Box::new(CustomError::new("Received HTTP status code that is not 200")))
+        _ => return Err(Box::new(CustomError::new(&format!("Received HTTP status code {} while accessing Lua prototype API", response.status().as_str()))))
     };
     Ok(response.json::<DataApiResponse>().await?)
 }

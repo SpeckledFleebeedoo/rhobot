@@ -32,7 +32,7 @@ async fn get_fff_data(number: i32) -> Result<FFFData, Error> {
     match response.status() {
         reqwest::StatusCode::OK => (),
         reqwest::StatusCode::NOT_FOUND => {return Err(Box::new(CustomError::new("Page does not exist")))},
-        _ => return Err(Box::new(CustomError::new("Received HTTP status code that is not 200"))),
+        _ => return Err(Box::new(CustomError::new(&format!("Received HTTP status code {} while accessing FFF website", response.status().as_str())))),
     };
     let mut fff = FFFData::new(url);
     let text = response.text().await?;

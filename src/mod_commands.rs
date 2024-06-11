@@ -1,11 +1,12 @@
 use poise::serenity_prelude::{AutocompleteChoice, CreateEmbed, Colour};
 use poise::CreateReply;
-use rust_fuzzy_search::fuzzy_search;
+// use rust_fuzzy_search::fuzzy_search;
 use log::error;
 
+use crate::mod_search_api;
 use crate::{Context, Error, custom_errors::CustomError, Data, SEPARATOR,
-    util::{escape_formatting, get_subscribed_authors, get_subscribed_mods, is_mod, get_server_id},
-    mods::{self, ModCacheEntry, SubCacheEntry, SubscriptionType}
+    util::{get_subscribed_authors, get_subscribed_mods, is_mod, get_server_id},
+    mods::{self, SubCacheEntry, SubscriptionType}
 };
 
 enum AutocompleteType{
@@ -374,77 +375,39 @@ pub async fn find_mod(
 }
 
 pub async fn mod_search(modname: &str, imprecise_search: bool, data: &Data) -> Result<CreateEmbed, Error> {
-    let search_result = if imprecise_search {
-        let cache = data.mod_cache.clone();
-        let modcache = match cache.read() {
-            Ok(c) => c,
-            Err(e) => {
-                return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
-            },
-        }.clone();
-        let name_lc = modname.to_lowercase();
+    let mut search_result = if imprecise_search {
+        mod_search_api::find_mod(modname, &data.mod_portal_credentials).await?
 
-        let mod_titles = modcache.iter()
-            .map(|f| f.title.clone())
-            .collect::<Box<[String]>>();
-        let lowercase_mod_titles = mod_titles.iter()
-            .map(|t| t.to_lowercase())
-            .collect::<Box<[String]>>();
-        let comparison_titles = lowercase_mod_titles.iter()
-            .map(String::as_ref)
-            .collect::<Box<[&str]>>();
-
-        let title_match_values = fuzzy_search(&name_lc, &comparison_titles);
-
-        let mut titles_values = mod_titles.iter().zip(title_match_values.iter())
-            .map(|m| (m.0, m.1.1))
-            .collect::<Box<[_]>>();
-        titles_values.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-        // println!("{:#?}", &titles_values[0..10]);
-
-        if let Some(best_match) = titles_values.first() {
-            if best_match.1 < 0.67 {
-                return Err(Box::new(CustomError::new( &format!("Failed to find mod {modname} in database"))));
-            }
-            let found_name = modcache.into_iter()
-                .filter(|f| f.title == *best_match.0)
-                .collect::<Box<[ModCacheEntry]>>();
-            found_name[0].clone().name
-        } else {
-            return Err(Box::new(CustomError::new( &format!("Failed to find mod {modname} in database"))));
-        }
     } else {
-        modname.to_owned()
-    };
-
-    let db = &data.database;
-
-    let Ok(mod_data) = sqlx::query!(r#"SELECT * FROM mods WHERE name = $1"#, search_result)
-        .fetch_one(db)
-        .await else {
-                return Err(Box::new(CustomError::new( &format!("Failed to find mod {search_result} in database"))));
+        let db = &data.database;
+        let Ok(mod_data) = sqlx::query!(r#"SELECT * FROM mods WHERE name = $1"#, modname)
+            .fetch_one(db)
+            .await else {
+                    return Err(Box::new(CustomError::new( &format!("Failed to find mod {modname} in database"))));
         };
 
-    let name = mod_data.name;
-    let mut title = escape_formatting(&mod_data.title.unwrap_or_else(|| name.clone())).await;
-    title.truncate(256);
-    let thumbnail = mods::get_mod_thumbnail(&name).await.unwrap_or_else(|_| "/assets/.thumb.png".to_owned());
-    let url = format!("https://mods.factorio.com/mod/{name}")
-        .replace(' ', "%20");
-    let mut summary = escape_formatting(&mod_data.summary.unwrap_or(String::new())).await;
-    summary.truncate(4096);
-    let owner = escape_formatting(&mod_data.owner).await;
-    let downloads = mod_data.downloads_count.to_string();
-    let color = Colour::from_rgb(0x2E, 0xCC, 0x71);
+        mod_search_api::FoundMod{
+            downloads_count: mod_data.downloads_count,
+            name: mod_data.name.clone(),
+            owner: mod_data.owner,
+            summary: mod_data.summary.unwrap_or_default(),
+            thumbnail: mods::get_mod_thumbnail(&mod_data.name).await.unwrap_or_else(|_| "https://assets-mod.factorio.com/assets/.thumb.png".to_owned()),
+            title: mod_data.title.unwrap_or_else(|| mod_data.name.clone()),
+        }
+    };
+    
+    search_result.sanitize_for_embed().await;
+    let url = format!("https://mods.factorio.com/mod/{}", search_result.name)
+    .replace(' ', "%20");
 
     let embed = CreateEmbed::new()
-        .title(&title)
+        .title(&search_result.title)
         .url(url)
-        .description(&summary)
-        .color(color)
-        .field("Author", owner, true)
-        .field("Downloads", downloads, true)
-        .thumbnail(&thumbnail);
+        .description(&search_result.summary)
+        .color(Colour::from_rgb(0x2E, 0xCC, 0x71))
+        .field("Author", &search_result.owner, true)
+        .field("Downloads", search_result.downloads_count.to_string(), true)
+        .thumbnail(&search_result.thumbnail);
     Ok(embed)
 }
 

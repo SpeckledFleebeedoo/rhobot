@@ -2,6 +2,7 @@
 
 mod mod_commands;
 mod mods;
+mod mod_search_api;
 mod faq_commands;
 mod fff_commands;
 mod fun_commands;
@@ -14,6 +15,7 @@ mod util;
 use clokwerk::{AsyncScheduler, Job};
 use fff_commands::update_fff_channel_description;
 use mods::{get_mod_count, update_database, update_mod_cache, update_sub_cache, update_author_cache, ModCacheEntry, SubCacheEntry};
+use mod_search_api::ModPortalCredentials;
 use faq_commands::{update_faq_cache, FaqCacheEntry};
 use tokio::time;
 use log::{error, info};
@@ -42,6 +44,7 @@ pub struct Data {
     mod_author_cache: Arc<RwLock<Vec<String>>>,
     runtime_api_cache: Arc<RwLock<api_runtime::RuntimeApiResponse>>,
     data_api_cache: Arc<RwLock<api_data::DataApiResponse>>,
+    mod_portal_credentials: Arc<ModPortalCredentials>,
 }
 
 async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
@@ -114,6 +117,12 @@ async fn main() {
     };
     let data_api_cache = Arc::new(RwLock::new(datastage_api));
     let data_api_cache_clone = data_api_cache.clone();
+
+    let mod_portal_cred = {
+        let username = var("MOD_PORTAL_USERNAME").expect("Could not find mod portal username in .env file");
+        let token = var("MOD_PORTAL_TOKEN").expect("Could not find mod portal token in .env file");
+        Arc::new(ModPortalCredentials::new(username, token))
+    };
 
     // FrameworkOptions contains all of poise's configuration option in one struct
     // Every option can be omitted to use its default value
@@ -188,6 +197,7 @@ async fn main() {
                     mod_author_cache: authorname_cache_clone,
                     runtime_api_cache: runtime_api_cache_clone,
                     data_api_cache: data_api_cache_clone,
+                    mod_portal_credentials: mod_portal_cred,
                 })
             })
         })

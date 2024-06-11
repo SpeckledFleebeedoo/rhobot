@@ -103,7 +103,7 @@ pub async fn get_mods(page: i32, initializing: bool) -> Result<ApiResponse, Erro
     let response = reqwest::get(url).await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
-        _ => return Err(Box::new(CustomError::new("Received HTTP status code that is not 200"))),
+        _ => return Err(Box::new(CustomError::new(&format!("Received HTTP status code {} while accessing mod portal API", response.status().as_str())))),
     };
     Ok(response.json::<ApiResponse>().await?)
 }
@@ -284,7 +284,7 @@ pub async fn get_mod_thumbnail(name: &String) -> Result<String, Error> {
     let response = reqwest::get(url).await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
-        _ => return Err(Box::new(CustomError::new("Received HTTP status code that is not 200"))),
+        _ => return Err(Box::new(CustomError::new(&format!("Received HTTP status code {} while accessing mod portal API", response.status().as_str())))),
     };
     let mod_info = response.json::<Mod>().await?;
     let thumbnail_url = format!("https://assets-mod.factorio.com{}", mod_info.thumbnail.unwrap_or_else(|| "/assets/.thumb.png".to_owned()));
@@ -298,7 +298,7 @@ pub async fn get_mod_changelog(name: &String, lines: Option<i32>) -> Result<Stri
     let response = reqwest::get(url).await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
-        _ => return Err(Box::new(CustomError::new("Received HTTP status code that is not 200"))),
+        _ => return Err(Box::new(CustomError::new(&format!("Received HTTP status code {} while accessing mod portal API", response.status().as_str())))),
     };
     let mod_info = response.json::<Mod>().await?;
     match mod_info.changelog {

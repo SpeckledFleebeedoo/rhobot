@@ -284,13 +284,13 @@ pub async fn on_message(ctx: serenity::Context, msg: &serenity::Message, data: &
     
         let embed = wiki_commands::get_wiki_page(res).await?;
         let http = ctx.http.clone();
-        let builder: serenity::CreateMessage = serenity::CreateMessage::new().embed(embed).reference_message(msg);
+        let builder: serenity::CreateMessage = serenity::CreateMessage::new().embed(embed);
         msg.channel_id.send_message(http, builder).await?;
     };
     if let Some(result_str) = mod_search {
         let embed = mod_commands::mod_search(&result_str, true, data).await?;
         let http = ctx.http.clone();
-        let builder: serenity::CreateMessage = serenity::CreateMessage::new().embed(embed).reference_message(msg);
+        let builder: serenity::CreateMessage = serenity::CreateMessage::new().embed(embed);
         msg.channel_id.send_message(http, builder).await?;
     }
     Ok(())

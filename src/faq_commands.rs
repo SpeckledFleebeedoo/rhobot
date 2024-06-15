@@ -121,7 +121,7 @@ async fn faq_core(
             // If no near matches, return no results message
             let errmsg = format!(
                 "Could not find {name_lc} or any similarly tags in FAQ tags. 
-                Would you like to search [the wiki](https://wiki.factorio.com/index.php?search={name_lc})?");
+                Would you like to search [the wiki](https://wiki.factorio.com/index.php?search={})?", name_lc.replace(' ', "%20"));
             return Err(Box::new(CustomError::new(&errmsg)));
         }
     };

@@ -1,7 +1,9 @@
 use parse_wiki_text::{Node, Configuration};
 use poise::serenity_prelude::{CreateEmbed, Colour};
 use poise::CreateReply;
+use scraper::node::Text;
 use crate::{custom_errors::CustomError, Context, Error, SEPARATOR};
+use std::fmt::Debug;
 use std::{fmt, fmt::Write};
 use serde::Deserialize;
 use log::error;
@@ -95,6 +97,18 @@ impl fmt::Display for NodeWrap<'_> {
                 });
                 write!(f, "{node_str}")
             },
+            Node::Template {  name, parameters , .. } => {
+                let Some(Node::Text{value: "imagelink" | "Imagelink", .. }) = name.first() else {
+                    return write!(f, "");
+                };
+                let Some(par) = parameters.first() else {
+                    return write!(f, "");
+                };
+                let Some(Node::Text { value, .. }) = par.value.first() else {
+                    return write!(f, "");
+                };
+                write!(f, "{value}")
+            },
             // Node::Parameter { default, end, name, start } => todo!(),
             // Node::Category { end, ordinal, start, target } => todo!(),
             // Node::CharacterEntity { character, end, start } => todo!(),
@@ -104,7 +118,6 @@ impl fmt::Display for NodeWrap<'_> {
             // Node::MagicWord { end, start } => todo!(),
             // Node::Redirect { end, target, start } => todo!(),
             // Node::Table { attributes, captions, end, rows, start } => todo!(),
-            // Node::Template { end, name, parameters, start } => todo!(),
             _ => write!(f, "")
         }
     }

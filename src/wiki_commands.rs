@@ -1,7 +1,6 @@
 use parse_wiki_text::{Node, Configuration};
 use poise::serenity_prelude::{CreateEmbed, Colour};
 use poise::CreateReply;
-use scraper::node::Text;
 use crate::{custom_errors::CustomError, Context, Error, SEPARATOR};
 use std::fmt::Debug;
 use std::{fmt, fmt::Write};

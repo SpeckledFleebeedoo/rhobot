@@ -309,3 +309,38 @@ pub fn get_server_id(ctx: Context<'_>) -> Result<i64, Error> {
     };
     Ok(server.get() as i64)
 }
+
+#[derive(Debug)]
+struct ReMatch {
+    full: String,
+    linktext: String,
+    category: String,
+    page: String,
+    property: Option<String>
+}
+
+pub fn api_resolve_internal_links(s: &str) -> String {
+    let link_regex = Regex::new(r"\[(?<linktext>.+?)\]\((?<cat>runtime|prototype):(?<page>.+?)(?<property>::.+?)?\)").unwrap();
+    let captures = link_regex.captures_iter(s).map(|caps| {
+        ReMatch {
+            full: caps.get(0).map(|f| f.as_str().to_owned()).unwrap_or_default(),
+            linktext: caps.name("linktext").map(|f| f.as_str().to_owned()).unwrap_or_default(),
+            category: caps.name("cat").map(|f| f.as_str().to_owned()).unwrap_or_default(),
+            page: caps.name("page").map(|f| f.as_str().to_owned()).unwrap_or_default(),
+            property: caps.name("property").map(|f| f.as_str().to_owned()),
+        }
+    }).collect::<Vec<ReMatch>>();
+    let mut output: String = s.to_string();
+    for capture in &captures {
+        let linktext = &capture.linktext;
+        let section = match capture.category.as_str() {
+            "runtime" => "classes",
+            "prototype" => "prototypes",
+            _ => "",
+        };
+        let name = &capture.page;
+        let property = &capture.property.clone().unwrap_or_default();
+        output = output.replace(&capture.full, &format!("[{linktext}](https://lua-api.factorio.com/latest/{section}/{name}.html#{property})"));
+    };
+    output
+}

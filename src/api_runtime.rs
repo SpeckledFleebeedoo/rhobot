@@ -4,7 +4,7 @@ use poise::reply::CreateReply;
 use std::{fmt, sync::{Arc, RwLock}};
 use log::{error, info};
 
-use crate::{Context, Error, custom_errors::CustomError, api_data::api_data};
+use crate::{api_data::api_data, custom_errors::CustomError, util, Context, Error};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BasicMember {
@@ -230,7 +230,7 @@ impl BasicMember {
     pub fn create_embed(&self) -> serenity::CreateEmbed {
         serenity::CreateEmbed::new()
             .title(&self.name)
-            .description(&self.description)
+            .description(util::api_resolve_internal_links(&self.description))
             .color(serenity::Colour::GOLD)
     }
 }
@@ -363,6 +363,7 @@ pub async fn api_class (
             .into_iter()
             .find(|a| a.common.name == property_name);
 
+        let c_name = &search_result.common.name;
         if let Some(m) = method {
             let parameters_str = if m.format.takes_table {
                     let mut sorted_params = m.parameters.clone();
@@ -387,7 +388,18 @@ pub async fn api_class (
                 format!("{}{optional}", rv.r#type)
             }
             ).collect::<Vec<String>>().join(", ");
-            embed = embed.field(format!("`{}{} 🡪 {}`", m.common.name, parameters_str, return_values), m.common.description, false);
+            let name = &m.common.name;
+            let description = util::api_resolve_internal_links(&m.common.description);
+            let title = if return_values.is_empty() {
+                format!("`{name}{parameters_str}`")
+            } else {
+                format!("`{name}{parameters_str} 🡪 {return_values}`")
+            };
+            embed = embed.field(
+                title, 
+                format!("{description}\n[Full documentation](https://lua-api.factorio.com/latest/classes/{c_name}.html#{name})"), 
+                false
+            );
 
         } else if let Some(a) = attribute {
             let rw = match (a.read, a.write) {
@@ -396,13 +408,16 @@ pub async fn api_class (
                 (false, true) => "[W]",
                 (false, false) => ""
             };
+            let name = &a.common.name;
+            let a_type = &a.r#type;
             let optional = if a.optional { "?" } else { "" };
-            embed = embed.field(format!(
-                "`{} {} :: {}{}`", a.common.name, rw, a.r#type, optional), 
-                a.common.description, 
+            let description = util::api_resolve_internal_links(&a.common.description);
+            embed = embed.field(
+                format!("`{name} {rw} :: {a_type}{optional}`"), 
+                format!("{description}\n[Full documentation](https://lua-api.factorio.com/latest/classes/{c_name}.html#{name})"), 
                 false
             );
-        };        
+        };
     };
     let builder = CreateReply::default()
         .embed(embed);

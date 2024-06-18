@@ -4,7 +4,7 @@ use poise::reply::CreateReply;
 use std::{fmt, sync::{Arc, RwLock}};
 use log::{error, info};
 
-use crate::{custom_errors::CustomError, Context, Error};
+use crate::{custom_errors::CustomError, Context, Error, util};
 
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -109,7 +109,7 @@ impl BasicMember {
     pub fn create_embed(&self) -> serenity::CreateEmbed {
         serenity::CreateEmbed::new()
             .title(&self.name)
-            .description(&self.description)
+            .description(util::api_resolve_internal_links(&self.description))
             .color(serenity::Colour::GOLD)
     }
 }
@@ -238,7 +238,15 @@ pub async fn api_prototype (
 
         if let Some(p) = property {
             let optional = if p.optional {"optional"} else {""};
-            embed = embed.field(format!("`{} {} :: {}`", p.common.name, optional, p.r#type), p.common.description, false);
+            let prototype_name = &search_result.common.name;
+            let p_name = &p.common.name;
+            let p_type = &p.r#type;
+            let description = util::api_resolve_internal_links(&p.common.description);
+            embed = embed.field(
+                format!("`{p_name} {optional} :: {p_type}`"), 
+                format!("{description}\n[Full documentation](https://lua-api.factorio.com/latest/prototypes/{prototype_name}.html#{p_name})"), 
+                false
+            );
         };
     };
     let builder = CreateReply::default()
@@ -337,7 +345,15 @@ pub async fn api_type (
 
             if let Some(p) = property {             // name optional  :: type    Description
                 let optional = if p.optional {"optional"} else {""};
-                embed = embed.field(format!("`{} {} :: {}`", p.common.name, optional, p.r#type), p.common.description.clone(), false);
+                let type_name = &search_result.common.name;
+                let p_name = &p.common.name;
+                let p_type = &p.r#type;
+                let description = util::api_resolve_internal_links(&p.common.description);
+                embed = embed.field(
+                    format!("`{p_name} {optional} :: {p_type}`"), 
+                    format!("{description}\n[Full documentation](https://lua-api.factorio.com/latest/types/{type_name}.html#{p_name})"), 
+                    false
+                );
             };
         };
     };

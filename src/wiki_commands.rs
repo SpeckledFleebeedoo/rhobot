@@ -106,7 +106,8 @@ impl fmt::Display for NodeWrap<'_> {
                 let Some(Node::Text { value, .. }) = par.value.first() else {
                     return write!(f, "");
                 };
-                write!(f, "{value}")
+                // Assumes imagelinks never have a custom caption.
+                write!(f, "[{value}](https://wiki.factorio.com/{})", value.replace(' ', "_"))
             },
             // Node::Parameter { default, end, name, start } => todo!(),
             // Node::Category { end, ordinal, start, target } => todo!(),

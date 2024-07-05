@@ -1,36 +1,53 @@
 use crate::{Context, Error};
-use poise::CreateReply;
+use chrono::TimeZone;
 use rand::Rng;
-use tokio::time::{sleep, Duration};
 
 /// Gives "information" about the expansion
 #[allow(clippy::unused_async)]
 #[poise::command(slash_command, prefix_command)]
 pub async fn expansion(ctx: Context<'_>) -> Result<(), Error> {
-    let random = rand::thread_rng().gen_range(0..20);
-    let entities = ["assembler", "splitter", "worm", 
-                                "tank", "chest", "rail signal", 
-                                "hazard concrete", "solar panel", 
-                                "iron ore", "steam", "belt immunity equipment"];
-    match random {
-        1 => {ctx.reply("There's an expansion?! Tell me more!").await?;},
-        2 => {ctx.reply(format!("The expansion will be out for release in just {} minutes!", rand::thread_rng().gen_range(1..=60))).await?;},
-        3 => {ctx.reply("The expansion will be released before Half-Life 3.").await?;},
-        4 => {ctx.reply("The expansion will be released when it's done.").await?;},
-        5 => {ctx.reply("The expansion gets delayed by a week every time you ask.").await?;},
-        6..=9 => {
-            ctx.reply(format!("The expansion will be released as soon as the {} rework is done", 
-                entities[rand::thread_rng().gen_range(0..entities.len())]
-            )).await?;
-        },
-        _ => {
-            let msg = ctx.reply("Calculating time until expansion release... :game_die:").await?;
-            sleep(Duration::from_secs(2)).await;
-            let builder = CreateReply::default().content(format!("The expansion will be released in {} days.", 
-                rand::thread_rng().gen_range(10..=200)
-            ));
-            msg.edit(ctx, builder).await?;
-        },
-    };
+    let units = vec![
+        ("train-kilometers", 13.88889), // 1.2 tiles/tick = 72 m/s = 0.072 km/s -> 13.8889 s/km
+        ("train-nautical miles", 25.7202), // 0.03888 mi/s
+        ("inserter swings", 0.6),
+        ("fast inserter swings", 0.21667),
+        ("beaconed rocket launches", 61.417),
+        ("rocket launches", 340.3333),
+        ("engineer-marathons", 4690.),
+        ("express belt map traversals", 355_555.555),
+        ("transport belt map traversals", 1_066_666.665),
+        ("ticks", 1./60.),
+        ("Mars days", 88_775.),
+        ("dog years", 31_536_000./7.),
+        ("light-megamiles", 5.368),
+        ("galactic picoyears", 7450.),
+        ("kermits", 864.),
+        ("uranium fuel cells", 200.),
+        ("fortnights", 1_209_600.),
+        ("milligenerations", 2_332_800.),
+        ("kilominutes", 60000.),
+        ("centiyears", 315_569.5),
+        ("viewings of Star Wars Episodes I-IX", 74520.),
+        ("megaseconds", 7_000_000.),
+        ("kilowarhols", 900_000.),
+        ("radon-222 half-lives", 330_350.),
+    ];
+
+    let random = rand::thread_rng().gen_range(0..units.len());
+    let release_date = chrono::Utc.with_ymd_and_hms(2024, 10, 21, 12, 00, 00).unwrap();
+    let now = chrono::Utc::now();
+
+    #[allow(clippy::cast_precision_loss)]
+    let time_to_release = (release_date - now).num_seconds() as f64;
+    let (unit, conversion) = units[random];
+
+    let duration = time_to_release / conversion;
+    if duration > 10. {
+        ctx.reply(format!("The expansion will release in {duration:.1} {unit}")).await?;
+    } else {
+        ctx.reply(format!("The expansion will release in {duration:.3} {unit}")).await?;
+    }
+
+
     Ok(())
 }

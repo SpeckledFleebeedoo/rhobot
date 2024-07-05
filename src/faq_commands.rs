@@ -59,7 +59,7 @@ pub async fn faq_slash(
 
 /// Frequently Asked Questions
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, guild_only, hide_in_help, track_edits, rename = "faq")]
+#[poise::command(prefix_command, guild_only, hide_in_help, track_edits, rename = "faq", aliases("faw", "link", "tag", "tags"))]
 pub async fn faq_prefix(
     ctx: Context<'_>,
     #[description = "Name of the faq entry"]

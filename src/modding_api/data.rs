@@ -18,7 +18,7 @@ pub struct BasicMember {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DataApiResponse {
+pub struct ApiResponse {
     pub application: String,
     pub stage: String,
     pub application_version: String,
@@ -41,6 +41,7 @@ pub struct Prototype {
     pub custom_properties: Option<CustomProperties>,
 }
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DataStageType {
     #[serde(flatten)]
@@ -173,7 +174,7 @@ impl fmt::Display for ComplexType {
 }
 
 pub async fn update_api_cache(
-    cache: Arc<RwLock<DataApiResponse>>,
+    cache: Arc<RwLock<ApiResponse>>,
 ) -> Result<(), Error> {
     info!("Updating data stage API cache");
     let new_data_api = get_data_api().await?;
@@ -186,13 +187,13 @@ pub async fn update_api_cache(
     Ok(())
 }
 
-pub async fn get_data_api() -> Result<DataApiResponse, Error> {
+pub async fn get_data_api() -> Result<ApiResponse, Error> {
     let response = reqwest::get("https://lua-api.factorio.com/latest/prototype-api.json").await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(Box::new(CustomError::new(&format!("Received HTTP status code {} while accessing Lua prototype API", response.status().as_str()))))
     };
-    Ok(response.json::<DataApiResponse>().await?)
+    Ok(response.json::<ApiResponse>().await?)
 }
 
 #[allow(clippy::unused_async)]
@@ -429,7 +430,7 @@ mod tests {
         assert!(file.is_ok(), "Failed to read file");
 
         let buf_reader = std::io::BufReader::new(file.unwrap());
-        let api_data: Result<DataApiResponse, serde_json::Error> = serde_json::from_reader(buf_reader);
+        let api_data: Result<ApiResponse, serde_json::Error> = serde_json::from_reader(buf_reader);
         match api_data {
             Ok(_) => {},
             Err(e) => {panic!("{}", e)}

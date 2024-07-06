@@ -30,12 +30,12 @@ pub struct FoundMod {
 }
 
 impl FoundMod {
-    pub async fn sanitize_for_embed(&mut self) {
-        self.title = escape_formatting(&self.title).await;
+    pub fn sanitize_for_embed(&mut self) {
+        self.title = escape_formatting(&self.title);
         self.title.truncate(256);
-        self.summary = escape_formatting(&self.summary).await;
+        self.summary = escape_formatting(&self.summary);
         self.summary.truncate(4096);
-        self.owner = escape_formatting(&self.owner).await;
+        self.owner = escape_formatting(&self.owner);
     }
 }
 

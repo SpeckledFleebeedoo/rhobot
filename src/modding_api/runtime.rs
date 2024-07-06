@@ -4,7 +4,7 @@ use poise::reply::CreateReply;
 use std::{fmt, sync::{Arc, RwLock}};
 use log::{error, info};
 
-use crate::{api_data::api_data, custom_errors::CustomError, util, Context, Error};
+use crate::{custom_errors::CustomError, util, Context, Error};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BasicMember {
@@ -23,7 +23,7 @@ pub struct Image {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct RuntimeApiResponse {
+pub struct ApiResponse {
     pub application: String,
     pub application_version: String,
     pub api_version: i32,
@@ -284,7 +284,7 @@ impl fmt::Display for ComplexType {
 }
 
 pub async fn update_api_cache(
-    cache: Arc<RwLock<RuntimeApiResponse>>,
+    cache: Arc<RwLock<ApiResponse>>,
 ) -> Result<(), Error> {
     info!("Updating API cache");
     {
@@ -300,23 +300,14 @@ pub async fn update_api_cache(
     Ok(())
 }
 
-pub async fn get_runtime_api() -> Result<RuntimeApiResponse, Error> {
+pub async fn get_runtime_api() -> Result<ApiResponse, Error> {
     let response = reqwest::get("https://lua-api.factorio.com/latest/runtime-api.json").await?;
 
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(Box::new(CustomError::new(&format!("Received HTTP status code {} while accessing Lua runtime API", response.status().as_str()))))
     };
-    Ok(response.json::<RuntimeApiResponse>().await?)
-}
-
-/// Link a page in the mod making API. Slash commands only.
-#[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, subcommands("api_runtime", "api_data", "api_page"))]
-pub async fn api(
-    _ctx: Context<'_>
-) -> Result<(), Error> {
-    Ok(())
+    Ok(response.json::<ApiResponse>().await?)
 }
 
 #[allow(clippy::unused_async)]
@@ -626,54 +617,6 @@ async fn autocomplete_concept<'a>(
         .collect::<Vec<String>>()
 }
 
-#[derive(Debug, poise::ChoiceParameter)]
-enum ApiPage{
-    Home,
-    Lifecycle,
-    #[name = "Libraries and Functions"]
-    Libraries,
-    Classes,
-    Events,
-    Concepts,
-    Defines,
-    Prototypes,
-    Types,
-    #[name = "Prototype Inheritance Tree"]
-    PrototypeTree
-}
-
-#[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, rename="page")]
-pub async fn api_page (
-    ctx: Context<'_>,
-    #[description = "API page to link"]
-    page: ApiPage,
-) -> Result<(), Error> {
-
-    let (name, url) = match page {
-    ApiPage::Home => ("Home", "https://lua-api.factorio.com/latest/"),
-    ApiPage::Lifecycle => ("Lifecycle", "https://lua-api.factorio.com/latest/auxiliary/data-lifecycle.html"),
-    ApiPage::Libraries => ("Libraries and Functions", "https://lua-api.factorio.com/latest/auxiliary/libraries.html"),
-    ApiPage::Classes => ("Classes", "https://lua-api.factorio.com/latest/classes.html"),
-    ApiPage::Events => ("Events", "https://lua-api.factorio.com/latest/events.html"),
-    ApiPage::Concepts => ("Concepts", "https://lua-api.factorio.com/latest/concepts.html"),
-    ApiPage::Defines => ("Defines", "https://lua-api.factorio.com/latest/defines.html"),
-    ApiPage::Prototypes => ("Prototypes", "https://lua-api.factorio.com/latest/prototypes.html"),
-    ApiPage::Types => ("Types", "https://lua-api.factorio.com/latest/types.html"),
-    ApiPage::PrototypeTree => ("Prototype Inheritance Tree", "https://lua-api.factorio.com/latest/tree.html"),
-    };
-    
-    let embed = serenity::CreateEmbed::new()
-        .title(name)
-        .description(url)
-        .color(serenity::Colour::GOLD);
-    let builder = CreateReply::default()
-        .embed(embed);
-    ctx.send(builder).await?;
-    Ok(())
-}
-
-
 #[allow(unused_imports)]
 mod tests {
 
@@ -686,7 +629,7 @@ mod tests {
         assert!(file.is_ok(), "Failed to read file");
 
         let buf_reader = std::io::BufReader::new(file.unwrap());
-        let api_data: Result<RuntimeApiResponse, serde_json::Error> = serde_json::from_reader(buf_reader);
+        let api_data: Result<ApiResponse, serde_json::Error> = serde_json::from_reader(buf_reader);
         match api_data {
             Ok(_) => {},
             Err(e) => {panic!("{}", e)}

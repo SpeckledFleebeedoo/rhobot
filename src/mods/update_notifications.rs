@@ -160,7 +160,9 @@ pub async fn update_database(
             
             if !initializing {  // Only send messages when not initializing database
                 let thumbnail = get_mod_thumbnail(&result.name).await?;
-                let changelog = get_mod_changelog(&result.name, Some(15)).await?;
+                let mod_info = get_mod_info(&result.name).await?;
+                let changelogs = get_mod_changelog(&mod_info);
+                let changelog = format_mod_changelog(&changelogs, &version, 15).unwrap_or_default();
                 let updated_mod = UpdatedMod{
                     name: result.name,
                     title: result.title,
@@ -257,12 +259,12 @@ async fn make_update_message(
         ModState::New => Colour::from_rgb(0x2E, 0xCC, 0x71),
     };
     let mut title = match updated_mod.state {
-        ModState::Updated => format!("Updated mod:\n{}", escape_formatting(&updated_mod.title).await),
-        ModState::New => format!("New mod:\n{}", escape_formatting(&updated_mod.title).await),
+        ModState::Updated => format!("Updated mod:\n{}", escape_formatting(&updated_mod.title)),
+        ModState::New => format!("New mod:\n{}", escape_formatting(&updated_mod.title)),
     };
     title.truncate(256);
     let changelog = if show_changelog { updated_mod.changelog.clone() } else { String::new() };
-    let author_link = format!("{} ([more](https://mods.factorio.com/user/{}))", escape_formatting(&updated_mod.author).await, &updated_mod.author);
+    let author_link = format!("{} ([more](https://mods.factorio.com/user/{}))", escape_formatting(&updated_mod.author), &updated_mod.author);
     let embed = CreateEmbed::new()
         .title(&title)
         .url(url)
@@ -291,48 +293,88 @@ pub async fn get_mod_thumbnail(name: &String) -> Result<String, Error> {
     Ok(thumbnail_url)
 }
 
-pub async fn get_mod_changelog(name: &String, lines: Option<i32>) -> Result<String, Error> {
-    info!("Getting mod changelog for {name}");
-    let versionsplit = "-".repeat(99);
+#[derive(Debug, Clone, Default, PartialEq)]
+struct ModChangelogEntry {
+    version: String,
+    date: Option<String>,
+    categories: Vec<ModChangelogCategory>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct ModChangelogCategory {
+    name: String,
+    entries: Vec<String>,
+}
+
+async fn get_mod_info(name: &str) -> Result<Mod, Error> {
     let url = format!("https://mods.factorio.com/api/mods/{name}/full");
     let response = reqwest::get(url).await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(Box::new(CustomError::new(&format!("Received HTTP status code {} while accessing mod portal API", response.status().as_str())))),
     };
-    let mod_info = response.json::<Mod>().await?;
-    match mod_info.changelog {
-        Some(ch) => {
-            let mut linecount = 1;
-            let mut line_iter = ch.lines().skip(1);
-            let mut out = String::new();
-            loop {
-                let l = line_iter.next().unwrap_or(&versionsplit);
-                if l.contains(&versionsplit) {
-                    break;
-                } else if l.starts_with("    ") {
-                    out.push_str(&escape_formatting(
-                        l.strip_prefix("    ").unwrap_or(l)).await
-                    );
-                    out.push('\n');
-                } else if l.starts_with("  ") {
-                    out.push_str("**");
-                    out.push_str(&escape_formatting(
-                        l.strip_prefix("  ").unwrap_or(l)).await
-                    );
-                    out.push_str("**\n");
-                };
-                linecount += 1;
-                if linecount >= lines.unwrap_or(i32::MAX) {
-                    out.push_str("<Trimmed>");
-                    break;
-                }
-            };
-            out.truncate(4096);
-            Ok(out)
-        },
-        None => Ok(String::new()),
+    Ok(response.json::<Mod>().await?)
+}
+
+fn get_mod_changelog(mod_info: &Mod) -> Vec<ModChangelogEntry> {
+    let versionsplit = "-".repeat(99);
+
+    // let mod_info = get_mod_info(name).await?;
+    if mod_info.changelog.is_none() {
+        return Vec::new()
     }
+    let ch = mod_info.changelog.as_ref().unwrap();
+    let version_entries = ch.split(&versionsplit);
+    let mut out = Vec::new();
+    for changelog in version_entries {
+        let mut entry = ModChangelogEntry::default();
+        let mut current_category = ModChangelogCategory::default();
+
+        let lines = changelog.lines();
+        for line in lines {
+            if line.starts_with("Version: ") {
+                if !entry.version.is_empty() {
+                    entry.categories.push(current_category.clone());
+                    out.push(entry.clone());
+                };
+                current_category = ModChangelogCategory::default();
+                entry = ModChangelogEntry::default();
+                line.strip_prefix("Version: ").unwrap().clone_into(&mut entry.version);
+            } else if line.starts_with("Date: ") {
+                entry.date = Some(line.strip_prefix("Date: ").unwrap().to_owned());
+            } else if line.starts_with("    ") {
+                current_category.entries.push(line.strip_prefix("    ").unwrap().to_owned());
+            } else if line.starts_with("  ") {
+                if !current_category.name.is_empty() {
+                    entry.categories.push(current_category.clone());
+                };
+                current_category = ModChangelogCategory::default();
+                line.strip_prefix("  ").unwrap().clone_into(&mut current_category.name);
+            }
+        }
+        entry.categories.push(current_category.clone());
+        out.push(entry);
+    }
+    out
+
+}
+
+fn format_mod_changelog(changelogs: &[ModChangelogEntry], version: &str, max_lines: usize) -> Option<String> {
+    let right_changelog = changelogs.iter().find(|c| c.version == version)?;
+    
+    let mut lines = Vec::new();
+    for category in right_changelog
+        .categories.clone() 
+    {
+        lines.push(format!("**{}**", escape_formatting(&category.name)));
+        lines.append(&mut category.entries
+            .iter()
+            .map(|e| escape_formatting(e))
+            .collect::<Vec<String>>()
+        );
+    };
+    lines.truncate(max_lines);
+    Some(lines.join("\n"))
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
@@ -447,4 +489,118 @@ pub async fn update_author_cache(
         },
     };
     Ok(())
+}
+
+#[cfg(test)]
+#[allow(unused_imports)]
+mod tests{
+    use super::*;
+    
+    #[test]
+    fn try_get_changelogs() {
+        let mod_info = Mod {
+            downloads_count: 312_312,
+            latest_release: None,
+            name: String::from("Modname"),
+            owner: String::from("Ownername"),
+            summary: String::from("Summary String"),
+            title: String::from("Title here"),
+            category: None,
+            thumbnail: None,
+            changelog: Some(r"
+Version: 1.0.1
+Date: 06. 07. 2024
+  Bugfixes:
+    - Add partial Space Exploration support.
+    - Write better tests.
+  Features:
+    - Add new entities.
+
+Version: 1.0.0
+  Features:
+    - Initial release."
+    .to_owned()),
+        };
+        let changelog = get_mod_changelog(&mod_info);
+        // println!("{changelog:#?}");
+        let expected = [
+            ModChangelogEntry{ 
+                version: "1.0.1".to_owned(), 
+                date: Some("06. 07. 2024".to_owned()),
+                categories: vec![
+                    ModChangelogCategory {
+                        name: "Bugfixes:".to_owned(),
+                        entries: vec![
+                            "- Add partial Space Exploration support.".to_owned(), 
+                            "- Write better tests.".to_owned(),
+                            ]
+                    },
+                    ModChangelogCategory {
+                        name: "Features:".to_owned(),
+                        entries: vec![
+                            "- Add new entities.".to_owned(),
+                        ]
+                    }
+                ]
+            },
+            ModChangelogEntry{ 
+                version: "1.0.0".to_owned(), 
+                date: None,
+                categories: vec![
+                    ModChangelogCategory {
+                        name: "Features:".to_owned(),
+                        entries: vec![
+                            "- Initial release.".to_owned(),
+                            ]
+                    }
+                ]
+            },
+        ];
+        assert_eq!(changelog, expected);
+    }
+
+    #[test]
+    fn test_format_changelog() {
+        let changelog = [
+            ModChangelogEntry{ 
+                version: "1.0.1".to_owned(), 
+                date: Some("06. 07. 2024".to_owned()),
+                categories: vec![
+                    ModChangelogCategory {
+                        name: "Bugfixes:".to_owned(),
+                        entries: vec![
+                            "- Add partial Space Exploration support.".to_owned(), 
+                            "- Write better tests.".to_owned(),
+                            ]
+                    },
+                    ModChangelogCategory {
+                        name: "Features:".to_owned(),
+                        entries: vec![
+                            "- Add new entities.".to_owned(),
+                        ]
+                    }
+                ]
+            },
+            ModChangelogEntry{ 
+                version: "1.0.0".to_owned(), 
+                date: None,
+                categories: vec![
+                    ModChangelogCategory {
+                        name: "Features:".to_owned(),
+                        entries: vec![
+                            "- Initial release.".to_owned(),
+                            ]
+                    }
+                ]
+            },
+        ];
+        let formatted_changelog = format_mod_changelog(&changelog, "1.0.1", 15);
+        let expected_output = Some(
+r"**Bugfixes:**
+- Add partial Space Exploration support.
+- Write better tests.
+**Features:**
+- Add new entities.".to_owned());
+        assert_eq!(formatted_changelog, expected_output);
+    }
 }

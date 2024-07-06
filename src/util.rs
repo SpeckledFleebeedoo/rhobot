@@ -2,7 +2,7 @@ use std::iter::once;
 use poise::serenity_prelude as serenity;
 use poise::reply::CreateReply;
 use sqlx::{Pool, Sqlite};
-use crate::{Context, Error, custom_errors::CustomError, Data, wiki_commands, mod_commands};
+use crate::{Context, Error, custom_errors::CustomError, Data, wiki_commands, mods::commands};
 use regex::Regex;
 use serde::Deserialize;
 use log::info;
@@ -38,7 +38,7 @@ pub async fn is_mod(ctx: Context<'_>) -> Result<bool, Error> {
     Ok(has_role)
 }
 
-pub async fn escape_formatting(unformatted_string: &str) -> String {
+pub fn escape_formatting(unformatted_string: &str) -> String {
     // This is supposedly cheaper than using the String::replace function.
     unformatted_string
         .chars()
@@ -184,12 +184,12 @@ pub async fn import_legacy_faqs(
     for faq in faqs {
         let new_faq = NewFaqEntry {
             server_id: faq.serverid,
-            title: capitalize(&faq.title.to_lowercase()),
+            title: capitalize(&faq.title),
             content: if faq.content.is_empty() {None} else {Some(faq.content.clone())},
             image: if faq.image.is_empty() {None} else {Some(faq.image.clone())},
             creator: faq.creator,
             timestamp: chrono::DateTime::parse_from_rfc3339(&faq.timestamp).map_or(0, |datetime| datetime.timestamp()),
-            link: if faq.link.is_empty() {None} else {Some(capitalize(&faq.link.to_lowercase()),)},
+            link: if faq.link.is_empty() {None} else {Some(capitalize(&faq.link),)},
         };
 
         sqlx::query!(r#"
@@ -288,7 +288,7 @@ pub async fn on_message(ctx: serenity::Context, msg: &serenity::Message, data: &
         msg.channel_id.send_message(http, builder).await?;
     };
     if let Some(result_str) = mod_search {
-        let embed = mod_commands::mod_search(&result_str, true, data).await?;
+        let embed = commands::mod_search(&result_str, true, data).await?;
         let http = ctx.http.clone();
         let builder: serenity::CreateMessage = serenity::CreateMessage::new().embed(embed);
         msg.channel_id.send_message(http, builder).await?;
@@ -296,10 +296,11 @@ pub async fn on_message(ctx: serenity::Context, msg: &serenity::Message, data: &
     Ok(())
 }
 
-/// Capitalizes the first character in s.
+/// Capitalizes the first character in str s, lowercases the rest.
 pub fn capitalize(s: &str) -> String {
-    let mut c = s.chars();
-    c.next().map_or_else(String::new, |f| f.to_uppercase().collect::<String>() + c.as_str())
+    let lowercased = s.to_lowercase();
+    let mut chars = lowercased.chars();
+    chars.next().map_or_else(String::new, |f| f.to_uppercase().collect::<String>() + chars.as_str())
 }
 
 #[allow(clippy::cast_possible_wrap)]

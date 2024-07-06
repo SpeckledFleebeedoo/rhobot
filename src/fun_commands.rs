@@ -2,7 +2,7 @@ use crate::{Context, Error};
 use chrono::TimeZone;
 use rand::Rng;
 
-/// Gives "information" about the expansion
+/// Shows the time left until the expansion releases. Bring a calculator...
 #[allow(clippy::unused_async)]
 #[poise::command(slash_command, prefix_command)]
 pub async fn expansion(ctx: Context<'_>) -> Result<(), Error> {
@@ -17,6 +17,7 @@ pub async fn expansion(ctx: Context<'_>) -> Result<(), Error> {
         ("express belt map traversals", 355_555.555),
         ("transport belt map traversals", 1_066_666.665),
         ("ticks", 1./60.),
+        ("Nauvis days", 416.66),
         ("Mars days", 88_775.),
         ("dog years", 31_536_000./7.),
         ("light-megamiles", 5.368),
@@ -28,7 +29,7 @@ pub async fn expansion(ctx: Context<'_>) -> Result<(), Error> {
         ("kilominutes", 60000.),
         ("centiyears", 315_569.5),
         ("viewings of Star Wars Episodes I-IX", 74520.),
-        ("megaseconds", 7_000_000.),
+        ("megaseconds", 1_000_000.),
         ("kilowarhols", 900_000.),
         ("radon-222 half-lives", 330_350.),
     ];
@@ -47,7 +48,5 @@ pub async fn expansion(ctx: Context<'_>) -> Result<(), Error> {
     } else {
         ctx.reply(format!("The expansion will release in {duration:.3} {unit}")).await?;
     }
-
-
     Ok(())
 }

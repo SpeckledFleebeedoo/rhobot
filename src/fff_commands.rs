@@ -128,7 +128,7 @@ fn next_friday_1pm() -> Option<i64> {
     };
 
     let next_friday = prague_now.date_naive().and_hms_opt(13, 0, 0)? + chrono::Duration::days(days_to_friday as i64);
-    let next_friday_prague = Prague.from_local_datetime(&next_friday).unwrap();
+    let next_friday_prague = Prague.from_local_datetime(&next_friday).earliest()?;
 
     Some(next_friday_prague.timestamp())
 }

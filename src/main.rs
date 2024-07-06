@@ -1,21 +1,18 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-mod mod_commands;
 mod mods;
-mod mod_search_api;
 mod faq_commands;
 mod fff_commands;
 mod fun_commands;
-mod api_runtime;
-mod api_data;
+mod modding_api;
 mod wiki_commands;
 mod custom_errors;
 mod util;
 
 use clokwerk::{AsyncScheduler, Job};
 use fff_commands::update_fff_channel_description;
-use mods::{get_mod_count, update_database, update_mod_cache, update_sub_cache, update_author_cache, ModCacheEntry, SubCacheEntry};
-use mod_search_api::ModPortalCredentials;
+use mods::update_notifications::{get_mod_count, update_database, update_mod_cache, update_sub_cache, update_author_cache, ModCacheEntry, SubCacheEntry};
+use mods::search_api::ModPortalCredentials;
 use faq_commands::{update_faq_cache, FaqCacheEntry};
 use tokio::time;
 use log::{error, info};
@@ -42,8 +39,8 @@ pub struct Data {
     faq_cache: Arc<RwLock<Vec<FaqCacheEntry>>>,
     mod_subscription_cache: Arc<RwLock<Vec<SubCacheEntry>>>,
     mod_author_cache: Arc<RwLock<Vec<String>>>,
-    runtime_api_cache: Arc<RwLock<api_runtime::RuntimeApiResponse>>,
-    data_api_cache: Arc<RwLock<api_data::DataApiResponse>>,
+    runtime_api_cache: Arc<RwLock<modding_api::runtime::ApiResponse>>,
+    data_api_cache: Arc<RwLock<modding_api::data::ApiResponse>>,
     mod_portal_credentials: Arc<ModPortalCredentials>,
 }
 
@@ -98,7 +95,7 @@ async fn main() {
     let authorname_cache = Arc::new(RwLock::new(Vec::new()));
     let authorname_cache_clone = authorname_cache.clone();
     
-    let runtime_api: api_runtime::RuntimeApiResponse = match api_runtime::get_runtime_api().await {
+    let runtime_api: modding_api::runtime::ApiResponse = match modding_api::runtime::get_runtime_api().await {
         Ok(a) => a,
         Err(e) => {
             error!("Failed to get modding runtime api: {e}");
@@ -108,7 +105,7 @@ async fn main() {
     let runtime_api_cache = Arc::new(RwLock::new(runtime_api));
     let runtime_api_cache_clone = runtime_api_cache.clone();
 
-    let datastage_api: api_data::DataApiResponse = match api_data::get_data_api().await {
+    let datastage_api: modding_api::data::ApiResponse = match modding_api::data::get_data_api().await {
         Ok(a) => a,
         Err(e) => {
             error!("Failed to get modding data api: {e}");
@@ -131,17 +128,17 @@ async fn main() {
             util::help(),
             util::get_server_info(),
             util::reset_server_settings(),
-            mod_commands::find_mod(),
-            mod_commands::show_subscriptions(),
-            mod_commands::subscribe(),
-            mod_commands::unsubscribe(),
-            mod_commands::set_updates_channel(),
-            mod_commands::set_modrole(),
-            mod_commands::show_changelogs(),
+            mods::commands::find_mod(),
+            mods::commands::show_subscriptions(),
+            mods::commands::subscribe(),
+            mods::commands::unsubscribe(),
+            mods::commands::set_updates_channel(),
+            mods::commands::set_modrole(),
+            mods::commands::show_changelogs(),
             faq_commands::faq(),
             faq_commands::faq_edit(),
             fff_commands::fff(),
-            api_runtime::api(),
+            modding_api::api(),
             wiki_commands::wiki(),
             fun_commands::expansion(),
             util::import_legacy_faqs(),
@@ -267,11 +264,11 @@ async fn main() {
     tokio::spawn(async move {
         loop {
             api_update_interval.tick().await;
-            match api_runtime::update_api_cache(runtime_api_cache.clone()).await {
+            match modding_api::runtime::update_api_cache(runtime_api_cache.clone()).await {
                 Ok(()) => info!("Updated API cache"),
                 Err(error) => error!("Error while updating runtime api cache: {error}"),
             };
-            match api_data::update_api_cache(data_api_cache.clone()).await {
+            match modding_api::data::update_api_cache(data_api_cache.clone()).await {
                 Ok(()) => info!("Updated API cache"),
                 Err(error) => error!("Error whille updating data api cache: {error}")
             }

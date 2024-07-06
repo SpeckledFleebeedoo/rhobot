@@ -1,12 +1,11 @@
 use poise::serenity_prelude::{AutocompleteChoice, CreateEmbed, Colour};
 use poise::CreateReply;
-// use rust_fuzzy_search::fuzzy_search;
 use log::error;
 
-use crate::mod_search_api;
+use crate::mods::search_api;
 use crate::{Context, Error, custom_errors::CustomError, Data, SEPARATOR,
     util::{get_subscribed_authors, get_subscribed_mods, is_mod, get_server_id},
-    mods::{self, SubCacheEntry, SubscriptionType}
+    mods::update_notifications::{self, SubCacheEntry, SubscriptionType}
 };
 
 enum AutocompleteType{
@@ -376,7 +375,7 @@ pub async fn find_mod(
 
 pub async fn mod_search(modname: &str, imprecise_search: bool, data: &Data) -> Result<CreateEmbed, Error> {
     let mut search_result = if imprecise_search {
-        mod_search_api::find_mod(modname, &data.mod_portal_credentials).await?
+        search_api::find_mod(modname, &data.mod_portal_credentials).await?
 
     } else {
         let db = &data.database;
@@ -386,17 +385,17 @@ pub async fn mod_search(modname: &str, imprecise_search: bool, data: &Data) -> R
                     return Err(Box::new(CustomError::new( &format!("Failed to find mod {modname} in database"))));
         };
 
-        mod_search_api::FoundMod{
+        search_api::FoundMod{
             downloads_count: mod_data.downloads_count,
             name: mod_data.name.clone(),
             owner: mod_data.owner,
             summary: mod_data.summary.unwrap_or_default(),
-            thumbnail: mods::get_mod_thumbnail(&mod_data.name).await.unwrap_or_else(|_| "https://assets-mod.factorio.com/assets/.thumb.png".to_owned()),
+            thumbnail: update_notifications::get_mod_thumbnail(&mod_data.name).await.unwrap_or_else(|_| "https://assets-mod.factorio.com/assets/.thumb.png".to_owned()),
             title: mod_data.title.unwrap_or_else(|| mod_data.name.clone()),
         }
     };
     
-    search_result.sanitize_for_embed().await;
+    search_result.sanitize_for_embed();
     let url = format!("https://mods.factorio.com/mod/{}", search_result.name)
     .replace(' ', "%20");
 

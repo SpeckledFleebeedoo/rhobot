@@ -1,3 +1,4 @@
+use poise::ReplyHandle;
 use sqlx::{Pool, Sqlite};
 use std::sync::{Arc, RwLock};
 use poise::serenity_prelude as serenity;
@@ -99,29 +100,56 @@ async fn faq_core(
     name: String,
 ) -> Result<(), Error> {
     let command = name.split(SEPARATOR).next().unwrap_or(&name).trim();
-    let name_lc = util::capitalize(&command.to_lowercase());
+    let name_lc = util::capitalize(command);
     let db = &ctx.data().database;
     let server_id = util::get_server_id(ctx)?;
 
+    let (entry_final, close_match) = resolve_faq_name(db, ctx, server_id, &name_lc).await?;
+
+    let embed = create_faq_embed(&name_lc, entry_final, close_match);
+    ctx.send(embed).await?;
+    Ok(())
+}
+
+// Make and send embed for faq entry
+fn create_faq_embed(name: &str, faq_entry: FaqEntry, close_match: bool) -> CreateReply {
+    let title = if close_match {
+        format!(r#"Could not find "{name}" in FAQ tags. Did you mean "{}"?"#, faq_entry.title)
+    } else {
+        faq_entry.title
+    };
+
+    let mut embed = serenity::CreateEmbed::new()
+        .title(title)
+        .color(serenity::Colour::GOLD);
+    if let Some(content) = faq_entry.contents {
+        embed = embed.description(content);
+    }
+
+    if let Some(img) = faq_entry.image {
+        embed = embed.image(img);
+    }
+
+    CreateReply::default().embed(embed)
+}
+
+async fn resolve_faq_name(db: &Pool<Sqlite>, ctx: Context<'_>, server_id: i64, name: &str) -> Result<(FaqEntry, bool), Error> {
     // Find entry matching given `name`
-    let entry_option = sqlx::query_as!(FaqEntry, r#"
-        SELECT title, contents, image, link FROM faq WHERE title = $1 AND server_id = $2"#, 
-        name_lc, server_id
-    )
-        .fetch_optional(db)
-        .await?;
+    let entry_option = find_faq_entry_opt(db, server_id, name).await?;
 
     // Check if entry found
-    let (entry, close_match) = if let Some(e) = entry_option { (e, false) } else {
+    let (entry, close_match) = if let Some(e) = entry_option 
+    {
+        (e, false) 
+    } else {
         // If no entry found, check for near matches
-        let closest_match = find_closest_faq(ctx, &name_lc, server_id)?;
-        if let Some(match_name) = closest_match {
+        if let Some(match_name) = find_closest_faq(ctx, name, server_id)? {
             (get_faq_entry(db, server_id, &match_name).await?, true)
         } else {
             // If no near matches, return no results message
             let errmsg = format!(
-                "Could not find {name_lc} or any similarly tags in FAQ tags. 
-                Would you like to search [the wiki](https://wiki.factorio.com/index.php?search={})?", name_lc.replace(' ', "%20"));
+                "Could not find {} or any similarly tags in FAQ tags. 
+                Would you like to search [the wiki](https://wiki.factorio.com/index.php?search={})?", util::escape_formatting(name), name.replace(' ', "%20"));
             return Err(Box::new(CustomError::new(&errmsg)));
         }
     };
@@ -133,39 +161,21 @@ async fn faq_core(
             get_faq_entry(db, server_id, &entry_link).await?
         }
     };
-
-    // Make and send embed for found entry
-    let color = serenity::Colour::GOLD;
-    let title = if close_match {
-        format!(r#"Could not find "{name_lc}" in FAQ tags. Did you mean "{}"?"#, entry_final.title)
-    } else {
-        entry_final.title
-    };
-
-    let mut embed = serenity::CreateEmbed::new()
-        .title(title)
-        .color(color);
-    if let Some(content) = entry_final.contents {
-        embed = embed.description(content);
-    }
-
-    if let Some(img) = entry_final.image {
-        embed = embed.image(img);
-    }
-
-    let builder = CreateReply::default().embed(embed);
-    ctx.send(builder).await?;
-    Ok(())
+    Ok((entry_final, close_match))
 }
 
 async fn get_faq_entry(db: &Pool<Sqlite>, server_id: i64, name: &str) -> Result<FaqEntry, Error> {
-    Ok(sqlx::query_as!(FaqEntry, r#"
-        SELECT title, contents, image, link FROM faq WHERE title = $1 AND server_id = $2"#, 
-        name, server_id
+    Ok(find_faq_entry_opt(db, server_id, name)
+        .await?
+        .map_or_else(|| Err(Box::new(CustomError::new(&format!("Could not get FAQ entry {name} from database")))), Ok)?
     )
+}
+
+async fn find_faq_entry_opt(db: &Pool<Sqlite>, server_id: i64, name: &str) -> Result<Option<FaqEntry>, Error> {
+    Ok(sqlx::query_as!(FaqEntry, 
+        r#"SELECT title, contents, image, link FROM faq WHERE server_id = $1 AND title = $2"#, server_id, name)
         .fetch_optional(db)
-        .await?.map_or_else(|| Err(Box::new(CustomError::new(&format!("Could not get FAQ entry {name} from database")))), Ok)?
-    )
+        .await?)
 }
 
 fn find_closest_faq(ctx: Context<'_>, name: &str, server_id: i64) -> Result<Option<String>, Error> {
@@ -220,7 +230,7 @@ pub async fn faq_edit(
 
 /// Add an faq entry
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
-#[poise::command(prefix_command, slash_command, guild_only, aliases("edit", "add"))]
+#[poise::command(prefix_command, slash_command, guild_only, track_edits, aliases("edit", "add"))]
 pub async fn new(
     ctx: Context<'_>,
     #[description = "Name of the faq"]
@@ -231,56 +241,25 @@ pub async fn new(
     #[rest]
     content: Option<String>,
 ) -> Result<(), Error> {
-    let name_lc = util::capitalize(&name.to_lowercase());
+    let name_lc = util::capitalize(&name);
     let Some(server) = ctx.guild_id() else {
         return Err(Box::new(CustomError::new("Could not get server ID")))
     };
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
-    // Check if name already exists
-    let pre_existing =  sqlx::query!(r#"SELECT title FROM faq WHERE server_id = $1 AND title = $2"#, server_id, name_lc)
-        .fetch_optional(db)
-        .await?
-        .is_some();
 
-    let mut response: Option<poise::ReplyHandle> = None;
+    // Check if name already exists
+    let pre_existing = find_faq_entry_opt(db, server_id, &name_lc).await?.is_some();
 
     // If image attached, re-upload image to generate a non-ephemeral link for storage
-    let attachment_url = if let Some(att) = image {
-        if att.ephemeral {
-            let attachment = serenity::CreateAttachment::url(ctx.http(), &att.url).await?;
-            let embed = serenity::CreateEmbed::new()
-                .title(format!("Adding FAQ entry: {name_lc}"))
-                .description("Uploading image to Discord...")
-                .colour(serenity::Colour::DARK_GREEN)
-                .attachment(att.filename);
-            let builder = CreateReply::default().attachment(attachment).embed(embed);
-            let r = ctx.send(builder).await?;
-            let message = r.message().await?;
-            response = Some(r.clone());
-            
-            let Some(message_embed) = message.embeds.first() else {
-                return Err(Box::new(CustomError::new("Could not create FAQ entry: embed not found")))
-            };
-            let Some(ref embed_image) = message_embed.image else {
-                return Err(Box::new(CustomError::new("Could not create FAQ entry: image not found in embed")))
-            };
-            Some(embed_image.url.clone())
-        } else {
-            Some(att.url.clone())
-        }
-    } else {
-        None
-    };
+    let (attachment_url, reply_handle) = get_attachment_url(image, ctx, &name_lc).await?;
 
     let timestamp = ctx.created_at().timestamp();
     let author_id = ctx.author().id.get() as i64;
 
     // Delete previous entry to prevent duplication
     if pre_existing {
-        sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1 AND title = $2"#, server_id, name_lc)
-            .execute(db)
-            .await?;
+        delete_faq_entry(db, server_id, &name_lc).await?;
     };
     sqlx::query!(r#"INSERT INTO faq (server_id, title, contents, image, edit_time, author)
     VALUES ($1, $2, $3, $4, $5, $6)"#, server_id, name_lc, content, attachment_url, timestamp, author_id)
@@ -300,12 +279,46 @@ pub async fn new(
         embed = embed.image(url);
     }
     let builder = CreateReply::default().embed(embed);
-    if let Some(r) = response {
+    if let Some(r) = reply_handle {
         r.edit(ctx, builder).await?;
     } else {
         ctx.send(builder).await?;
     }
     Ok(())
+}
+
+async fn delete_faq_entry(db: &Pool<Sqlite>, server_id: i64, name: &str) -> Result<u64, Error> {
+    Ok(sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1 AND title = $2"#, server_id, name)
+        .execute(db)
+        .await?
+        .rows_affected())
+}
+
+async fn get_attachment_url<'a>(attachment: Option<serenity::Attachment>, ctx: Context<'a>, name: &str) -> Result<(Option<String>, Option<ReplyHandle<'a>>), Error> {
+    // If image attached, re-upload image to generate a non-ephemeral link for storage
+    let Some(image) = attachment else {return Ok((None, None))};
+
+    if !image.ephemeral {
+        return Ok((Some(image.url.clone()), None));
+    }
+
+    let attachment = serenity::CreateAttachment::url(ctx.http(), &image.url).await?;
+    let embed = serenity::CreateEmbed::new()
+        .title(format!("Adding FAQ entry: {name}"))
+        .description("Uploading image to Discord...")
+        .colour(serenity::Colour::DARK_GREEN)
+        .attachment(image.filename);
+    let builder = CreateReply::default().attachment(attachment).embed(embed);
+    let reply = ctx.send(builder).await?;
+    let message = reply.message().await?;
+    
+    let Some(message_embed) = message.embeds.first() else {
+        return Err(Box::new(CustomError::new("Could not create FAQ entry: embed not found")))
+    };
+    let Some(ref embed_image) = message_embed.image else {
+        return Err(Box::new(CustomError::new("Could not create FAQ entry: image not found in embed")))
+    };
+    Ok((Some(embed_image.url.clone()), Some(reply.clone())))
 }
 
 /// Remove an faq entry
@@ -317,16 +330,13 @@ pub async fn remove(
     #[autocomplete = "autocomplete_faq"]
     name: String
 ) -> Result<(), Error> {
-    let name_lc = util::capitalize(&name.to_lowercase());
+    let name_lc = util::capitalize(&name);
     let Some(server) = ctx.guild_id() else {
         return Err(Box::new(CustomError::new("Could not get server ID")))
     };
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
-    match sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1 AND (title = $2 OR link = $2)"#, server_id, name_lc)
-        .execute(db)
-        .await?
-        .rows_affected() {
+    match delete_faq_entry(db, server_id, &name_lc).await? {
         0 => {
             ctx.say(format!("FAQ entry {name_lc} does not exist in database")).await?;
         },
@@ -348,8 +358,8 @@ pub async fn link(
     #[description = "Existing FAQ entry to link to"]
     link_to: String,
 ) -> Result<(), Error> {
-    let name_lc = util::capitalize(&name.to_lowercase());
-    let link_to_lc = util::capitalize(&link_to.to_lowercase());
+    let name_lc = util::capitalize(&name);
+    let link_to_lc = util::capitalize(&link_to);
     let Some(server) = ctx.guild_id() else {
         return Err(Box::new(CustomError::new("Could not get server ID")))
     };
@@ -357,32 +367,35 @@ pub async fn link(
     let db = &ctx.data().database;
 
     // Check if name already exists
-    if sqlx::query!(r#"SELECT title FROM faq WHERE server_id = $1 AND title = $2"#, server_id, name_lc)
-        .fetch_optional(db)
+    if find_faq_entry_opt(db, server_id, &name_lc)
         .await?
-        .is_some()
+        .is_some() 
     {
         return Err(Box::new(CustomError::new(&format!("Error: An faq entry with title {name_lc} already exists"))));
     };
-
+    
+    let timestamp = ctx.created_at().timestamp();
+    let author_id = ctx.author().id.get() as i64;
+    
     // Find entry to link to
-    let linked_entry_opt = sqlx::query_as!(FaqEntry, 
-        r#"SELECT title, contents, image, link FROM faq WHERE server_id = $1 AND title = $2"#, server_id, link_to_lc)
-        .fetch_optional(db)
-        .await?;
+    let linked_entry = get_faq_entry(db, server_id, &link_to_lc).await?;
+    let link_no_chain = linked_entry.link.map_or(link_to_lc, |link| link);
+    insert_faq_link(db, server_id, &name_lc, &link_no_chain, author_id, timestamp).await?;
+    ctx.say(format!("FAQ link {name_lc} added to database, linking to {link_no_chain}")).await?;
+    Ok(())
+}
 
-    // Check if link target is link. Resolve chain if needed.
-    if let Some(linked_entry) = linked_entry_opt {
-        let link_no_chain = linked_entry.link.map_or(link_to_lc, |link| link);
-        let timestamp = ctx.created_at().timestamp();
-        let author_id = ctx.author().id.get() as i64;
-        sqlx::query!(r#"INSERT INTO faq (server_id, title, edit_time, author, link)
-            VALUES ($1, $2, $3, $4, $5)"#, server_id, name_lc, timestamp, author_id, link_no_chain)
-            .execute(db)
-            .await?;
-        ctx.say(format!("FAQ link {name_lc} added to database, linking to {link_no_chain}")).await?;
-    } else {
-        return Err(Box::new(CustomError::new(&format!("Error: Could not find FAQ entry {link_to_lc} to link to"))));
-    };
+async fn insert_faq_link(
+    db: &Pool<Sqlite>, 
+    server_id: i64, 
+    name: &str, 
+    link: &str, 
+    author_id: i64, 
+    timestamp: i64
+) -> Result<(), Error> {
+    sqlx::query!(r#"INSERT INTO faq (server_id, title, edit_time, author, link)
+        VALUES ($1, $2, $3, $4, $5)"#, server_id, name, timestamp, author_id, link)
+        .execute(db)
+        .await?;
     Ok(())
 }

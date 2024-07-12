@@ -4,8 +4,12 @@ use poise::reply::CreateReply;
 use std::{fmt, sync::{Arc, RwLock}};
 use log::{error, info};
 
-use crate::{custom_errors::CustomError, Context, Error, util};
-
+use crate::{
+    Context, 
+    custom_errors::CustomError, 
+    Error, 
+    util
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BasicMember {

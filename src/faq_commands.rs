@@ -5,7 +5,14 @@ use poise::serenity_prelude as serenity;
 use poise::CreateReply;
 use log::error;
 
-use crate::{Context, Error, custom_errors::CustomError, util, util::is_mod, SEPARATOR};
+use crate::{
+    Context, 
+    custom_errors::CustomError, 
+    Error, 
+    fun_commands, 
+    SEPARATOR, 
+    util::{self, is_mod}, 
+};
 
 #[derive(Debug, Clone)]
 pub struct FaqCacheEntry {
@@ -123,8 +130,15 @@ fn create_faq_embed(name: &str, faq_entry: FaqEntry, close_match: bool) -> Creat
         .title(title)
         .color(serenity::Colour::GOLD);
     if let Some(content) = faq_entry.contents {
-        embed = embed.description(content);
-    }
+        if name == "Expansion" {
+            let seconds_until_release = fun_commands::time_until_release();
+            let days = seconds_until_release / 86400;
+            embed = embed.description(format!("{content}\n\nCountdown: {days} days until release"));
+        } else {
+            embed = embed.description(content);
+        }
+    };
+
 
     if let Some(img) = faq_entry.image {
         embed = embed.image(img);

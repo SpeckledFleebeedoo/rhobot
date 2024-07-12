@@ -10,19 +10,30 @@ mod custom_errors;
 mod util;
 
 use clokwerk::{AsyncScheduler, Job};
-use fff_commands::update_fff_channel_description;
-use mods::update_notifications::{get_mod_count, update_database, update_mod_cache, update_sub_cache, update_author_cache, ModCacheEntry, SubCacheEntry};
-use mods::search_api::ModPortalCredentials;
-use faq_commands::{update_faq_cache, FaqCacheEntry};
 use tokio::time;
 use log::{error, info};
 use dotenv::dotenv;
-
 use poise::serenity_prelude as serenity;
 use std::{
     env::var,
     sync::{Arc, RwLock},
     time::Duration,
+};
+
+use crate::{
+    faq_commands::{update_faq_cache, FaqCacheEntry}, 
+    fff_commands::update_fff_channel_description,
+    mods::{
+        update_notifications::{
+            get_mod_count, 
+            update_database, 
+            update_mod_cache, 
+            update_sub_cache, 
+            update_author_cache, 
+            ModCacheEntry, 
+            SubCacheEntry},
+        search_api::ModPortalCredentials
+    },
 };
 
 // Types used by all command functions

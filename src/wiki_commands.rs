@@ -1,11 +1,17 @@
 use parse_wiki_text::{Node, Configuration};
 use poise::serenity_prelude::{CreateEmbed, Colour};
 use poise::CreateReply;
-use crate::{custom_errors::CustomError, Context, Error, SEPARATOR};
 use std::fmt::Debug;
 use std::{fmt, fmt::Write};
 use serde::Deserialize;
 use log::error;
+
+use crate::{
+    Context, 
+    custom_errors::CustomError, 
+    Error, 
+    SEPARATOR, 
+};
 
 struct NodeWrap<'a>{n: &'a parse_wiki_text::Node<'a>}
 

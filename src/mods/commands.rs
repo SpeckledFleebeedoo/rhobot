@@ -1,11 +1,31 @@
-use poise::serenity_prelude::{AutocompleteChoice, CreateEmbed, Colour};
+use poise::serenity_prelude::{
+    AutocompleteChoice, 
+    CreateEmbed, 
+    Colour
+};
 use poise::CreateReply;
 use log::error;
 
-use crate::mods::search_api;
-use crate::{Context, Error, custom_errors::CustomError, Data, SEPARATOR,
-    util::{get_subscribed_authors, get_subscribed_mods, is_mod, get_server_id},
-    mods::update_notifications::{self, SubCacheEntry, SubscriptionType}
+use crate::{
+    Context, 
+    custom_errors::CustomError, 
+    Data, 
+    Error, 
+    mods::{
+        search_api, 
+        update_notifications::{
+            self, 
+            SubCacheEntry, 
+            SubscriptionType
+        }
+    },
+    SEPARATOR,
+    util::{
+        get_subscribed_authors, 
+        get_subscribed_mods, 
+        is_mod, 
+        get_server_id
+    },
 };
 
 enum AutocompleteType{

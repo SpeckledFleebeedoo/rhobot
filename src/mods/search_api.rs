@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 use serde::Deserialize;
-use crate::{Error, custom_errors::CustomError, util::escape_formatting};
+use crate::{
+    custom_errors::CustomError, 
+    Error, 
+    util::escape_formatting,
+};
 
 pub struct ModPortalCredentials {
     username: String,

@@ -2,10 +2,18 @@ use std::iter::once;
 use poise::serenity_prelude as serenity;
 use poise::reply::CreateReply;
 use sqlx::{Pool, Sqlite};
-use crate::{Context, Error, custom_errors::CustomError, Data, wiki_commands, mods::commands};
 use regex::Regex;
 use serde::Deserialize;
 use log::info;
+
+use crate::{
+    Context, 
+    custom_errors::CustomError, 
+    Data, 
+    Error, 
+    mods::commands, 
+    wiki_commands, 
+};
 
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 pub async fn is_mod(ctx: Context<'_>) -> Result<bool, Error> {

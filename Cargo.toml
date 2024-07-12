@@ -13,8 +13,8 @@ nursery = { level = "warn", priority = -1 }
 pedantic = { level = "warn", priority = -1 }
 unwrap_used = "warn"
 expect_used = "warn"
-missing_panics_doc = "allow" # unless you actually want to document stuff :)
-missing_errors_doc = "allow" # unless you actually want to document stuff :)
+missing_panics_doc = "allow"
+missing_errors_doc = "allow"
 
 [dependencies]
 serenity = "0.12"

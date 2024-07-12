@@ -5,7 +5,12 @@ use scraper::{Html, Selector};
 use chrono::{DateTime, Datelike, TimeZone, Timelike};
 use chrono_tz::{Europe::Prague, Tz};
 use log::{error, info};
-use crate::{Context, Error, custom_errors::CustomError};
+
+use crate::{
+    Context, 
+    custom_errors::CustomError, 
+    Error, 
+};
 
 #[derive(Debug)]
 struct FFFData {

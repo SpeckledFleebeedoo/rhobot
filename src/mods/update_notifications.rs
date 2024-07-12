@@ -4,9 +4,15 @@ use sqlx::{Pool, Sqlite};
 use std::{fmt, sync::{Arc, RwLock}};
 use log::{error, info};
 
-use crate::Error;
-use crate::custom_errors::CustomError;
-use crate::util::{escape_formatting, get_subscribed_mods, get_subscribed_authors};
+use crate::{
+    custom_errors::CustomError,
+    Error,
+    util::{
+        escape_formatting, 
+        get_subscribed_mods, 
+        get_subscribed_authors,
+    },
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ApiResponse {
@@ -319,7 +325,6 @@ async fn get_mod_info(name: &str) -> Result<Mod, Error> {
 fn get_mod_changelog(mod_info: &Mod) -> Vec<ModChangelogEntry> {
     let versionsplit = "-".repeat(99);
 
-    // let mod_info = get_mod_info(name).await?;
     if mod_info.changelog.is_none() {
         return Vec::new()
     }
@@ -366,14 +371,19 @@ fn format_mod_changelog(changelogs: &[ModChangelogEntry], version: &str, max_lin
     for category in right_changelog
         .categories.clone() 
     {
-        lines.push(format!("**{}**", escape_formatting(&category.name)));
+        if !category.name.is_empty() {
+            lines.push(format!("**{}**", escape_formatting(&category.name)));
+        }
         lines.append(&mut category.entries
             .iter()
             .map(|e| escape_formatting(e))
             .collect::<Vec<String>>()
         );
     };
-    lines.truncate(max_lines);
+    if lines.len() > max_lines {
+        lines.truncate(max_lines);
+        lines.push("<Trimmed>".to_owned());
+    }
     Some(lines.join("\n"))
 }
 

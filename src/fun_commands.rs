@@ -1,6 +1,7 @@
-use crate::{Context, Error};
 use chrono::TimeZone;
 use rand::Rng;
+
+use crate::{Context, Error};
 
 /// Shows the time left until the expansion releases. Bring a calculator...
 #[allow(clippy::unused_async)]
@@ -35,18 +36,21 @@ pub async fn expansion(ctx: Context<'_>) -> Result<(), Error> {
     ];
 
     let random = rand::thread_rng().gen_range(0..units.len());
+    let (unit, conversion) = units[random];
+    #[allow(clippy::cast_precision_loss)]
+    let time_to_release = time_until_release() as f64;
+    let duration = time_to_release / conversion;
+    if duration > 10. {
+        ctx.say(format!("The expansion will release in {duration:.1} {unit}")).await?;
+    } else {
+        ctx.say(format!("The expansion will release in {duration:.3} {unit}")).await?;
+    }
+    Ok(())
+}
+
+pub fn time_until_release() -> i64 {
     let release_date = chrono::Utc.with_ymd_and_hms(2024, 10, 21, 12, 00, 00).unwrap();
     let now = chrono::Utc::now();
 
-    #[allow(clippy::cast_precision_loss)]
-    let time_to_release = (release_date - now).num_seconds() as f64;
-    let (unit, conversion) = units[random];
-
-    let duration = time_to_release / conversion;
-    if duration > 10. {
-        ctx.reply(format!("The expansion will release in {duration:.1} {unit}")).await?;
-    } else {
-        ctx.reply(format!("The expansion will release in {duration:.3} {unit}")).await?;
-    }
-    Ok(())
+    (release_date - now).num_seconds()
 }

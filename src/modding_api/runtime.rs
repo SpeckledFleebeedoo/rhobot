@@ -7,6 +7,7 @@ use log::{error, info};
 use crate::{
     Context, 
     custom_errors::CustomError, 
+    Data, 
     Error,
     util, 
 };
@@ -192,9 +193,9 @@ pub struct GlobalObject {
 }
 
 impl Class {
-    pub fn to_embed(&self) -> serenity::CreateEmbed {
+    pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/classes/{}.html", &self.common.name);
-        self.common.create_embed()
+        self.common.create_embed(data)
         .author(serenity::CreateEmbedAuthor::new("Class")
             .url("https://lua-api.factorio.com/latest/classes.html"))
         .url(url)
@@ -202,9 +203,9 @@ impl Class {
 }
 
 impl Event {
-    pub fn to_embed(&self) -> serenity::CreateEmbed {
+    pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/events.html#{}", &self.common.name);
-        self.common.create_embed()
+        self.common.create_embed(data)
         .author(serenity::CreateEmbedAuthor::new("Event")
             .url("https://lua-api.factorio.com/latest/events.html"))
         .url(url)
@@ -212,9 +213,9 @@ impl Event {
 }
 
 impl Define {
-    pub fn to_embed(&self) -> serenity::CreateEmbed {
+    pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/defines.html#defines.{}", &self.common.name);
-        self.common.create_embed()
+        self.common.create_embed(data)
         .author(serenity::CreateEmbedAuthor::new("Define")
             .url("https://lua-api.factorio.com/latest/defines.html"))
         .url(url)
@@ -222,9 +223,9 @@ impl Define {
 }
 
 impl Concept {
-    pub fn to_embed(&self) -> serenity::CreateEmbed {
+    pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/concepts.html#{}", &self.common.name);
-        self.common.create_embed()
+        self.common.create_embed(data)
         .author(serenity::CreateEmbedAuthor::new("Concept")
             .url("https://lua-api.factorio.com/latest/concepts.html"))
         .url(url)
@@ -232,10 +233,10 @@ impl Concept {
 }
 
 impl BasicMember {
-    pub fn create_embed(&self) -> serenity::CreateEmbed {
+    pub fn create_embed(&self, data: &Data) -> serenity::CreateEmbed {
         serenity::CreateEmbed::new()
             .title(&self.name)
-            .description(util::api_resolve_internal_links(&self.description))
+            .description(util::api_resolve_internal_links(data, &self.description))
             .color(serenity::Colour::GOLD)
     }
 }
@@ -350,7 +351,7 @@ pub async fn api_class (
         return Err(Box::new(CustomError::new("Could not find specified class in runtime API documentation")));
     };
 
-    let mut embed = search_result.to_embed();
+    let mut embed = search_result.to_embed(ctx.data());
     if let Some(property_name) = property_search {
         let method = search_result.methods.clone()
             .into_iter()
@@ -385,7 +386,7 @@ pub async fn api_class (
             }
             ).collect::<Vec<String>>().join(", ");
             let name = &m.common.name;
-            let description = util::api_resolve_internal_links(&m.common.description);
+            let description = util::api_resolve_internal_links(ctx.data(), &m.common.description);
             let title = if return_values.is_empty() {
                 format!("`{name}{parameters_str}`")
             } else {
@@ -407,7 +408,7 @@ pub async fn api_class (
             let name = &a.common.name;
             let a_type = &a.r#type;
             let optional = if a.optional { "?" } else { "" };
-            let description = util::api_resolve_internal_links(&a.common.description);
+            let description = util::api_resolve_internal_links(ctx.data(), &a.common.description);
             embed = embed.field(
                 format!("`{name} {rw} :: {a_type}{optional}`"), 
                 format!("{description}\n[Full documentation](https://lua-api.factorio.com/latest/classes/{c_name}.html#{name})"), 
@@ -501,7 +502,7 @@ pub async fn api_event (
         };
 
     let builder = CreateReply::default()
-        .embed(search_result.to_embed());
+        .embed(search_result.to_embed(ctx.data()));
     ctx.send(builder).await?;
     Ok(())
 }
@@ -549,7 +550,7 @@ pub async fn api_define (
         return Err(Box::new(CustomError::new("Could not find specified define type in runtime API documentation")));
     };
     let builder = CreateReply::default()
-        .embed(search_result.to_embed());
+        .embed(search_result.to_embed(ctx.data()));
     ctx.send(builder).await?;
     Ok(())
 }
@@ -598,7 +599,7 @@ pub async fn api_concept (
     };
 
     let builder = CreateReply::default()
-        .embed(search_result.to_embed());
+        .embed(search_result.to_embed(ctx.data()));
     ctx.send(builder).await?;
     Ok(())
 }

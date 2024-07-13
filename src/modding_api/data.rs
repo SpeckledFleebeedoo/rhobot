@@ -7,6 +7,7 @@ use log::{error, info};
 use crate::{
     Context, 
     custom_errors::CustomError, 
+    Data, 
     Error, 
     util
 };
@@ -111,18 +112,18 @@ pub enum ComplexType {
 }
 
 impl BasicMember {
-    pub fn create_embed(&self) -> serenity::CreateEmbed {
+    pub fn create_embed(&self, data: &Data) -> serenity::CreateEmbed {
         serenity::CreateEmbed::new()
             .title(&self.name)
-            .description(util::api_resolve_internal_links(&self.description))
+            .description(util::api_resolve_internal_links(data, &self.description))
             .color(serenity::Colour::GOLD)
     }
 }
 
 impl Prototype {
-    pub fn to_embed(&self) -> serenity::CreateEmbed {
+    pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/prototypes/{}.html", &self.common.name);
-        self.common.create_embed()
+        self.common.create_embed(data)
         .author(serenity::CreateEmbedAuthor::new("Prototype")
             .url("https://lua-api.factorio.com/latest/prototypes.html"))
         .url(url)
@@ -130,9 +131,9 @@ impl Prototype {
 }
 
 impl DataStageType {
-    pub fn to_embed(&self) -> serenity::CreateEmbed {
+    pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/types/{}.html", &self.common.name);
-        self.common.create_embed()
+        self.common.create_embed(data)
         .author(serenity::CreateEmbedAuthor::new("Type")
             .url("https://lua-api.factorio.com/latest/types.html"))
         .url(url)
@@ -234,7 +235,7 @@ pub async fn api_prototype (
     else {
         return Err(Box::new(CustomError::new("Could not find specified prototype in data stage API documentation")));
     };
-    let mut embed = search_result.to_embed();
+    let mut embed = search_result.to_embed(ctx.data());
 
     if let Some(property_name) = property_search {
         let property = search_result.properties.clone()
@@ -246,7 +247,7 @@ pub async fn api_prototype (
             let prototype_name = &search_result.common.name;
             let p_name = &p.common.name;
             let p_type = &p.r#type;
-            let description = util::api_resolve_internal_links(&p.common.description);
+            let description = util::api_resolve_internal_links(ctx.data(), &p.common.description);
             embed = embed.field(
                 format!("`{p_name} {optional} :: {p_type}`"), 
                 format!("{description}\n[Full documentation](https://lua-api.factorio.com/latest/prototypes/{prototype_name}.html#{p_name})"), 
@@ -340,7 +341,7 @@ pub async fn api_type (
             return Err(Box::new(CustomError::new("Could not find specified type in data stage API documentation")));
         };
 
-    let mut embed = search_result.to_embed();
+    let mut embed = search_result.to_embed(ctx.data());
 
     if let Some(property_name) = property_search {
         if let Some(properties) = &search_result.properties {
@@ -353,7 +354,7 @@ pub async fn api_type (
                 let type_name = &search_result.common.name;
                 let p_name = &p.common.name;
                 let p_type = &p.r#type;
-                let description = util::api_resolve_internal_links(&p.common.description);
+                let description = util::api_resolve_internal_links(ctx.data(), &p.common.description);
                 embed = embed.field(
                     format!("`{p_name} {optional} :: {p_type}`"), 
                     format!("{description}\n[Full documentation](https://lua-api.factorio.com/latest/types/{type_name}.html#{p_name})"), 

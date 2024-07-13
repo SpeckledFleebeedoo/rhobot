@@ -121,7 +121,7 @@ async fn faq_core(
 // Make and send embed for faq entry
 fn create_faq_embed(name: &str, faq_entry: FaqEntry, close_match: bool) -> CreateReply {
     let title = if close_match {
-        format!(r#"Could not find "{name}" in FAQ tags. Did you mean "{}"?"#, faq_entry.title)
+        format!(r#"Could not find "{}" in FAQ tags. Did you mean "{}"?"#, util::escape_formatting(name), util::escape_formatting(&faq_entry.title))
     } else {
         faq_entry.title
     };

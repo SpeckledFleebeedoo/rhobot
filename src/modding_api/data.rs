@@ -9,7 +9,7 @@ use crate::{
     custom_errors::CustomError, 
     Data, 
     Error, 
-    util
+    modding_api::resolve_internal_links, 
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -115,7 +115,7 @@ impl BasicMember {
     pub fn create_embed(&self, data: &Data) -> serenity::CreateEmbed {
         serenity::CreateEmbed::new()
             .title(&self.name)
-            .description(util::api_resolve_internal_links(data, &self.description))
+            .description(resolve_internal_links(data, &self.description))
             .color(serenity::Colour::GOLD)
     }
 }
@@ -247,7 +247,7 @@ pub async fn api_prototype (
             let prototype_name = &search_result.common.name;
             let p_name = &p.common.name;
             let p_type = &p.r#type;
-            let description = util::api_resolve_internal_links(ctx.data(), &p.common.description);
+            let description = resolve_internal_links(ctx.data(), &p.common.description);
             embed = embed.field(
                 format!("`{p_name} {optional} :: {p_type}`"), 
                 format!("{description}\n[Full documentation](https://lua-api.factorio.com/latest/prototypes/{prototype_name}.html#{p_name})"), 
@@ -354,7 +354,7 @@ pub async fn api_type (
                 let type_name = &search_result.common.name;
                 let p_name = &p.common.name;
                 let p_type = &p.r#type;
-                let description = util::api_resolve_internal_links(ctx.data(), &p.common.description);
+                let description = resolve_internal_links(ctx.data(), &p.common.description);
                 embed = embed.field(
                     format!("`{p_name} {optional} :: {p_type}`"), 
                     format!("{description}\n[Full documentation](https://lua-api.factorio.com/latest/types/{type_name}.html#{p_name})"), 

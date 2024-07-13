@@ -9,7 +9,7 @@ use crate::{
     custom_errors::CustomError, 
     Data, 
     Error,
-    util, 
+    modding_api::resolve_internal_links, 
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -236,7 +236,7 @@ impl BasicMember {
     pub fn create_embed(&self, data: &Data) -> serenity::CreateEmbed {
         serenity::CreateEmbed::new()
             .title(&self.name)
-            .description(util::api_resolve_internal_links(data, &self.description))
+            .description(resolve_internal_links(data, &self.description))
             .color(serenity::Colour::GOLD)
     }
 }
@@ -386,7 +386,7 @@ pub async fn api_class (
             }
             ).collect::<Vec<String>>().join(", ");
             let name = &m.common.name;
-            let description = util::api_resolve_internal_links(ctx.data(), &m.common.description);
+            let description = resolve_internal_links(ctx.data(), &m.common.description);
             let title = if return_values.is_empty() {
                 format!("`{name}{parameters_str}`")
             } else {
@@ -408,7 +408,7 @@ pub async fn api_class (
             let name = &a.common.name;
             let a_type = &a.r#type;
             let optional = if a.optional { "?" } else { "" };
-            let description = util::api_resolve_internal_links(ctx.data(), &a.common.description);
+            let description = resolve_internal_links(ctx.data(), &a.common.description);
             embed = embed.field(
                 format!("`{name} {rw} :: {a_type}{optional}`"), 
                 format!("{description}\n[Full documentation](https://lua-api.factorio.com/latest/classes/{c_name}.html#{name})"), 

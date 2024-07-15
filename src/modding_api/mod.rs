@@ -1,8 +1,8 @@
 pub mod data;
 pub mod runtime;
 
-use data::api_data;
-use runtime::api_runtime;
+use data::{api_prototype, api_type};
+use runtime::{api_class, api_event, api_define, api_concept};
 
 use core::fmt;
 use log::warn;
@@ -20,7 +20,7 @@ use crate::{
 
 /// Link a page in the mod making API. Slash commands only.
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, subcommands("api_runtime", "api_data", "api_page"))]
+#[poise::command(prefix_command, slash_command, track_edits, subcommands("api_class", "api_event", "api_define", "api_concept", "api_prototype", "api_type", "api_page"))]
 pub async fn api(
     _ctx: Context<'_>
 ) -> Result<(), Error> {

@@ -202,14 +202,6 @@ pub async fn get_data_api() -> Result<ApiResponse, Error> {
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, subcommands("api_prototype", "api_type"), rename="data")]
-pub async fn api_data(
-    _ctx: Context<'_>
-) -> Result<(), Error> {
-    Ok(())
-}
-
-#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, track_edits, rename="prototype")]
 pub async fn api_prototype (
     ctx: Context<'_>,
@@ -233,14 +225,14 @@ pub async fn api_prototype (
     let Some(search_result) = api.prototypes.iter()
         .find(|p| prototype_search.eq_ignore_ascii_case(&p.common.name)) 
     else {
-        return Err(Box::new(CustomError::new("Could not find specified prototype in data stage API documentation")));
+        return Err(Box::new(CustomError::new(&format!("Could not find prototype `{prototype_search}` in API documentation"))));
     };
     let mut embed = search_result.to_embed(ctx.data());
 
     if let Some(property_name) = property_search {
         let property = search_result.properties.clone()
             .into_iter()
-            .find(|m| m.common.name == property_name);
+            .find(|m| m.common.name.eq_ignore_ascii_case(&property_name));
 
         if let Some(p) = property {
             let optional = if p.optional {"optional"} else {""};
@@ -253,6 +245,8 @@ pub async fn api_prototype (
                 format!("{description}\n[Full documentation](https://lua-api.factorio.com/latest/prototypes/{prototype_name}.html#{p_name})"), 
                 false
             );
+        } else {
+            embed = embed.field("Error", format!("Could not find property `{property_name}`"), false);
         };
     };
     let builder = CreateReply::default()
@@ -305,7 +299,7 @@ async fn autocomplete_prototype_property<'a>(
     }.clone();
 
     let Some(prototype) = api.prototypes.iter()
-        .find(|p| p.common.name == prototype_name) 
+        .find(|p| p.common.name.eq_ignore_ascii_case(&prototype_name)) 
     else {return vec![]};    // Happens when invalid class is used
 
     prototype.properties.clone()
@@ -338,7 +332,7 @@ pub async fn api_type (
     let Some(search_result) = api.types.iter()
         .find(|t| type_search.eq_ignore_ascii_case(&t.common.name)) 
         else {
-            return Err(Box::new(CustomError::new("Could not find specified type in data stage API documentation")));
+            return Err(Box::new(CustomError::new(&format!("Could not find type `{type_search}` in API documentation"))));
         };
 
     let mut embed = search_result.to_embed(ctx.data());
@@ -347,7 +341,7 @@ pub async fn api_type (
         if let Some(properties) = &search_result.properties {
             let property = properties
                 .iter()
-                .find(|m| m.common.name == property_name);
+                .find(|m| m.common.name.eq_ignore_ascii_case(&property_name));
 
             if let Some(p) = property {             // name optional  :: type    Description
                 let optional = if p.optional {"optional"} else {""};
@@ -361,6 +355,8 @@ pub async fn api_type (
                     false
                 );
             };
+        } else {
+            embed = embed.field("Error", format!("Could not find property `{property_name}`"), false);
         };
     };
     let builder = CreateReply::default()
@@ -413,7 +409,7 @@ async fn autocomplete_type_property<'a>(
     }.clone();
 
     let Some(datatype) = api.types.iter()
-        .find(|p| p.common.name == type_name) 
+        .find(|p| p.common.name.eq_ignore_ascii_case(&type_name)) 
     else {return vec![]};
 
     datatype.properties.as_ref().map_or_else(Vec::new, |properties| properties

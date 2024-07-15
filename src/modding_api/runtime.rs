@@ -317,14 +317,6 @@ pub async fn get_runtime_api() -> Result<ApiResponse, Error> {
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, subcommands("api_class", "api_event", "api_define", "api_concept"), rename="runtime")]
-pub async fn api_runtime(
-    _ctx: Context<'_>
-) -> Result<(), Error> {
-    Ok(())
-}
-
-#[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, track_edits, rename="class")]
 pub async fn api_class (
     ctx: Context<'_>,
@@ -348,17 +340,17 @@ pub async fn api_class (
     let Some(search_result) = api.classes.iter()
         .find(|class| class_search.eq_ignore_ascii_case(&class.common.name)) 
     else {
-        return Err(Box::new(CustomError::new("Could not find specified class in runtime API documentation")));
+        return Err(Box::new(CustomError::new(&format!("Could not find class `{class_search}` in runtime API documentation"))));
     };
 
     let mut embed = search_result.to_embed(ctx.data());
     if let Some(property_name) = property_search {
         let method = search_result.methods.clone()
             .into_iter()
-            .find(|m| m.common.name == property_name);
+            .find(|m| m.common.name.eq_ignore_ascii_case(&property_name));
         let attribute = search_result.attributes.clone()
             .into_iter()
-            .find(|a| a.common.name == property_name);
+            .find(|a| a.common.name.eq_ignore_ascii_case(&property_name));
 
         let c_name = &search_result.common.name;
         if let Some(m) = method {
@@ -414,6 +406,8 @@ pub async fn api_class (
                 format!("{description}\n[Full documentation](https://lua-api.factorio.com/latest/classes/{c_name}.html#{name})"), 
                 false
             );
+        } else {
+            embed = embed.field("Error", format!("Could not find property `{property_name}`"), false);
         };
     };
     let builder = CreateReply::default()
@@ -465,7 +459,7 @@ async fn autocomplete_class_property<'a>(
         },
     }.clone();
     let Some(class) = api.classes.iter()
-        .find(|c| c.common.name == classname)
+        .find(|c| c.common.name.eq_ignore_ascii_case(&classname))
     else {return vec![]};    // Happens when invalid class is used
     
     let methods = class.methods.clone().into_iter().map(|m| m.common);
@@ -498,7 +492,7 @@ pub async fn api_event (
     let Some(search_result) = api.events.iter()
         .find(|event| event_search.eq_ignore_ascii_case(&event.common.name)) 
         else {
-            return Err(Box::new(CustomError::new("Could not find specified event in runtime API documentation")));
+            return Err(Box::new(CustomError::new(&format!("Could not find event `{event_search}` in runtime API documentation"))));
         };
 
     let builder = CreateReply::default()
@@ -547,7 +541,7 @@ pub async fn api_define (
     let Some(search_result) = api.defines.iter()
         .find(|define| define_search.eq_ignore_ascii_case(&define.common.name)) 
     else {
-        return Err(Box::new(CustomError::new("Could not find specified define type in runtime API documentation")));
+        return Err(Box::new(CustomError::new(&format!("Could not find define `{define_search}` in runtime API documentation"))));
     };
     let builder = CreateReply::default()
         .embed(search_result.to_embed(ctx.data()));
@@ -595,7 +589,7 @@ pub async fn api_concept (
     let Some(search_result) = api.concepts.iter()
         .find(|concept| concept_search.eq_ignore_ascii_case(&concept.common.name)) 
     else {
-        return Err(Box::new(CustomError::new("Could not find specified concept type in runtime API documentation")))
+        return Err(Box::new(CustomError::new(&format!("Could not find concept `{concept_search}` in runtime API documentation"))))
     };
 
     let builder = CreateReply::default()

@@ -154,6 +154,7 @@ async fn main() {
             fun_commands::expansion(),
             util::import_legacy_faqs(),
             util::drop_faqs(),
+            util::info(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("+".into()),

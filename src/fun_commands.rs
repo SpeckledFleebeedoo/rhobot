@@ -1,4 +1,5 @@
 use chrono::TimeZone;
+use poise::CreateReply;
 use rand::Rng;
 
 use crate::{Context, Error};
@@ -37,15 +38,32 @@ pub async fn expansion(ctx: Context<'_>) -> Result<(), Error> {
 
     let random = rand::thread_rng().gen_range(0..units.len());
     let (unit, conversion) = units[random];
-    #[allow(clippy::cast_precision_loss)]
+    let mut message = time_left_message(unit, conversion);
+    let mut previous_message = message.clone();
+    let handle = ctx.say(&message).await?;
+
+    // Edit message with updated timestamps for half a minute after sending
+    for _ in 0..=20 {
+        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+        message = time_left_message(unit, conversion);
+        if message != previous_message {
+            let builder = CreateReply::default().content(&message);
+            handle.edit(ctx, builder).await?;
+            previous_message.clone_from(&message);
+        }
+    };
+    Ok(())
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn time_left_message (unit: &str, conversion: f64) -> String {
     let time_to_release = time_until_release() as f64;
     let duration = time_to_release / conversion;
     if duration > 10. {
-        ctx.say(format!("The expansion will release in {duration:.1} {unit}")).await?;
+        format!("The expansion will release in {duration:.1} {unit}")
     } else {
-        ctx.say(format!("The expansion will release in {duration:.3} {unit}")).await?;
+        format!("The expansion will release in {duration:.3} {unit}")
     }
-    Ok(())
 }
 
 pub fn time_until_release() -> i64 {

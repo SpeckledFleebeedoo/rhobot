@@ -7,11 +7,11 @@ use log::{error, info};
 use crate::{
     custom_errors::CustomError,
     Error,
-    util::{
-        escape_formatting, 
-        get_subscribed_mods, 
+    mods::{
         get_subscribed_authors,
+        get_subscribed_mods,
     },
+    formatting_tools::escape_formatting,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -400,7 +400,6 @@ pub struct ModCacheEntry {
     pub name: String,
     pub title: String,
     pub author: String,
-    pub downloads_count: i64
 }
 
 #[derive(Debug, Clone)]
@@ -428,7 +427,6 @@ pub async fn update_mod_cache(
                 name: rec.name.clone(),
                 title: rec.title.clone().unwrap_or_default(), // Default if mod has no name (title)
                 author: rec.owner.clone(),
-                downloads_count: rec.downloads_count,
             }
         })
         .collect::<Vec<ModCacheEntry>>();

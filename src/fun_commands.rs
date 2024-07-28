@@ -34,6 +34,7 @@ pub async fn expansion(ctx: Context<'_>) -> Result<(), Error> {
         ("megaseconds", 1_000_000.),
         ("kilowarhols", 900_000.),
         ("radon-222 half-lives", 330_350.),
+        ("FFFs", 604_800.)
     ];
 
     let random = rand::thread_rng().gen_range(0..units.len());

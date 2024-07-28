@@ -11,7 +11,10 @@ use crate::{
     custom_errors::CustomError, 
     Data, 
     Error, 
+    management::{get_server_id, checks::is_mod},
     mods::{
+        get_subscribed_authors,
+        get_subscribed_mods,
         search_api, 
         update_notifications::{
             self, 
@@ -20,12 +23,6 @@ use crate::{
         }
     },
     SEPARATOR,
-    util::{
-        get_subscribed_authors, 
-        get_subscribed_mods, 
-        is_mod, 
-        get_server_id
-    },
 };
 
 enum AutocompleteType{

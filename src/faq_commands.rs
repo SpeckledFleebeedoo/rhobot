@@ -10,8 +10,9 @@ use crate::{
     custom_errors::CustomError, 
     Error, 
     fun_commands, 
+    management::{self, checks::is_mod},
     SEPARATOR, 
-    util::{self, is_mod}, 
+    formatting_tools, 
 };
 
 #[derive(Debug, Clone)]
@@ -86,7 +87,7 @@ async fn list_faqs(
     ctx: Context<'_>,
 ) -> Result<(), Error> {
     let db = &ctx.data().database;
-    let server_id = util::get_server_id(ctx)?;
+    let server_id = management::get_server_id(ctx)?;
     let db_entries = sqlx::query!(r#"SELECT title FROM faq WHERE server_id = $1"#, server_id)
         .fetch_all(db)
         .await?;
@@ -107,9 +108,9 @@ async fn faq_core(
     name: String,
 ) -> Result<(), Error> {
     let command = name.split(SEPARATOR).next().unwrap_or(&name).trim();
-    let name_lc = util::capitalize(command);
+    let name_lc = formatting_tools::capitalize(command);
     let db = &ctx.data().database;
-    let server_id = util::get_server_id(ctx)?;
+    let server_id = management::get_server_id(ctx)?;
 
     let (entry_final, close_match) = resolve_faq_name(db, ctx, server_id, &name_lc).await?;
 
@@ -121,7 +122,7 @@ async fn faq_core(
 // Make and send embed for faq entry
 fn create_faq_embed(name: &str, faq_entry: FaqEntry, close_match: bool) -> CreateReply {
     let title = if close_match {
-        format!(r#"Could not find "{}" in FAQ tags. Did you mean "{}"?"#, util::escape_formatting(name), util::escape_formatting(&faq_entry.title))
+        format!(r#"Could not find "{}" in FAQ tags. Did you mean "{}"?"#, formatting_tools::escape_formatting(name), formatting_tools::escape_formatting(&faq_entry.title))
     } else {
         faq_entry.title
     };
@@ -163,7 +164,7 @@ async fn resolve_faq_name(db: &Pool<Sqlite>, ctx: Context<'_>, server_id: i64, n
             // If no near matches, return no results message
             let errmsg = format!(
                 "Could not find {} or any similarly tags in FAQ tags. 
-                Would you like to search [the wiki](https://wiki.factorio.com/index.php?search={})?", util::escape_formatting(name), name.replace(' ', "%20"));
+                Would you like to search [the wiki](https://wiki.factorio.com/index.php?search={})?", formatting_tools::escape_formatting(name), name.replace(' ', "%20"));
             return Err(Box::new(CustomError::new(&errmsg)));
         }
     };
@@ -255,7 +256,7 @@ pub async fn new(
     #[rest]
     content: Option<String>,
 ) -> Result<(), Error> {
-    let name_lc = util::capitalize(&name);
+    let name_lc = formatting_tools::capitalize(&name);
     let Some(server) = ctx.guild_id() else {
         return Err(Box::new(CustomError::new("Could not get server ID")))
     };
@@ -344,7 +345,7 @@ pub async fn remove(
     #[autocomplete = "autocomplete_faq"]
     name: String
 ) -> Result<(), Error> {
-    let name_lc = util::capitalize(&name);
+    let name_lc = formatting_tools::capitalize(&name);
     let Some(server) = ctx.guild_id() else {
         return Err(Box::new(CustomError::new("Could not get server ID")))
     };
@@ -372,8 +373,8 @@ pub async fn link(
     #[description = "Existing FAQ entry to link to"]
     link_to: String,
 ) -> Result<(), Error> {
-    let name_lc = util::capitalize(&name);
-    let link_to_lc = util::capitalize(&link_to);
+    let name_lc = formatting_tools::capitalize(&name);
+    let link_to_lc = formatting_tools::capitalize(&link_to);
     let Some(server) = ctx.guild_id() else {
         return Err(Box::new(CustomError::new("Could not get server ID")))
     };
@@ -411,5 +412,80 @@ async fn insert_faq_link(
         VALUES ($1, $2, $3, $4, $5)"#, server_id, name, timestamp, author_id, link)
         .execute(db)
         .await?;
+    Ok(())
+}
+
+#[derive(serde::Deserialize, Debug, Clone)]
+struct LegacyFaqEntry {
+    serverid: i64,
+    title: String,
+    content: String,
+    image: String,
+    creator: i64,
+    timestamp: String,
+    link: String,
+}
+
+#[derive(Debug, Clone)]
+struct NewFaqEntry {
+    server_id: i64,
+    title: String,
+    content: Option<String>,
+    image: Option<String>,
+    creator: i64,
+    timestamp: i64,
+    link: Option<String>,
+}
+
+#[allow(clippy::unused_async)]
+#[poise::command(slash_command, prefix_command, guild_only, owners_only, hide_in_help, category="Management")]
+pub async fn import_legacy_faqs(
+    ctx: Context<'_>,
+    faq_json: serenity::Attachment,
+) -> Result<(), Error> {
+    let content = faq_json.download().await?;
+    let file_str = std::str::from_utf8(&content)?;
+    let faqs: Vec<LegacyFaqEntry> = serde_json::from_str(file_str)?;
+    let db = &ctx.data().database;
+    for faq in faqs {
+        let new_faq = NewFaqEntry {
+            server_id: faq.serverid,
+            title: formatting_tools::capitalize(&faq.title),
+            content: if faq.content.is_empty() {None} else {Some(faq.content.clone())},
+            image: if faq.image.is_empty() {None} else {Some(faq.image.clone())},
+            creator: faq.creator,
+            timestamp: chrono::DateTime::parse_from_rfc3339(&faq.timestamp).map_or(0, |datetime| datetime.timestamp()),
+            link: if faq.link.is_empty() {None} else {Some(formatting_tools::capitalize(&faq.link),)},
+        };
+
+        sqlx::query!(r#"
+            INSERT INTO faq (server_id, title, contents, image, edit_time, author, link) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7)"#, 
+            new_faq.server_id,
+            new_faq.title,
+            new_faq.content,
+            new_faq.image,
+            new_faq.timestamp,
+            new_faq.creator,
+            new_faq.link
+        )
+            .execute(db)
+            .await?;
+    };
+    ctx.say("Successfully imported all FAQ entries").await?;
+    Ok(())
+}
+
+#[allow(clippy::unused_async)]
+#[poise::command(slash_command, guild_only, owners_only, hide_in_help, category="Management")]
+pub async fn drop_faqs(
+    ctx: Context<'_>,
+) -> Result<(), Error> {
+    let db = &ctx.data().database;
+    let server_id = management::get_server_id(ctx)?;
+    sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1"#, server_id)
+        .execute(db)
+        .await?;
+    ctx.say("All FAQ entries for this server deleted").await?;
     Ok(())
 }

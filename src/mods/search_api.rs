@@ -3,7 +3,7 @@ use serde::Deserialize;
 use crate::{
     custom_errors::CustomError, 
     Error, 
-    util::escape_formatting,
+    formatting_tools::escape_formatting,
 };
 
 pub struct ModPortalCredentials {

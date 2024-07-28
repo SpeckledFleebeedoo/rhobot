@@ -1,13 +1,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod mods;
+mod events;
 mod faq_commands;
 mod fff_commands;
 mod fun_commands;
+mod management;
 mod modding_api;
 mod wiki_commands;
 mod custom_errors;
-mod util;
+mod formatting_tools;
 
 use clokwerk::{AsyncScheduler, Job};
 use tokio::time;
@@ -63,10 +65,10 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
         poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {error}"),
         poise::FrameworkError::Command { error, ctx, .. } => {
             error!("Error in command `{}`: {}", ctx.command().name, error,);
-            let _ = util::send_custom_error_message(ctx, &format!("{error}")).await;
+            let _ = custom_errors::send_custom_error_message(ctx, &format!("{error}")).await;
         }
         poise::FrameworkError::CommandCheckFailed { ctx, .. } => {
-            let _ = util::send_custom_error_message(ctx, "invalid permissions").await;
+            let _ = custom_errors::send_custom_error_message(ctx, "invalid permissions").await;
         }
         error => {
             if let Err(e) = poise::builtins::on_error(error).await {
@@ -136,9 +138,10 @@ async fn main() {
     // Every option can be omitted to use its default value
     let options = poise::FrameworkOptions {
         commands: vec![
-            util::help(),
-            util::get_server_info(),
-            util::reset_server_settings(),
+            management::commands::help(),
+            management::commands::info(),
+            management::commands::get_server_info(),
+            management::commands::reset_server_settings(),
             mods::commands::find_mod(),
             mods::commands::show_subscriptions(),
             mods::commands::subscribe(),
@@ -148,13 +151,14 @@ async fn main() {
             mods::commands::show_changelogs(),
             faq_commands::faq(),
             faq_commands::faq_edit(),
+            faq_commands::import_legacy_faqs(),
+            faq_commands::drop_faqs(),
             fff_commands::fff(),
             modding_api::api(),
+            modding_api::lua::lua_chapter(),
+            modding_api::lua::lua_function(),
             wiki_commands::wiki(),
             fun_commands::expansion(),
-            util::import_legacy_faqs(),
-            util::drop_faqs(),
-            util::info(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("+".into()),
@@ -181,11 +185,11 @@ async fn main() {
             Box::pin(async move {
                 if let serenity::FullEvent::GuildDelete { incomplete, full: _} = event {
                     if !incomplete.unavailable {
-                        util::on_guild_leave(incomplete.id, data.database.clone()).await?;
+                        events::on_guild_leave(incomplete.id, data.database.clone()).await?;
                     }
                 }
                 if let serenity::FullEvent::Message { new_message } = event {
-                    util::on_message(ctx.clone(), new_message, data).await?;
+                    events::on_message(ctx.clone(), new_message, data).await?;
                 }
                 Ok(())
             })

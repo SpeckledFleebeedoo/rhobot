@@ -1,5 +1,6 @@
 pub mod data;
 pub mod runtime;
+pub mod lua;
 
 use data::{api_prototype, api_type};
 use runtime::{api_class, api_event, api_define, api_concept};

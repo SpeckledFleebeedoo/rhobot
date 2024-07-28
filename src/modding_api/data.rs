@@ -134,6 +134,7 @@ impl DataStageType {
     pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/types/{}.html", &self.common.name);
         self.common.create_embed(data)
+        .title(format!("{} :: {}", &self.common.name, &self.r#type)) // Override name to include type
         .author(serenity::CreateEmbedAuthor::new("Type")
             .url("https://lua-api.factorio.com/latest/types.html"))
         .url(url)

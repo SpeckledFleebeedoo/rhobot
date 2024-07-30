@@ -11,7 +11,7 @@ use crate::{
         get_subscribed_authors,
         get_subscribed_mods,
     },
-    formatting_tools::escape_formatting,
+    formatting_tools::DiscordFormat,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -265,12 +265,12 @@ async fn make_update_message(
         ModState::New => Colour::from_rgb(0x2E, 0xCC, 0x71),
     };
     let mut title = match updated_mod.state {
-        ModState::Updated => format!("Updated mod:\n{}", escape_formatting(&updated_mod.title)),
-        ModState::New => format!("New mod:\n{}", escape_formatting(&updated_mod.title)),
+        ModState::Updated => format!("Updated mod:\n{}", updated_mod.title.clone().escape_formatting()),
+        ModState::New => format!("New mod:\n{}", updated_mod.title.clone().escape_formatting()),
     };
     title.truncate(256);
     let changelog = if show_changelog { updated_mod.changelog.clone() } else { String::new() };
-    let author_link = format!("{} ([more](https://mods.factorio.com/user/{}))", escape_formatting(&updated_mod.author), &updated_mod.author);
+    let author_link = format!("{} ([more](https://mods.factorio.com/user/{}))", updated_mod.author.clone().escape_formatting(), &updated_mod.author);
     let embed = CreateEmbed::new()
         .title(&title)
         .url(url)
@@ -372,11 +372,11 @@ fn format_mod_changelog(changelogs: &[ModChangelogEntry], version: &str, max_lin
         .categories.clone() 
     {
         if !category.name.is_empty() {
-            lines.push(format!("**{}**", escape_formatting(&category.name)));
+            lines.push(format!("**{}**", category.name.escape_formatting()));
         }
         lines.append(&mut category.entries
             .iter()
-            .map(|e| escape_formatting(e))
+            .map(|e| e.clone().escape_formatting())
             .collect::<Vec<String>>()
         );
     };

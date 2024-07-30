@@ -3,7 +3,7 @@ use serde::Deserialize;
 use crate::{
     custom_errors::CustomError, 
     Error, 
-    formatting_tools::escape_formatting,
+    formatting_tools::DiscordFormat,
 };
 
 pub struct ModPortalCredentials {
@@ -35,11 +35,18 @@ pub struct FoundMod {
 
 impl FoundMod {
     pub fn sanitize_for_embed(&mut self) {
-        self.title = escape_formatting(&self.title);
-        self.title.truncate(256);
-        self.summary = escape_formatting(&self.summary);
-        self.summary.truncate(4096);
-        self.owner = escape_formatting(&self.owner);
+        self.title = self.title
+            .clone()
+            .truncate_for_embed(256)
+            .escape_formatting();
+        self.summary = self.summary
+            .clone()
+            .truncate_for_embed(4096)
+            .escape_formatting();
+        self.owner = self.owner
+            .clone()
+            .truncate_for_embed(1024)
+            .escape_formatting();
     }
 }
 

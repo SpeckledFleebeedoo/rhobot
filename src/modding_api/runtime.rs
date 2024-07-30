@@ -9,6 +9,7 @@ use crate::{
     custom_errors::CustomError, 
     Data, 
     Error,
+    formatting_tools::DiscordFormat, 
     modding_api::resolve_internal_links, 
 };
 
@@ -378,7 +379,9 @@ pub async fn api_class (
             }
             ).collect::<Vec<String>>().join(", ");
             let name = &m.common.name;
-            let description = resolve_internal_links(ctx.data(), &m.common.description);
+            let full_docs_link = format!("\n[Full documentation](https://lua-api.factorio.com/latest/classes/{c_name}.html#{name})");
+            let description = resolve_internal_links(ctx.data(), &m.common.description).
+                truncate_for_embed(1024 - full_docs_link.len());
             let title = if return_values.is_empty() {
                 format!("`{name}{parameters_str}`")
             } else {
@@ -386,7 +389,7 @@ pub async fn api_class (
             };
             embed = embed.field(
                 title, 
-                format!("{description}\n[Full documentation](https://lua-api.factorio.com/latest/classes/{c_name}.html#{name})"), 
+                format!("{description}{full_docs_link}"), 
                 false
             );
 
@@ -400,10 +403,12 @@ pub async fn api_class (
             let name = &a.common.name;
             let a_type = &a.r#type;
             let optional = if a.optional { "?" } else { "" };
-            let description = resolve_internal_links(ctx.data(), &a.common.description);
+            let full_docs_link = format!("\n[Full documentation](https://lua-api.factorio.com/latest/classes/{c_name}.html#{name})");
+            let description = resolve_internal_links(ctx.data(), &a.common.description)
+                .truncate_for_embed(1024 - full_docs_link.len());
             embed = embed.field(
                 format!("`{name} {rw} :: {a_type}{optional}`"), 
-                format!("{description}\n[Full documentation](https://lua-api.factorio.com/latest/classes/{c_name}.html#{name})"), 
+                format!("{description}{full_docs_link}"), 
                 false
             );
         } else {

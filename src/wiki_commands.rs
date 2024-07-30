@@ -259,7 +259,12 @@ fn get_factorio_wiki_parser_config() -> Configuration {
 }
 
 pub async fn get_wiki_page(search_result: &str) -> Result<CreateEmbed, Error> {
-    let article = get_mediawiki_page(search_result).await?;
+    let article = match get_mediawiki_page(search_result).await{
+        Ok(page) => page,
+        Err(e) => {
+            return Err(Box::new(CustomError::new(&format!("Failed to parse page. The page you searched for may not exist.\nOriginal error: {e}"))));
+        },
+    };
 
     let parsed_text = get_factorio_wiki_parser_config()
         .parse(&article.wikitext)

@@ -12,7 +12,7 @@ use crate::{
     fun_commands, 
     management::{self, checks::is_mod},
     SEPARATOR, 
-    formatting_tools, 
+    formatting_tools::DiscordFormat, 
 };
 
 #[derive(Debug, Clone)]
@@ -108,7 +108,7 @@ async fn faq_core(
     name: String,
 ) -> Result<(), Error> {
     let command = name.split(SEPARATOR).next().unwrap_or(&name).trim();
-    let name_lc = formatting_tools::capitalize(command);
+    let name_lc = command.capitalize();
     let db = &ctx.data().database;
     let server_id = management::get_server_id(ctx)?;
 
@@ -122,7 +122,7 @@ async fn faq_core(
 // Make and send embed for faq entry
 fn create_faq_embed(name: &str, faq_entry: FaqEntry, close_match: bool) -> CreateReply {
     let title = if close_match {
-        format!(r#"Could not find "{}" in FAQ tags. Did you mean "{}"?"#, formatting_tools::escape_formatting(name), formatting_tools::escape_formatting(&faq_entry.title))
+        format!(r#"Could not find "{}" in FAQ tags. Did you mean "{}"?"#, name.escape_formatting(), faq_entry.title.escape_formatting())
     } else {
         faq_entry.title
     };
@@ -164,7 +164,7 @@ async fn resolve_faq_name(db: &Pool<Sqlite>, ctx: Context<'_>, server_id: i64, n
             // If no near matches, return no results message
             let errmsg = format!(
                 "Could not find {} or any similarly tags in FAQ tags. 
-                Would you like to search [the wiki](https://wiki.factorio.com/index.php?search={})?", formatting_tools::escape_formatting(name), name.replace(' ', "%20"));
+                Would you like to search [the wiki](https://wiki.factorio.com/index.php?search={})?", name.to_owned().escape_formatting(), name.replace(' ', "%20"));
             return Err(Box::new(CustomError::new(&errmsg)));
         }
     };
@@ -256,7 +256,7 @@ pub async fn new(
     #[rest]
     content: Option<String>,
 ) -> Result<(), Error> {
-    let name_lc = formatting_tools::capitalize(&name);
+    let name_lc = name.capitalize();
     let Some(server) = ctx.guild_id() else {
         return Err(Box::new(CustomError::new("Could not get server ID")))
     };
@@ -345,7 +345,7 @@ pub async fn remove(
     #[autocomplete = "autocomplete_faq"]
     name: String
 ) -> Result<(), Error> {
-    let name_lc = formatting_tools::capitalize(&name);
+    let name_lc = name.capitalize();
     let Some(server) = ctx.guild_id() else {
         return Err(Box::new(CustomError::new("Could not get server ID")))
     };
@@ -373,8 +373,8 @@ pub async fn link(
     #[description = "Existing FAQ entry to link to"]
     link_to: String,
 ) -> Result<(), Error> {
-    let name_lc = formatting_tools::capitalize(&name);
-    let link_to_lc = formatting_tools::capitalize(&link_to);
+    let name_lc = name.capitalize();
+    let link_to_lc = link_to.capitalize();
     let Some(server) = ctx.guild_id() else {
         return Err(Box::new(CustomError::new("Could not get server ID")))
     };
@@ -450,12 +450,12 @@ pub async fn import_legacy_faqs(
     for faq in faqs {
         let new_faq = NewFaqEntry {
             server_id: faq.serverid,
-            title: formatting_tools::capitalize(&faq.title),
+            title: faq.title.capitalize(),
             content: if faq.content.is_empty() {None} else {Some(faq.content.clone())},
             image: if faq.image.is_empty() {None} else {Some(faq.image.clone())},
             creator: faq.creator,
             timestamp: chrono::DateTime::parse_from_rfc3339(&faq.timestamp).map_or(0, |datetime| datetime.timestamp()),
-            link: if faq.link.is_empty() {None} else {Some(formatting_tools::capitalize(&faq.link),)},
+            link: if faq.link.is_empty() {None} else {Some(faq.link.capitalize())},
         };
 
         sqlx::query!(r#"

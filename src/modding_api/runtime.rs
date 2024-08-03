@@ -385,9 +385,9 @@ pub async fn api_class (
             let description = resolve_internal_links(ctx.data(), &m.common.description).
                 truncate_for_embed(1024 - full_docs_link.len());
             let title = if return_values.is_empty() {
-                format!("`{name}{parameters_str}`")
+                format!("`{name}{}`", parameters_str.truncate_for_embed(256 - name.len() - 2))
             } else {
-                format!("`{name}{parameters_str} 🡪 {return_values}`")
+                format!("`{name}{} 🡪 {return_values}`", parameters_str.truncate_for_embed(256 - name.len() - return_values.len() - 5))
             };
             embed = embed.field(
                 title, 
@@ -409,7 +409,7 @@ pub async fn api_class (
             let description = resolve_internal_links(ctx.data(), &a.common.description)
                 .truncate_for_embed(1024 - full_docs_link.len());
             embed = embed.field(
-                format!("`{name} {rw} :: {a_type}{optional}`"), 
+                format!("`{name} {rw} :: {a_type}{optional}`").truncate_for_embed(256), 
                 format!("{description}{full_docs_link}"), 
                 false
             );

@@ -6,6 +6,7 @@ use poise::serenity_prelude::{
 use poise::CreateReply;
 use log::error;
 
+use crate::formatting_tools::DiscordFormat;
 use crate::{
     Context, 
     custom_errors::CustomError, 
@@ -449,8 +450,9 @@ async fn autocomplete_modname<'a>(
         )
         .map(|f| {
             listed_names.push(f.name.clone());
+            let title = f.title.truncate_for_embed(100 - 4 - f.author.len());
             AutocompleteChoice::new(
-                f.title + " by " + &f.author,
+                title + " by " + &f.author,
                 f.name,
             )
         })
@@ -464,8 +466,9 @@ async fn autocomplete_modname<'a>(
             !(listed_names.contains(&f.name))  // Exclude previously found names
             && f.title.to_lowercase().contains(&partial.to_lowercase()))
         .map(|f| {
+            let title = f.title.clone().truncate_for_embed(100 - 4 - f.author.len());
             AutocompleteChoice::new(
-                f.title.clone() + " by " + &f.author,
+                title + " by " + &f.author,
                 f.name.clone(),
             )
         })
@@ -480,8 +483,9 @@ async fn autocomplete_modname<'a>(
         !(listed_names.contains(&f.name))  // Exclude previously found names
         && f.name.to_lowercase().contains(&partial.to_lowercase()))
     .map(|f| {
+        let title = f.title.clone().truncate_for_embed(100 - 4 - f.author.len());
         AutocompleteChoice::new(
-            f.title.clone() + " by " + &f.author,
+            title + " by " + &f.author,
             f.name.clone(),
         )
     })

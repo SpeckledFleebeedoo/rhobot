@@ -6,6 +6,7 @@ use std::{fmt, fmt::Write};
 use serde::Deserialize;
 use log::error;
 
+use crate::formatting_tools::DiscordFormat;
 use crate::{
     Context, 
     custom_errors::CustomError, 
@@ -276,23 +277,22 @@ pub async fn get_wiki_page(search_result: &str) -> Result<CreateEmbed, Error> {
         });
 
     let sections = parsed_text.split("||HEADING||").collect::<Vec<&str>>();
-    let mut formatted_text: String;
-    match sections.len() {
-        0 => formatted_text = String::new(),
-        1 => formatted_text = sections[0].to_owned(),
+
+    let formatted_text = match sections.len() {
+        0 => String::new(),
+        1 => sections[0].to_owned(),
         _ => {
             if sections[0].len() < 100 {
-                formatted_text = sections[0].to_owned() + sections[1];
+                sections[0].to_owned() + sections[1]
             } else {
-                formatted_text = sections[0].to_owned();
-            };
+                sections[0].to_owned()
+            }
         },
     };
-    formatted_text.truncate(2048);
     let embed = CreateEmbed::new()
-        .title(&article.title)
+        .title(article.title.truncate_for_embed(256))
         .url(format!("https://wiki.factorio.com/{}", &article.title.replace(' ', "_")))
-        .description(&formatted_text)
+        .description(formatted_text.truncate_for_embed(2048))
         .color(Colour::ORANGE);
     Ok(embed)
 }

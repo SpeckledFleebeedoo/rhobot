@@ -237,7 +237,9 @@ impl BasicMember {
     pub fn create_embed(&self, data: &Data) -> serenity::CreateEmbed {
         serenity::CreateEmbed::new()
             .title(&self.name)
-            .description(resolve_internal_links(data, &self.description))
+            .description(resolve_internal_links(data, &self.description)
+                .truncate_for_embed(4096)
+            )
             .color(serenity::Colour::GOLD)
     }
 }

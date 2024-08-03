@@ -10,6 +10,7 @@ use crate::{
     Context, 
     custom_errors::CustomError, 
     Error, 
+    formatting_tools::DiscordFormat
 };
 
 #[derive(Debug)]
@@ -53,9 +54,7 @@ async fn get_fff_data(number: i32) -> Result<FFFData, Error> {
     let Some(title_element) = head.select(&title_selector).next()
         else {return Err(Box::new(CustomError::new("Failed to read FFF page: failed to read title")))};
     fff.title = title_element.value().attr("content").map(|f| {
-        let mut title = f.trim_end_matches("| Factorio").to_owned();
-        title.truncate(256);
-        title
+        f.trim_end_matches("| Factorio").to_owned().truncate_for_embed(256)
     });
 
     let Ok(image_selector) = Selector::parse(r#"meta[property="og:image"#)
@@ -69,9 +68,7 @@ async fn get_fff_data(number: i32) -> Result<FFFData, Error> {
     let Some(description_element) = head.select(&description_selector).next()
         else {return Err(Box::new(CustomError::new("Failed to read FFF page: failed to parse body text")))};
     fff.description = description_element.value().attr("content").map(|f| {
-        let mut desc = f.to_owned();
-        desc.truncate(1000);
-        desc
+        f.to_owned().truncate_for_embed(1000)
     });
     Ok(fff)
 }

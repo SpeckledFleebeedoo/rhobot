@@ -264,18 +264,17 @@ async fn make_update_message(
         ModState::Updated => Colour::from_rgb(0x58, 0x65, 0xF2),
         ModState::New => Colour::from_rgb(0x2E, 0xCC, 0x71),
     };
-    let mut title = match updated_mod.state {
+    let title = match updated_mod.state {
         ModState::Updated => format!("Updated mod:\n{}", updated_mod.title.clone().escape_formatting()),
         ModState::New => format!("New mod:\n{}", updated_mod.title.clone().escape_formatting()),
     };
-    title.truncate(256);
     let changelog = if show_changelog { updated_mod.changelog.clone() } else { String::new() };
     let author_link = format!("{} ([more](https://mods.factorio.com/user/{}))", updated_mod.author.clone().escape_formatting(), &updated_mod.author);
     let embed = CreateEmbed::new()
-        .title(&title)
+        .title(title.truncate_for_embed(256))
         .url(url)
         .color(color)
-        .description(changelog)
+        .description(changelog.truncate_for_embed(4096))
         .field("**Author**", &author_link, true)
         .field("**Version**", &updated_mod.version, true)
         .thumbnail(&updated_mod.thumbnail);

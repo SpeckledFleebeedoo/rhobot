@@ -1,19 +1,21 @@
 use std::iter::once;
 
 pub trait DiscordFormat {
-    fn truncate_for_embed(self, max_len: usize) -> String;
+    fn truncate_for_embed(&self, max_len: usize) -> String;
     fn capitalize(self) -> String;
     fn escape_formatting(self) -> String;
 }
 impl DiscordFormat for String {
     /// Truncates a String to a set length for use in embeds
-    fn truncate_for_embed(self, max_len: usize) -> String {
-        let mut out = self;
-        if out.len() > max_len - 3 {
-            out.truncate(max_len);
-            out.push_str("...");
+    fn truncate_for_embed(&self, max_len: usize) -> String {
+        if self.len() > max_len {
+            self.chars()
+                .take(max_len - 3)
+                .chain("...".chars())
+                .collect::<Self>()
+        } else {
+            self.to_owned()
         }
-        out
     }
 
     /// Capitalizes the first character in str s, lowercases the rest.
@@ -46,8 +48,8 @@ impl DiscordFormat for String {
 
 impl DiscordFormat for &str {
         /// Truncates a String to a set length for use in embeds
-        fn truncate_for_embed(self, max_len: usize) -> String {
-            self.to_owned().truncate_for_embed(max_len)
+        fn truncate_for_embed(&self, max_len: usize) -> String {
+            (*self).to_string().truncate_for_embed(max_len)
         }
     
         /// Capitalizes the first character in str s, lowercases the rest.

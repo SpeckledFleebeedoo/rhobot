@@ -5,11 +5,7 @@ use std::{fmt, sync::{Arc, RwLock}};
 use log::{error, info};
 
 use crate::{
-    Context, 
-    custom_errors::CustomError, 
-    Data, 
-    Error, 
-    modding_api::resolve_internal_links, 
+    custom_errors::CustomError, formatting_tools::DiscordFormat, modding_api::resolve_internal_links, Context, Data, Error 
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -115,7 +111,9 @@ impl BasicMember {
     pub fn create_embed(&self, data: &Data) -> serenity::CreateEmbed {
         serenity::CreateEmbed::new()
             .title(&self.name)
-            .description(resolve_internal_links(data, &self.description))
+            .description(resolve_internal_links(data, &self.description)
+                .truncate_for_embed(4096)
+            )
             .color(serenity::Colour::GOLD)
     }
 }
@@ -240,10 +238,12 @@ pub async fn api_prototype (
             let prototype_name = &search_result.common.name;
             let p_name = &p.common.name;
             let p_type = &p.r#type;
-            let description = resolve_internal_links(ctx.data(), &p.common.description);
+            let full_docs_link = format!("\n[Full documentation](https://lua-api.factorio.com/latest/prototypes/{prototype_name}.html#{p_name})");
+            let description = resolve_internal_links(ctx.data(), &p.common.description).
+                truncate_for_embed(1024 - full_docs_link.len());
             embed = embed.field(
                 format!("`{p_name} {optional} :: {p_type}`"), 
-                format!("{description}\n[Full documentation](https://lua-api.factorio.com/latest/prototypes/{prototype_name}.html#{p_name})"), 
+                format!("{description}{full_docs_link}"), 
                 false
             );
         } else {
@@ -349,10 +349,12 @@ pub async fn api_type (
                 let type_name = &search_result.common.name;
                 let p_name = &p.common.name;
                 let p_type = &p.r#type;
-                let description = resolve_internal_links(ctx.data(), &p.common.description);
+                let full_docs_link = format!("\n[Full documentation](https://lua-api.factorio.com/latest/types/{type_name}.html#{p_name})");
+                let description = resolve_internal_links(ctx.data(), &p.common.description)
+                    .truncate_for_embed(1024 - full_docs_link.len());
                 embed = embed.field(
                     format!("`{p_name} {optional} :: {p_type}`"), 
-                    format!("{description}\n[Full documentation](https://lua-api.factorio.com/latest/types/{type_name}.html#{p_name})"), 
+                    format!("{description}{full_docs_link}"), 
                     false
                 );
             };

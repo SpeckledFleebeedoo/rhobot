@@ -51,10 +51,12 @@ impl FoundMod {
 }
 
 pub async fn find_mod(name: &str, credentials: &ModPortalCredentials) -> Result<FoundMod, Error> {
+    let mut name_truncated = name.to_owned();
+    name_truncated.truncate(50);
     let map = HashMap::from([
         ("username", credentials.username.as_str()),
         ("token", credentials.token.as_str()),
-        ("query", name),
+        ("query", name_truncated.as_str()),
         ("version", "1.1"),
         ("sort_attribute", "relevancy"),
         ("only_bookmarks", "false"),

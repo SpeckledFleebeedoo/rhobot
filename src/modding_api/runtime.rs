@@ -447,16 +447,12 @@ async fn autocomplete_class_property<'a>(
     ctx: Context<'_>,
     partial: &'a str,
 ) -> Vec<String>{
-    let mut classname = String::new();
-    if let poise::Context::Application(appcontext) = ctx {
-        if let serenity::ResolvedValue::String(st) = appcontext.args[0].value {
-            st.clone_into(&mut classname);
-        }
-    }
-
+    let poise::Context::Application(appcontext) = ctx else {return vec![]};
+    let serenity::ResolvedValue::String(classname) = appcontext.args[0].value else {return vec![]};
     if classname.is_empty() {
-        return vec![];   // Happens when property field is used before class field
-    }
+        return vec![];
+    };
+
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read(){
         Ok(c) => c,
@@ -466,7 +462,7 @@ async fn autocomplete_class_property<'a>(
         },
     }.clone();
     let Some(class) = api.classes.iter()
-        .find(|c| c.common.name.eq_ignore_ascii_case(&classname))
+        .find(|c| c.common.name.eq_ignore_ascii_case(classname))
     else {return vec![]};    // Happens when invalid class is used
     
     let methods = class.methods.clone().into_iter().map(|m| m.common);

@@ -280,16 +280,12 @@ async fn autocomplete_prototype_property<'a>(
     ctx: Context<'_>,
     partial: &'a str,
 ) -> Vec<String>{
-    let mut prototype_name = String::new();
-    if let poise::Context::Application(appcontext) = ctx {
-        if let serenity::ResolvedValue::String(st) = appcontext.args[0].value {
-            st.clone_into(&mut prototype_name);
-        }
-    }
-
+    let poise::Context::Application(appcontext) = ctx else {return vec![]};
+    let serenity::ResolvedValue::String(prototype_name) = appcontext.args[0].value else {return vec![]};
     if prototype_name.is_empty() {
-        return vec![];   // Happens when property field is used before class field
-    }
+        return vec![];
+    };
+
     let cache = ctx.data().data_api_cache.clone();
     let api = match cache.read(){
         Ok(c) => c,
@@ -300,7 +296,7 @@ async fn autocomplete_prototype_property<'a>(
     }.clone();
 
     let Some(prototype) = api.prototypes.iter()
-        .find(|p| p.common.name.eq_ignore_ascii_case(&prototype_name)) 
+        .find(|p| p.common.name.eq_ignore_ascii_case(prototype_name)) 
     else {return vec![]};    // Happens when invalid class is used
 
     prototype.properties.clone()
@@ -392,16 +388,12 @@ async fn autocomplete_type_property<'a>(
     ctx: Context<'_>,
     partial: &'a str,
 ) -> Vec<String>{
-    let mut type_name = String::new();
-    if let poise::Context::Application(appcontext) = ctx {
-        if let serenity::ResolvedValue::String(st) = appcontext.args[0].value {
-            st.clone_into(&mut type_name);
-        }
-    }
-
+    let poise::Context::Application(appcontext) = ctx else {return vec![]};
+    let serenity::ResolvedValue::String(type_name) = appcontext.args[0].value else {return vec![]};
     if type_name.is_empty() {
-        return vec![];   // Happens when property field is used before class field
-    }
+        return vec![];
+    };
+
     let cache = ctx.data().data_api_cache.clone();
     let api = match cache.read(){
         Ok(c) => c,
@@ -412,7 +404,7 @@ async fn autocomplete_type_property<'a>(
     }.clone();
 
     let Some(datatype) = api.types.iter()
-        .find(|p| p.common.name.eq_ignore_ascii_case(&type_name)) 
+        .find(|p| p.common.name.eq_ignore_ascii_case(type_name)) 
     else {return vec![]};
 
     datatype.properties.as_ref().map_or_else(Vec::new, |properties| properties

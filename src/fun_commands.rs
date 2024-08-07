@@ -8,7 +8,7 @@ use crate::{Context, Error};
 #[allow(clippy::unused_async)]
 #[poise::command(slash_command, prefix_command)]
 pub async fn expansion(ctx: Context<'_>) -> Result<(), Error> {
-    let units = vec![
+    let units = [
         ("train-kilometers", 13.88889), // 1.2 tiles/tick = 72 m/s = 0.072 km/s -> 13.8889 s/km
         ("train-nautical miles", 25.7202), // 0.03888 mi/s
         ("inserter swings", 0.6),
@@ -34,7 +34,7 @@ pub async fn expansion(ctx: Context<'_>) -> Result<(), Error> {
         ("megaseconds", 1_000_000.),
         ("kilowarhols", 900_000.),
         ("radon-222 half-lives", 330_350.),
-        ("FFFs", 604_800.)
+        ("FFFs", 604_800.),
     ];
 
     let random = rand::thread_rng().gen_range(0..units.len());

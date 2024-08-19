@@ -256,6 +256,14 @@ pub async fn new(
     #[rest]
     content: Option<String>,
 ) -> Result<(), Error> {
+    if name.len() > 256 {
+        return Err(Box::new(CustomError::new("FAQ title too long (must be 256 characters or shorter)")));
+    };
+    if let Some(c) = &content {
+        if c.len() > 4096 {
+            return Err(Box::new(CustomError::new("FAQ body too long (must be 4096 characters or shorter)")));
+        };
+    };
     let name_lc = name.capitalize();
     let Some(server) = ctx.guild_id() else {
         return Err(Box::new(CustomError::new("Could not get server ID")))

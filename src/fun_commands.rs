@@ -11,8 +11,8 @@ pub async fn expansion(ctx: Context<'_>) -> Result<(), Error> {
     let units = [
         ("train-kilometers", 13.88889), // 1.2 tiles/tick = 72 m/s = 0.072 km/s -> 13.8889 s/km
         ("train-nautical miles", 25.7202), // 0.03888 mi/s
-        ("inserter swings", 0.6),
-        ("fast inserter swings", 0.21667),
+        ("inserter swings", 1.2),
+        ("fast inserter swings", 0.433),
         ("beaconed rocket launches", 61.417),
         ("rocket launches", 340.3333),
         ("engineer-marathons", 4690.),

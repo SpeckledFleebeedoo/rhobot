@@ -122,16 +122,16 @@ async fn faq_core(
 // Make and send embed for faq entry
 fn create_faq_embed(name: &str, faq_entry: FaqEntry, close_match: bool) -> CreateReply {
     let title = if close_match {
-        format!(r#"Could not find "{}" in FAQ tags. Did you mean "{}"?"#, name.escape_formatting(), faq_entry.title.escape_formatting())
+        format!(r#"Could not find "{}" in FAQ tags. Did you mean "{}"?"#, name.escape_formatting(), &faq_entry.title.clone().escape_formatting())
     } else {
-        faq_entry.title
+        faq_entry.title.clone()
     };
 
     let mut embed = serenity::CreateEmbed::new()
         .title(title)
         .color(serenity::Colour::GOLD);
     if let Some(content) = faq_entry.contents {
-        if name == "Expansion" {
+        if faq_entry.title == "Expansion" {
             let seconds_until_release = fun_commands::time_until_release();
             let days = seconds_until_release / 86400;
             embed = embed.description(format!("{content}\n\nCountdown: {days} days until release"));

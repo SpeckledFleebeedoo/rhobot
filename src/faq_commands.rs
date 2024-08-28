@@ -1,3 +1,4 @@
+use std::time::Duration;
 use poise::ReplyHandle;
 use sqlx::{Pool, Sqlite};
 use std::sync::{Arc, RwLock};
@@ -21,6 +22,7 @@ pub struct FaqCacheEntry {
     title: String,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 struct FaqEntry {
     title: String,
     contents: Option<String>,
@@ -423,77 +425,125 @@ async fn insert_faq_link(
     Ok(())
 }
 
-#[derive(serde::Deserialize, Debug, Clone)]
-struct LegacyFaqEntry {
-    serverid: i64,
-    title: String,
-    content: String,
-    image: String,
-    creator: i64,
-    timestamp: String,
-    link: String,
-}
-
-#[derive(Debug, Clone)]
-struct NewFaqEntry {
-    server_id: i64,
-    title: String,
-    content: Option<String>,
-    image: Option<String>,
-    creator: i64,
-    timestamp: i64,
-    link: Option<String>,
-}
-
 #[allow(clippy::unused_async)]
-#[poise::command(slash_command, prefix_command, guild_only, owners_only, hide_in_help, category="Management")]
-pub async fn import_legacy_faqs(
-    ctx: Context<'_>,
-    faq_json: serenity::Attachment,
-) -> Result<(), Error> {
-    let content = faq_json.download().await?;
-    let file_str = std::str::from_utf8(&content)?;
-    let faqs: Vec<LegacyFaqEntry> = serde_json::from_str(file_str)?;
-    let db = &ctx.data().database;
-    for faq in faqs {
-        let new_faq = NewFaqEntry {
-            server_id: faq.serverid,
-            title: faq.title.capitalize(),
-            content: if faq.content.is_empty() {None} else {Some(faq.content.clone())},
-            image: if faq.image.is_empty() {None} else {Some(faq.image.clone())},
-            creator: faq.creator,
-            timestamp: chrono::DateTime::parse_from_rfc3339(&faq.timestamp).map_or(0, |datetime| datetime.timestamp()),
-            link: if faq.link.is_empty() {None} else {Some(faq.link.capitalize())},
-        };
-
-        sqlx::query!(r#"
-            INSERT INTO faq (server_id, title, contents, image, edit_time, author, link) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7)"#, 
-            new_faq.server_id,
-            new_faq.title,
-            new_faq.content,
-            new_faq.image,
-            new_faq.timestamp,
-            new_faq.creator,
-            new_faq.link
-        )
-            .execute(db)
-            .await?;
-    };
-    ctx.say("Successfully imported all FAQ entries").await?;
-    Ok(())
-}
-
-#[allow(clippy::unused_async)]
-#[poise::command(slash_command, guild_only, owners_only, hide_in_help, category="Management")]
+#[poise::command(slash_command, guild_only, owners_only, hide_in_help, ephemeral, category="Management")]
 pub async fn drop_faqs(
     ctx: Context<'_>,
 ) -> Result<(), Error> {
     let db = &ctx.data().database;
     let server_id = management::get_server_id(ctx)?;
-    sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1"#, server_id)
-        .execute(db)
+    let button_yes = serenity::CreateButton::new("Yes").label("Yes").style(serenity::ButtonStyle::Danger);
+    let button_no = serenity::CreateButton::new("No").label("No").style(serenity::ButtonStyle::Primary);
+    let components = vec![serenity::CreateActionRow::Buttons(vec![button_yes, button_no])];
+    let confirmation = ctx.send(
+        CreateReply::default()
+            .content("Are you sure you want to drop the FAQ database? \n**THIS ACTION CANNOT BE REVERTED**")
+            .components(components)
+        ).await?;
+    let confirmation_message = confirmation
+        .message()
         .await?;
-    ctx.say("All FAQ entries for this server deleted").await?;
+
+    let Some(response) = confirmation_message
+        .await_component_interaction(ctx)
+        .timeout(Duration::from_secs(60))
+        .await 
+    else {
+        let new_message = CreateReply::default()
+            .content("Timed out")
+            .components(Vec::default());
+        confirmation.edit(ctx, new_message).await?;
+        return Ok(());
+    };
+
+    let Some(owner) = ctx.http().get_current_application_info().await?.owner else {
+        return Err(Box::new(CustomError::new("Failed to verify if user is owner")))
+    };
+    if response.user == owner {
+        if response.data.custom_id == "Yes" {
+            let faq_str = create_faq_dump(server_id, db).await?;
+            let faq_file = serenity::CreateAttachment::bytes(faq_str, format!("FAQ_dump_{}_{}.json", server_id, ctx.created_at().timestamp()));
+            let builder = CreateReply::default()
+                .content("Created dump of FAQ contents:")
+                .attachment(faq_file);
+            ctx.send(builder).await?;
+            sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1"#, server_id)
+                .execute(db)
+                .await?;
+            let new_message = CreateReply::default()
+                .content("All FAQ entries for this server deleted")
+                .components(Vec::default());
+            confirmation.edit(ctx, new_message).await?;
+        }
+        else {
+            let new_message = CreateReply::default()
+                .content("No changes made")
+                .components(Vec::default());
+            confirmation.edit(ctx, new_message).await?;
+        }
+    } else {
+        return Err(Box::new(CustomError::new("This command can only be used by the bot owner")))
+    }
+    
+    Ok(())
+}
+
+async fn create_faq_dump(server_id: i64, db: &Pool<Sqlite>) -> Result<String, Error> {
+    let server_faqs = sqlx::query_as!(FaqEntry, r#"SELECT title, contents, image, link FROM faq WHERE server_id = $1"#, server_id)
+        .fetch_all(db)
+        .await?;
+
+    let faq_json = serde_json::to_string(&server_faqs)?;
+
+    Ok(faq_json)
+}
+
+#[poise::command(slash_command, guild_only, owners_only, hide_in_help, category="Management")]
+pub async fn export_faqs(
+    ctx: Context<'_>,
+) -> Result<(), Error> {
+    let db = &ctx.data().database;
+    let server_id = management::get_server_id(ctx)?;
+    let faq_str = create_faq_dump(server_id, db).await?;
+    let faq_file = serenity::CreateAttachment::bytes(faq_str, format!("FAQ_dump_{}_{}.json", server_id, ctx.created_at().timestamp()));
+    let builder = CreateReply::default()
+        .content("Created dump of FAQ contents:")
+        .attachment(faq_file);
+    ctx.send(builder).await?;
+    Ok(())
+}
+
+
+//Import all FAQs from a json file. May lead to duplicate entries.
+#[allow(clippy::cast_possible_wrap)]
+#[poise::command(slash_command, guild_only, owners_only, hide_in_help, category="Management")]
+pub async fn import_faqs(
+    ctx: Context<'_>,
+    faq_json: serenity::Attachment,
+) -> Result<(), Error> {
+    let server_id = management::get_server_id(ctx)?;
+    // let timestamp = ctx.created_at().timestamp();
+    let content = faq_json.download().await?;
+    let file_str = std::str::from_utf8(&content)?;
+    let faqs: Vec<FaqEntry> = serde_json::from_str(file_str)?;
+    let db = &ctx.data().database;
+    let timestamp = ctx.created_at().timestamp();
+    let author = ctx.author().id.get() as i64;
+    for faq in faqs {
+        sqlx::query!(r#"
+            INSERT INTO faq (server_id, title, contents, image, edit_time, author, link) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7)"#, 
+            server_id,
+            faq.title,
+            faq.contents,
+            faq.image,
+            timestamp,
+            author,
+            faq.link
+        )
+            .execute(db)
+            .await?;
+    };
+    ctx.say("Successfully imported all FAQ entries").await?;
     Ok(())
 }

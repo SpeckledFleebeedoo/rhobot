@@ -425,6 +425,7 @@ async fn insert_faq_link(
     Ok(())
 }
 
+/// Drop all FAQ entries for this server
 #[allow(clippy::unused_async)]
 #[poise::command(slash_command, guild_only, owners_only, hide_in_help, ephemeral, category="Management")]
 pub async fn drop_faqs(
@@ -437,7 +438,7 @@ pub async fn drop_faqs(
     let components = vec![serenity::CreateActionRow::Buttons(vec![button_yes, button_no])];
     let confirmation = ctx.send(
         CreateReply::default()
-            .content("Are you sure you want to drop the FAQ database? \n**THIS ACTION CANNOT BE REVERTED**")
+            .content("Are you sure you want to drop the FAQ database for this server? \n**THIS ACTION CANNOT BE REVERTED**")
             .components(components)
         ).await?;
     let confirmation_message = confirmation
@@ -498,6 +499,7 @@ async fn create_faq_dump(server_id: i64, db: &Pool<Sqlite>) -> Result<String, Er
     Ok(faq_json)
 }
 
+/// Export all server FAQs to a json file
 #[poise::command(slash_command, guild_only, owners_only, hide_in_help, category="Management")]
 pub async fn export_faqs(
     ctx: Context<'_>,
@@ -514,7 +516,7 @@ pub async fn export_faqs(
 }
 
 
-//Import all FAQs from a json file. May lead to duplicate entries.
+/// Import all FAQs from a json file. May lead to duplicate entries.
 #[allow(clippy::cast_possible_wrap)]
 #[poise::command(slash_command, guild_only, owners_only, hide_in_help, category="Management")]
 pub async fn import_faqs(

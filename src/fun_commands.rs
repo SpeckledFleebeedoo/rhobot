@@ -27,7 +27,7 @@ pub async fn expansion(ctx: Context<'_>) -> Result<(), Error> {
         ("kermits", 864.),
         ("uranium fuel cells", 200.),
         ("fortnights", 1_209_600.),
-        ("milligenerations", 2_332_800.),
+        ("milligenerations", 852_037.704),
         ("kilominutes", 60000.),
         ("centiyears", 315_569.5),
         ("viewings of Star Wars Episodes I-IX", 74520.),

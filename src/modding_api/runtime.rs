@@ -203,6 +203,72 @@ impl Class {
     }
 }
 
+impl Method {
+    pub fn to_embed(&self, parent: &Class, data: &Data) -> serenity::CreateEmbed {
+        let mut sorted_params = self.parameters.clone();
+        sorted_params.sort_unstable_by_key(|par| par.order);
+        let parameters_str = if self.format.takes_table {
+            let parameters = sorted_params.into_iter().map(|par| {
+                let optional = if par.optional { "?" } else { "" };
+                format!("{}{}=...", par.name, optional)
+            })
+            .collect::<Vec<String>>().join(", ");
+            format!(r#"{{{parameters}}}"#)
+        } else {
+            let parameters = sorted_params.into_iter().map(|par| {
+                let optional = if par.optional { "?" } else { "" };
+                format!("{}{}", par.name, optional)
+            })
+            .collect::<Vec<String>>().join(", ");
+            format!(r#"({parameters})"#)
+        };
+    
+        let return_values = self.return_values
+            .clone()
+            .into_iter()
+            .map(|rv| {
+                let optional = if rv.optional { "?" } else { "" };
+                format!("{}{optional}", rv.r#type)
+            })
+            .collect::<Vec<String>>().join(", ");
+
+        let returns_str = if return_values.is_empty() {
+            String::new()
+        } else {
+            format!("**→** `{return_values}`\n")
+        };
+
+        let url = format!("https://lua-api.factorio.com/latest/classes/{}.html#{}", &parent.common.name, &self.common.name);
+        let description = format!("{}{}", returns_str, resolve_internal_links(data, &self.common.description))
+            .truncate_for_embed(4096);
+        serenity::CreateEmbed::new()
+            .title(format!("{}::{}{}", &parent.common.name, &self.common.name, parameters_str).truncate_for_embed(256))
+            .description(description)
+            .color(serenity::Colour::GOLD)
+            .url(url)
+    }
+}
+
+impl Attribute {
+    pub fn to_embed(&self, parent: &Class, data: &Data) -> serenity::CreateEmbed {
+        let rw = match (&self.read, &self.write) {
+            (true, true) => "[RW]",
+            (true, false) => "[R]",
+            (false, true) => "[W]",
+            (false, false) => ""
+        };
+        let optional = if self.optional { "?" } else { "" };
+        let url = format!("https://lua-api.factorio.com/latest/classes/{}.html#{}", &parent.common.name, &self.common.name);
+        let description = format!("`{} :: {}{}`\n{}", rw, &self.r#type, optional, resolve_internal_links(data, &self.common.description))
+            .truncate_for_embed(4096);
+        serenity::CreateEmbed::new()
+            .title(format!("{}::{}", &parent.common.name, &self.common.name).truncate_for_embed(256))
+            .description(description)
+            .color(serenity::Colour::GOLD)
+            .url(url)
+    }
+}
+
 impl Event {
     pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed {
         let url = format!("https://lua-api.factorio.com/latest/events.html#{}", &self.common.name);
@@ -267,7 +333,7 @@ impl fmt::Display for ComplexType {
             },
             Self::Array { value } => {write!(f, "array[{value}]")},
             Self::Dictionary { key, value } | Self::LuaCustomTable { key, value } => {
-                write!(f, "dictionary[{key} 🡪 {value}]")
+                write!(f, "dictionary[{key} → {value}]")
             },
             Self::Function { parameters } => {
                 let fun_parameters = parameters.iter()
@@ -346,8 +412,7 @@ pub async fn api_class (
         return Err(Box::new(CustomError::new(&format!("Could not find class `{class_search}` in runtime API documentation"))));
     };
 
-    let mut embed = search_result.to_embed(ctx.data());
-    if let Some(property_name) = property_search {
+    let embed = if let Some(property_name) = property_search {
         let method = search_result.methods.clone()
             .into_iter()
             .find(|m| m.common.name.eq_ignore_ascii_case(&property_name));
@@ -355,73 +420,24 @@ pub async fn api_class (
             .into_iter()
             .find(|a| a.common.name.eq_ignore_ascii_case(&property_name));
 
-        let c_name = &search_result.common.name;
         if let Some(m) = method {
-            let parameters_str = if m.format.takes_table {
-                    let mut sorted_params = m.parameters.clone();
-                    sorted_params.sort_unstable_by_key(|par| par.order);
-                    let parameters = sorted_params.into_iter().map(|par| {
-                        let optional = if par.optional { "?" } else { "" };
-                        format!("{}{}=...", par.name, optional)
-                    }).collect::<Vec<String>>().join(", ");
-                    format!(r#"{{{parameters}}}"#)
-                } else {
-                    let mut sorted_params = m.parameters.clone();
-                    sorted_params.sort_unstable_by_key(|par| par.order);
-                    let parameters = sorted_params.into_iter().map(|par| {
-                        let optional = if par.optional { "?" } else { "" };
-                        format!("{}{}", par.name, optional)
-                    }).collect::<Vec<String>>().join(", ");
-                    format!(r#"({parameters})"#)
-            };
-            
-            let return_values = m.return_values.into_iter().map(|rv| {
-                let optional = if rv.optional { "?" } else { "" };
-                format!("{}{optional}", rv.r#type)
-            }
-            ).collect::<Vec<String>>().join(", ");
-            let name = &m.common.name;
-            let full_docs_link = format!("\n[Full documentation](https://lua-api.factorio.com/latest/classes/{c_name}.html#{name})");
-            let description = resolve_internal_links(ctx.data(), &m.common.description).
-                truncate_for_embed(1024 - full_docs_link.len());
-            let title = if return_values.is_empty() {
-                format!("`{name}{}`", parameters_str.truncate_for_embed(256 - name.len() - 2))
-            } else {
-                format!("`{name}{} 🡪 {return_values}`", parameters_str.truncate_for_embed(256 - name.len() - return_values.len() - 5))
-            };
-            embed = embed.field(
-                title, 
-                format!("{description}{full_docs_link}"), 
-                false
-            );
-
-        } else if let Some(a) = attribute {
-            let rw = match (a.read, a.write) {
-                (true, true) => "[RW]",
-                (true, false) => "[R]",
-                (false, true) => "[W]",
-                (false, false) => ""
-            };
-            let name = &a.common.name;
-            let a_type = &a.r#type;
-            let optional = if a.optional { "?" } else { "" };
-            let full_docs_link = format!("\n[Full documentation](https://lua-api.factorio.com/latest/classes/{c_name}.html#{name})");
-            let description = resolve_internal_links(ctx.data(), &a.common.description)
-                .truncate_for_embed(1024 - full_docs_link.len());
-            embed = embed.field(
-                format!("`{name} {rw} :: {a_type}{optional}`").truncate_for_embed(256), 
-                format!("{description}{full_docs_link}"), 
-                false
-            );
+            m.to_embed(search_result, ctx.data())
+        }
+        else if let Some(a) = attribute {
+            a.to_embed(search_result, ctx.data())
         } else {
-            embed = embed.field("Error", format!("Could not find property `{property_name}`"), false);
-        };
+            return Err(Box::new(CustomError::new(&format!("Could not find property `{property_name}`"))));
+        }
+    } else {
+        search_result.to_embed(ctx.data())
     };
+
     let builder = CreateReply::default()
         .embed(embed);
     ctx.send(builder).await?;
     Ok(())
 }
+
 
 #[allow(clippy::unused_async)]
 async fn autocomplete_class<'a>(
@@ -437,7 +453,7 @@ async fn autocomplete_class<'a>(
         },
     }.clone();
     api.classes.iter()
-        .filter(|c| c.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
+        .filter(|c| c.common.name.to_lowercase().contains(&partial.to_lowercase()))
         .map(|c| c.common.name.clone())
         .collect::<Vec<String>>()
 }
@@ -518,7 +534,7 @@ async fn autocomplete_event<'a>(
         },
     }.clone();
     api.events.iter()
-        .filter(|c| c.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
+        .filter(|c| c.common.name.to_lowercase().contains(&partial.to_lowercase()))
         .map(|c| c.common.name.clone())
         .collect::<Vec<String>>()
 }
@@ -566,7 +582,7 @@ async fn autocomplete_define<'a>(
         },
     }.clone();
     api.defines.iter()
-        .filter(|c| c.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
+        .filter(|c| c.common.name.to_lowercase().contains(&partial.to_lowercase()))
         .map(|c| c.common.name.clone())
         .collect::<Vec<String>>()
 }
@@ -615,7 +631,7 @@ async fn autocomplete_concept<'a>(
         },
     }.clone();
     api.concepts.iter()
-        .filter(|c| c.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
+        .filter(|c| c.common.name.to_lowercase().contains(&partial.to_lowercase()))
         .map(|c| c.common.name.clone())
         .collect::<Vec<String>>()
 }

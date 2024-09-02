@@ -107,6 +107,11 @@ pub enum ComplexType {
     Struct,
 }
 
+pub enum TypeOrPrototype<'a> {
+    Type(&'a DataStageType),
+    Prototype(&'a Prototype),
+}
+
 impl BasicMember {
     pub fn create_embed(&self, data: &Data) -> serenity::CreateEmbed {
         serenity::CreateEmbed::new()
@@ -125,6 +130,41 @@ impl Prototype {
         .author(serenity::CreateEmbedAuthor::new("Prototype")
             .url("https://lua-api.factorio.com/latest/prototypes.html"))
         .url(url)
+    }
+}
+
+impl Property {
+    pub fn to_embed(&self, data: &Data, parent: &TypeOrPrototype) -> serenity::CreateEmbed {
+        match parent {
+            TypeOrPrototype::Type(t) => {
+                let url = format!("https://lua-api.factorio.com/latest/types/{}.html#{}", &t.common.name, &self.common.name);
+                let optional = if self.optional {" (optional)"} else {""};
+                let parent_name = &t.common.name;
+                let t_name = &self.common.name;
+                let description = format!("`{}{}`\n{}", &self.r#type, optional, resolve_internal_links(data, &t.common.description))
+                    .truncate_for_embed(4096);
+
+                serenity::CreateEmbed::new()
+                    .title(format!("{parent_name}::{t_name}").truncate_for_embed(256))
+                    .description(description)
+                    .color(serenity::Colour::GOLD)
+                    .url(url)
+            },
+            TypeOrPrototype::Prototype(p) => {
+                let url = format!("https://lua-api.factorio.com/latest/prototypes/{}.html#{}", &p.common.name, &self.common.name);
+                let optional = if self.optional {" (optional)"} else {""};
+                let parent_name = &p.common.name;
+                let p_name = &self.common.name;
+                let description = format!("`{}{}`\n{}", &self.r#type, optional, resolve_internal_links(data, &p.common.description))
+                    .truncate_for_embed(4096);
+
+                serenity::CreateEmbed::new()
+                    .title(format!("{parent_name}::{p_name}").truncate_for_embed(256))
+                    .description(description)
+                    .color(serenity::Colour::GOLD)
+                    .url(url)
+            },
+        }
     }
 }
 
@@ -161,7 +201,7 @@ impl fmt::Display for ComplexType {
             },
             Self::Array { value } => {write!(f, "array[{value}]")},
             Self::Dictionary { key, value } => {
-                write!(f, "dictionary[{key} 🡪 {value}]")
+                write!(f, "dictionary[{key} → {value}]")
             },
             Self::Literal { value, .. } => {
                 match value {
@@ -226,30 +266,21 @@ pub async fn api_prototype (
     else {
         return Err(Box::new(CustomError::new(&format!("Could not find prototype `{prototype_search}` in API documentation"))));
     };
-    let mut embed = search_result.to_embed(ctx.data());
 
-    if let Some(property_name) = property_search {
+    let embed = if let Some(property_name) = property_search {
         let property = search_result.properties.clone()
             .into_iter()
             .find(|m| m.common.name.eq_ignore_ascii_case(&property_name));
 
         if let Some(p) = property {
-            let optional = if p.optional {"optional"} else {""};
-            let prototype_name = &search_result.common.name;
-            let p_name = &p.common.name;
-            let p_type = &p.r#type;
-            let full_docs_link = format!("\n[Full documentation](https://lua-api.factorio.com/latest/prototypes/{prototype_name}.html#{p_name})");
-            let description = resolve_internal_links(ctx.data(), &p.common.description).
-                truncate_for_embed(1024 - full_docs_link.len());
-            embed = embed.field(
-                format!("`{p_name} {optional} :: {p_type}`"), 
-                format!("{description}{full_docs_link}"), 
-                false
-            );
+            p.to_embed(ctx.data(), &TypeOrPrototype::Prototype(search_result))
         } else {
-            embed = embed.field("Error", format!("Could not find property `{property_name}`"), false);
-        };
+            return Err(Box::new(CustomError::new(&format!("Could not find property `{property_name}`"))));
+        }
+    } else {
+        search_result.to_embed(ctx.data())
     };
+
     let builder = CreateReply::default()
         .embed(embed);
     ctx.send(builder).await?;
@@ -270,7 +301,7 @@ async fn autocomplete_prototype<'a>(
         },
     }.clone();
     api.prototypes.iter()
-        .filter(|p| p.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
+        .filter(|p| p.common.name.to_lowercase().contains(&partial.to_lowercase()))
         .map(|p| p.common.name.clone())
         .collect::<Vec<String>>()
 }
@@ -331,33 +362,24 @@ pub async fn api_type (
         else {
             return Err(Box::new(CustomError::new(&format!("Could not find type `{type_search}` in API documentation"))));
         };
-
-    let mut embed = search_result.to_embed(ctx.data());
-
-    if let Some(property_name) = property_search {
-        if let Some(properties) = &search_result.properties {
-            let property = properties
-                .iter()
-                .find(|m| m.common.name.eq_ignore_ascii_case(&property_name));
-
-            if let Some(p) = property {             // name optional  :: type    Description
-                let optional = if p.optional {"optional"} else {""};
-                let type_name = &search_result.common.name;
-                let p_name = &p.common.name;
-                let p_type = &p.r#type;
-                let full_docs_link = format!("\n[Full documentation](https://lua-api.factorio.com/latest/types/{type_name}.html#{p_name})");
-                let description = resolve_internal_links(ctx.data(), &p.common.description)
-                    .truncate_for_embed(1024 - full_docs_link.len());
-                embed = embed.field(
-                    format!("`{p_name} {optional} :: {p_type}`"), 
-                    format!("{description}{full_docs_link}"), 
-                    false
-                );
-            };
+    
+    let embed = if let Some(property_name) = property_search {
+        if search_result.properties.is_none() {
+            return Err(Box::new(CustomError::new("Type has no properties")));
+        }
+        let properties = &search_result.properties.clone().unwrap();
+        let property = properties
+            .iter()
+            .find(|m| m.common.name.eq_ignore_ascii_case(&property_name));
+        if let Some(p) = property {
+            p.to_embed(ctx.data(), &TypeOrPrototype::Type(search_result))
         } else {
-            embed = embed.field("Error", format!("Could not find property `{property_name}`"), false);
-        };
+            return Err(Box::new(CustomError::new(&format!("Could not find property `{property_name}`"))));
+        }
+    } else {
+        search_result.to_embed(ctx.data())
     };
+
     let builder = CreateReply::default()
         .embed(embed);
     ctx.send(builder).await?;
@@ -378,7 +400,7 @@ async fn autocomplete_type<'a>(
         },
     }.clone();
     api.types.iter()
-        .filter(|p| p.common.name.to_lowercase().starts_with(&partial.to_lowercase()))
+        .filter(|p| p.common.name.to_lowercase().contains(&partial.to_lowercase()))
         .map(|p| p.common.name.clone())
         .collect::<Vec<String>>()
 }

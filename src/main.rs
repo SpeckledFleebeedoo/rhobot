@@ -12,6 +12,7 @@ mod custom_errors;
 mod formatting_tools;
 
 use clokwerk::{AsyncScheduler, Job};
+use dashmap::DashMap;
 use tokio::time;
 use log::{error, info};
 use dotenv::dotenv;
@@ -55,6 +56,7 @@ pub struct Data {
     runtime_api_cache: Arc<RwLock<modding_api::runtime::ApiResponse>>,
     data_api_cache: Arc<RwLock<modding_api::data::ApiResponse>>,
     mod_portal_credentials: Arc<ModPortalCredentials>,
+    inline_command_log: Arc<DashMap<serenity::MessageId, (serenity::ChannelId, serenity::MessageId, time::Instant)>>,
 }
 
 async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
@@ -128,11 +130,14 @@ async fn main() {
     let data_api_cache = Arc::new(RwLock::new(datastage_api));
     let data_api_cache_clone = data_api_cache.clone();
 
-    let mod_portal_cred = {
+    let mod_portal_credentials = {
         let username = var("MOD_PORTAL_USERNAME").expect("Could not find mod portal username in .env file");
         let token = var("MOD_PORTAL_TOKEN").expect("Could not find mod portal token in .env file");
         Arc::new(ModPortalCredentials::new(username, token))
     };
+
+    let inline_command_log = Arc::new(DashMap::new());
+    let inline_command_log_clone = inline_command_log.clone();
 
     // FrameworkOptions contains all of poise's configuration option in one struct
     // Every option can be omitted to use its default value
@@ -192,6 +197,9 @@ async fn main() {
                 if let serenity::FullEvent::Message { new_message } = event {
                     events::on_message(ctx.clone(), new_message, data).await?;
                 }
+                if let serenity::FullEvent::MessageUpdate { event, .. } = event {
+                    events::on_message_edit(ctx.clone(), event, data).await?;
+                }
                 Ok(())
             })
         },
@@ -211,7 +219,8 @@ async fn main() {
                     mod_author_cache: authorname_cache_clone,
                     runtime_api_cache: runtime_api_cache_clone,
                     data_api_cache: data_api_cache_clone,
-                    mod_portal_credentials: mod_portal_cred,
+                    mod_portal_credentials,
+                    inline_command_log,
                 })
             })
         })
@@ -249,6 +258,7 @@ async fn main() {
                 Ok(()) => info!{"Updated mod database"},
                 Err(error) => error!("Error while updating mod database: {error}")
             }
+            events::clean_inline_command_log(&inline_command_log_clone);
         }
     });
 

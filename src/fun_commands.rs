@@ -1,4 +1,5 @@
-use chrono::TimeZone;
+use chrono::{NaiveDate, NaiveTime, NaiveDateTime, TimeZone, Utc};
+use chrono_tz::Europe::Prague;
 use poise::CreateReply;
 use rand::Rng;
 
@@ -68,8 +69,10 @@ fn time_left_message (unit: &str, conversion: f64) -> String {
 }
 
 pub fn time_until_release() -> i64 {
-    let release_date = chrono::Utc.with_ymd_and_hms(2024, 10, 21, 12, 00, 00).unwrap();
-    let now = chrono::Utc::now();
+    let release_date = NaiveDate::from_ymd_opt(2024, 10, 21).unwrap();
+    let release_time = NaiveTime::from_hms_opt(13, 00, 00).unwrap();
+    let prague_release_datetime = Prague.from_local_datetime(&NaiveDateTime::new(release_date, release_time)).unwrap();
+    let now = Utc::now();
 
-    (release_date - now).num_seconds()
+    (prague_release_datetime.with_timezone(&Utc) - now).num_seconds()
 }

@@ -106,7 +106,7 @@ async fn update_wiki_message(ctx: &serenity::Context, channel_id: serenity::Chan
     Ok(())
 }
 
-pub fn clean_inline_command_log(command_log: &std::sync::Arc<dashmap::DashMap<serenity::MessageId, (serenity::ChannelId, serenity::MessageId, tokio::time::Instant)>>) {
+pub fn clean_inline_command_log(command_log: &dashmap::DashMap<serenity::MessageId, (serenity::ChannelId, serenity::MessageId, tokio::time::Instant)>) {
     let cutoff_time = tokio::time::Instant::now() - tokio::time::Duration::from_secs(3600);
     command_log.retain(|_, (_, _, t)| *t >= cutoff_time);
 }

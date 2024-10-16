@@ -133,15 +133,19 @@ fn create_faq_embed(name: &str, faq_entry: FaqEntry, close_match: bool) -> Creat
         .title(title)
         .color(serenity::Colour::GOLD);
     if let Some(content) = faq_entry.contents {
-        if faq_entry.title == "Expansion" {
-            let seconds_until_release = fun_commands::time_until_release();
-            let days = seconds_until_release / 86400;
-            embed = embed.description(format!("{content}\n\nCountdown: {days} days until release"));
+        let seconds_until_release = fun_commands::time_until_release();
+        if faq_entry.title == "Expansion" && seconds_until_release >= 0 {
+            let (duration, unit) = match seconds_until_release {
+                86400..=i64::MAX => (seconds_until_release / 86400, "days"),
+                3600..86400 => (seconds_until_release / 3600, "hours"),
+                60..3600 => (seconds_until_release/60, "minutes"),
+                _ => (seconds_until_release, "seconds")
+            };
+            embed = embed.description(format!("{content}\n\nCountdown: {duration} {unit} until release"));
         } else {
             embed = embed.description(content);
         }
     };
-
 
     if let Some(img) = faq_entry.image {
         embed = embed.image(img);

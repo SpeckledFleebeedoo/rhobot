@@ -60,6 +60,10 @@ pub async fn expansion(ctx: Context<'_>) -> Result<(), Error> {
 #[allow(clippy::cast_precision_loss)]
 fn time_left_message (unit: &str, conversion: f64) -> String {
     let time_to_release = time_until_release() as f64;
+    println!("{time_to_release}");
+    if time_to_release <= 0. {
+        return "The expansion has already been released, go play it!".to_owned()
+    };
     let duration = time_to_release / conversion;
     if duration > 10. {
         format!("The expansion will release in {duration:.1} {unit}")
@@ -72,7 +76,5 @@ pub fn time_until_release() -> i64 {
     let release_date = NaiveDate::from_ymd_opt(2024, 10, 21).unwrap();
     let release_time = NaiveTime::from_hms_opt(13, 00, 00).unwrap();
     let prague_release_datetime = Prague.from_local_datetime(&NaiveDateTime::new(release_date, release_time)).unwrap();
-    let now = Utc::now();
-
-    (prague_release_datetime.with_timezone(&Utc) - now).num_seconds()
+    (prague_release_datetime.with_timezone(&Utc) - Utc::now()).num_seconds()
 }

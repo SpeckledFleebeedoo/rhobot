@@ -60,7 +60,6 @@ pub async fn expansion(ctx: Context<'_>) -> Result<(), Error> {
 #[allow(clippy::cast_precision_loss)]
 fn time_left_message (unit: &str, conversion: f64) -> String {
     let time_to_release = time_until_release() as f64;
-    println!("{time_to_release}");
     if time_to_release <= 0. {
         return "The expansion has already been released, go play it!".to_owned()
     };

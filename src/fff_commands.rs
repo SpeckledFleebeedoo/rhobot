@@ -73,31 +73,66 @@ async fn get_fff_data(number: i32) -> Result<FFFData, Error> {
     Ok(fff)
 }
 
+pub fn fff() -> poise::Command<crate::Data, Box<dyn std::error::Error + Send + Sync>> {
+    poise::Command {
+        slash_action: fff_slash().slash_action,
+        parameters: fff_slash().parameters,
+        ..fff_prefix()
+    }
+}
+
 /// Link an FFF
-#[poise::command(prefix_command, slash_command, track_edits)]
-pub async fn fff(
+#[poise::command(slash_command, guild_only)]
+pub async fn fff_slash(
+    ctx: Context<'_>,
+    #[description = "Number of the FFF"]
+    number: i32,
+) -> Result<(), Error> {
+    fff_core(ctx, number).await?;
+    Ok(())
+}
+
+/// Link an FFF
+#[poise::command(prefix_command, guild_only, hide_in_help, track_edits, rename = "fff")]
+pub async fn fff_prefix(
     ctx: Context<'_>,
     #[description = "Number of the FFF"]
     number: Option<i32>,
+    #[rest]
+    _rest: Option<String>,
 ) -> Result<(), Error> {
-    let embed = match number {
-        Some(n) => {
-            let fff_data = get_fff_data(n).await?;
-            CreateEmbed::new()
-                .title(fff_data.title.unwrap_or_default())
-                .url(fff_data.url)
-                .description(fff_data.description.unwrap_or_default())
-                .thumbnail(fff_data.image.unwrap_or_default())
-                .color(Colour::ORANGE)
-        },
-        None => {
-            CreateEmbed::new()
-                .title("Factorio Friday Facts")
-                .url("https://www.factorio.com/blog")
-                .thumbnail("https://factorio.com/static/img/factorio-wheel.png")
-                .color(Colour::ORANGE)
-        }
+    if let Some(n) = number {
+        fff_core(ctx, n).await?;
+    } else {
+        fff_default(ctx).await?;
     };
+    Ok(())
+}
+
+async fn fff_core(
+    ctx: Context<'_>,
+    number: i32,
+) -> Result<(), Error> {
+    let fff_data = get_fff_data(number).await?;
+    let embed = CreateEmbed::new()
+        .title(fff_data.title.unwrap_or_default())
+        .url(fff_data.url)
+        .description(fff_data.description.unwrap_or_default())
+        .thumbnail(fff_data.image.unwrap_or_default())
+        .color(Colour::ORANGE);
+    let builder = CreateReply::default().embed(embed);
+    ctx.send(builder).await?;
+    Ok(())
+}
+
+async fn fff_default(
+    ctx: Context<'_>,
+) -> Result<(), Error> {
+    let embed = CreateEmbed::new()
+        .title("Factorio Friday Facts")
+        .url("https://www.factorio.com/blog")
+        .thumbnail("https://factorio.com/static/img/factorio-wheel.png")
+        .color(Colour::ORANGE);
     let builder = CreateReply::default().embed(embed);
     ctx.send(builder).await?;
     Ok(())

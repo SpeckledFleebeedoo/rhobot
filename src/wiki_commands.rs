@@ -212,7 +212,7 @@ pub async fn opensearch_mediawiki(name: &str) -> Result<Vec<String>, Error> {
     Ok(output)
 }
 
-/// Link a wiki page
+/// Link a wiki page. Can also be used inline with [[wiki search]].
 #[poise::command(prefix_command, slash_command, track_edits)]
 pub async fn wiki(
     ctx: Context<'_>,

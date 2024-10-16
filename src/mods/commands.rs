@@ -371,7 +371,7 @@ pub async fn show_subscriptions(
     Ok(())
 }
 
-/// Find a mod on the mod portal.
+/// Find a mod on the mod portal. Can also be used inline with >>mod search<<.
 #[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, track_edits, rename="mod", aliases("find-mod", "find_mod"))]
 pub async fn find_mod(

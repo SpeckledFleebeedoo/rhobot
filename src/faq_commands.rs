@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::Duration;
 use poise::ReplyHandle;
 use sqlx::{Pool, Sqlite};
@@ -90,10 +91,41 @@ async fn list_faqs(
 ) -> Result<(), Error> {
     let db = &ctx.data().database;
     let server_id = management::get_server_id(ctx)?;
-    let db_entries = sqlx::query!(r#"SELECT title FROM faq WHERE server_id = $1"#, server_id)
+    let db_entries = sqlx::query!(r#"SELECT title, link FROM faq WHERE server_id = $1"#, server_id)
         .fetch_all(db)
         .await?;
-    let mut faq_names = db_entries.iter().map(|f| f.title.clone()).collect::<Vec<String>>();
+    let mut faq_map: HashMap<String, Vec<String>> = HashMap::new();
+    let base_faqs: Vec<String> = db_entries.iter().filter(|f| f.link.is_none()).map(|f| f.title.clone()).collect();
+    let link_faqs: Vec<(String, String)> = db_entries.iter()
+        .filter_map(|f| f.link
+            .clone()
+            .map(|l| (f.title.clone(), l))
+        )
+        .collect();
+    
+    for entry in &base_faqs {
+        faq_map.insert(entry.clone(), Vec::new());
+    }
+    for (faq, link) in link_faqs {
+        if let Some(map) = faq_map.get_mut(&link) {
+            map.push(faq);
+        }
+    }
+    let mut faq_names = Vec::new();
+    for key in base_faqs {
+        #[allow(clippy::option_if_let_else)]
+        let link_list = match faq_map.get(&key) {
+            Some(l) => l,
+            None => &Vec::new(),
+        };
+        if link_list.is_empty() {
+            faq_names.push(key);
+        } else {
+            let links = link_list.join(", ");
+            faq_names.push(format!("{key} ({links})"));
+        }
+    }
+
     faq_names.sort();
     let color = serenity::Colour::GOLD;
     let embed = serenity::CreateEmbed::new()

@@ -36,3 +36,7 @@ parse_wiki_text = "0.1.5"
 regex = { version = "1.11.1", features = ["std"] }
 rand = "0.8.5"
 dashmap = "6.1.0"
+
+[patch.crates-io.serenity]
+git = "https://github.com/serenity-rs/serenity"
+branch = "current"

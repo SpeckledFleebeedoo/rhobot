@@ -264,9 +264,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.1.34"
+version = "1.1.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67b9470d453346108f93a59222a9a1a5724db32d0a4727b7ab7ace4b4d822dc9"
+checksum = "0f57c4b4da2a9d619dd035f27316d7a426305b75be93d09e92f2b9229c34feaf"
 dependencies = [
  "shlex",
 ]
@@ -331,8 +331,7 @@ checksum = "5b63caa9aa9397e2d9480a9b13673856c78d8ac123288526c37d7839f2a86990"
 [[package]]
 name = "command_attr"
 version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88da8d7e9fe6f30d8e3fcf72d0f84102b49de70fece952633e8439e89bdc7631"
+source = "git+https://github.com/serenity-rs/serenity?branch=current#59c24502f8b2c8381ffdefab7b5f105cf67c9c63"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2501,8 +2500,7 @@ dependencies = [
 [[package]]
 name = "serenity"
 version = "0.12.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "880a04106592d0a8f5bdacb1d935889bfbccb4a14f7074984d9cd857235d34ac"
+source = "git+https://github.com/serenity-rs/serenity?branch=current#59c24502f8b2c8381ffdefab7b5f105cf67c9c63"
 dependencies = [
  "arrayvec",
  "async-trait",

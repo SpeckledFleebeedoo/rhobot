@@ -417,7 +417,12 @@ pub async fn update_mod_cache(
     cache: Arc<RwLock<Vec<ModCacheEntry>>>, 
     db: Pool<Sqlite>
 ) -> Result<(), Error> {
-    let records = sqlx::query!(r#"SELECT name, title, owner, downloads_count FROM mods WHERE factorio_version = $1 ORDER BY downloads_count DESC"#, "1.1")
+    let records = sqlx::query!(r#"
+        SELECT name, title, owner, downloads_count, factorio_version 
+        FROM mods 
+        WHERE (factorio_version = $1 OR factorio_version = $2) 
+        ORDER BY downloads_count DESC"#, "1.1", "2.0"
+    )
         .fetch_all(&db)
         .await?
         .iter()

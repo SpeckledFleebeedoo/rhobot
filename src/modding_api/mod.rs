@@ -32,6 +32,8 @@ pub async fn api(
 enum ApiPage{
     Home,
     Lifecycle,
+    Storage,
+    Migrations,
     #[name = "Libraries and Functions"]
     Libraries,
     Classes,
@@ -41,7 +43,11 @@ enum ApiPage{
     Prototypes,
     Types,
     #[name = "Prototype Inheritance Tree"]
-    PrototypeTree
+    PrototypeTree,
+    #[name = "Noise Expressions"]
+    NoiseExpressions,
+    #[name = "Instrument Mode"]
+    InstrumentMode,
 }
 
 #[allow(clippy::unused_async)]
@@ -53,16 +59,20 @@ pub async fn api_page (
 ) -> Result<(), Error> {
 
     let (name, url) = match page {
-    ApiPage::Home => ("Home", "https://lua-api.factorio.com/latest/"),
-    ApiPage::Lifecycle => ("Lifecycle", "https://lua-api.factorio.com/latest/auxiliary/data-lifecycle.html"),
-    ApiPage::Libraries => ("Libraries and Functions", "https://lua-api.factorio.com/latest/auxiliary/libraries.html"),
-    ApiPage::Classes => ("Classes", "https://lua-api.factorio.com/latest/classes.html"),
-    ApiPage::Events => ("Events", "https://lua-api.factorio.com/latest/events.html"),
-    ApiPage::Concepts => ("Concepts", "https://lua-api.factorio.com/latest/concepts.html"),
-    ApiPage::Defines => ("Defines", "https://lua-api.factorio.com/latest/defines.html"),
-    ApiPage::Prototypes => ("Prototypes", "https://lua-api.factorio.com/latest/prototypes.html"),
-    ApiPage::Types => ("Types", "https://lua-api.factorio.com/latest/types.html"),
-    ApiPage::PrototypeTree => ("Prototype Inheritance Tree", "https://lua-api.factorio.com/latest/tree.html"),
+        ApiPage::Home => ("Home", "https://lua-api.factorio.com/latest/"),
+        ApiPage::Lifecycle => ("Lifecycle", "https://lua-api.factorio.com/latest/auxiliary/data-lifecycle.html"),
+        ApiPage::Storage => ("Storage", "https://lua-api.factorio.com/latest/auxiliary/storage.html"),
+        ApiPage::Migrations => ("Migrations", "https://lua-api.factorio.com/latest/auxiliary/migrations.html"),
+        ApiPage::Libraries => ("Libraries and Functions", "https://lua-api.factorio.com/latest/auxiliary/libraries.html"),
+        ApiPage::Classes => ("Classes", "https://lua-api.factorio.com/latest/classes.html"),
+        ApiPage::Events => ("Events", "https://lua-api.factorio.com/latest/events.html"),
+        ApiPage::Concepts => ("Concepts", "https://lua-api.factorio.com/latest/concepts.html"),
+        ApiPage::Defines => ("Defines", "https://lua-api.factorio.com/latest/defines.html"),
+        ApiPage::Prototypes => ("Prototypes", "https://lua-api.factorio.com/latest/prototypes.html"),
+        ApiPage::Types => ("Types", "https://lua-api.factorio.com/latest/types.html"),
+        ApiPage::PrototypeTree => ("Prototype Inheritance Tree", "https://lua-api.factorio.com/latest/tree.html"),
+        ApiPage::NoiseExpressions => ("Noise Expressions", "https://lua-api.factorio.com/latest/auxiliary/noise-expressions.html"),
+        ApiPage::InstrumentMode => ("Instrument Mode", "https://lua-api.factorio.com/latest/auxiliary/instrument.html"),
     };
     
     let embed = serenity::CreateEmbed::new()

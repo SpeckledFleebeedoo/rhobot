@@ -13,7 +13,7 @@ use crate::{
     modding_api::resolve_internal_links, 
 };
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct BasicMember {
     pub name: String,
     pub order: i32,
@@ -23,13 +23,13 @@ pub struct BasicMember {
     pub images: Option<Vec<Image>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct Image {
     pub filename: String,
     caption: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ApiResponse {
     pub application: String,
     pub application_version: String,
@@ -43,7 +43,7 @@ pub struct ApiResponse {
     pub global_functions: Vec<Method>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Class {
     #[serde(flatten)]
     pub common: BasicMember,
@@ -55,7 +55,7 @@ pub struct Class {
     pub visibility: Option<Vec<String>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Method {
     #[serde(flatten)]
     pub common: BasicMember,
@@ -70,19 +70,19 @@ pub struct Method {
 }
 
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct VariadicParameter {
     pub r#type: Option<Type>,
     pub description: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct MethodFormat {
     takes_table: bool,
     table_optional: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct EventRaised {
     #[serde(flatten)]
     pub common: BasicMember,
@@ -90,7 +90,7 @@ pub struct EventRaised {
     pub optional: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Parameter {
     pub name: String,
     pub order: i32,
@@ -99,7 +99,7 @@ pub struct Parameter {
     pub optional: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ParameterGroup {
     pub name: String,
     pub order: i32,
@@ -107,7 +107,7 @@ pub struct ParameterGroup {
     pub parameters: Vec<Parameter>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct ReturnValue {
     pub order: i32,
     pub description: String,
@@ -115,14 +115,14 @@ pub struct ReturnValue {
     pub optional: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum Type {
     Simple(String),
     Complex(Box<ComplexType>),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "complex_type", rename_all = "snake_case")]
 pub enum ComplexType {
     Type {value: Type, description: String },
@@ -142,27 +142,32 @@ pub enum ComplexType {
     Tuple { values: Vec<Type> },
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Attribute {
     #[serde(flatten)]
     pub common: BasicMember,
     pub visibility: Option<Vec<String>>,
     pub raises: Option<Vec<EventRaised>>,
     pub subclasses: Option<Vec<String>>,
-    pub r#type: Type,
+    #[serde(flatten)]
+    pub types: AttributeTypes,
     pub optional: bool,
-    pub read: bool,
-    pub write: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct AttributeTypes {
+    pub read_type: Option<Type>,
+    pub write_type: Option<Type>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(untagged)]
 pub enum Operator {
     Method(Method),
     Attribute(Attribute)
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Event {
     #[serde(flatten)]
     pub common: BasicMember,
@@ -170,7 +175,7 @@ pub struct Event {
     pub filter: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Define {
     #[serde(flatten)]
     pub common: BasicMember,
@@ -178,14 +183,14 @@ pub struct Define {
     pub subkeys: Option<Vec<Define>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Concept {
     #[serde(flatten)]
     pub common: BasicMember,
     pub r#type: Type,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct GlobalObject {
     pub name: String,
     pub order: i32,
@@ -251,15 +256,9 @@ impl Method {
 
 impl Attribute {
     pub fn to_embed(&self, parent: &Class, data: &Data) -> serenity::CreateEmbed {
-        let rw = match (&self.read, &self.write) {
-            (true, true) => "[RW]",
-            (true, false) => "[R]",
-            (false, true) => "[W]",
-            (false, false) => ""
-        };
         let optional = if self.optional { "?" } else { "" };
         let url = format!("https://lua-api.factorio.com/latest/classes/{}.html#{}", &parent.common.name, &self.common.name);
-        let description = format!("`{} :: {}{}`\n{}", rw, &self.r#type, optional, resolve_internal_links(data, &self.common.description))
+        let description = format!("```{}{}```{}", &self.types, optional, resolve_internal_links(data, &self.common.description))
             .truncate_for_embed(4096);
         serenity::CreateEmbed::new()
             .title(format!("{}::{}", &parent.common.name, &self.common.name).truncate_for_embed(256))
@@ -354,6 +353,26 @@ impl fmt::Display for ComplexType {
             Self::LuaStruct { .. } => write!(f, "LuaStruct"),
             Self::Table { .. } => write!(f, "table"),
             Self::Tuple { .. } => write!(f, "tuple"),
+        }
+    }
+}
+
+impl fmt::Display for AttributeTypes {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match (&self.read_type, &self.write_type) {
+            (Some(read), Some(write)) if read == write => {
+                write!(f, "[RW] :: {read}")
+            },
+            (Some(read), Some(write)) => {
+                write!(f, "[R] :: {read}\n[W] :: {write}")
+            },
+            (Some(read), None) => {
+                write!(f, "[R] :: {read}")
+            },
+            (None, Some(write)) => {
+                write!(f, "[W] :: {write}")
+            },
+            (None, None) => write!(f, "")  // This case should never happen
         }
     }
 }

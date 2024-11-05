@@ -31,6 +31,12 @@ pub struct FoundMod {
     pub summary: String,
     pub thumbnail: String,
     pub title: String,
+    #[serde(default = "default_version")]
+    pub factorio_version: String,
+}
+
+fn default_version() -> String {
+    "2.0".to_owned()
 }
 
 impl FoundMod {
@@ -57,7 +63,7 @@ pub async fn find_mod(name: &str, credentials: &ModPortalCredentials) -> Result<
         ("username", credentials.username.as_str()),
         ("token", credentials.token.as_str()),
         ("query", name_truncated.as_str()),
-        ("version", "1.1"),
+        ("version", "2.0"),
         ("sort_attribute", "relevancy"),
         ("only_bookmarks", "false"),
         ("show_deprecated", "false"),
@@ -77,7 +83,7 @@ pub async fn find_mod(name: &str, credentials: &ModPortalCredentials) -> Result<
         _ => return Err(Box::new(CustomError::new(&format!("Received HTTP status code {} while accessing mod search API", response.status().as_str())))),
     };
     
-    let found_mod_details = response.json::<SearchApiResponse>().await?;
+    let found_mod_details = response.json::<SearchApiResponse>().await.unwrap();
 
     if found_mod_details.results.first().is_none() {
         return Err(Box::new(CustomError::new(&format!("Did not find any mods named {name}"))))

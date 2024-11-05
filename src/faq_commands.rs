@@ -543,7 +543,13 @@ pub async fn export_faqs(
     let db = &ctx.data().database;
     let server_id = management::get_server_id(ctx)?;
     let faq_str = create_faq_dump(server_id, db).await?;
-    let faq_file = serenity::CreateAttachment::bytes(faq_str, format!("FAQ_dump_{}_{}.json", server_id, ctx.created_at().timestamp()));
+    let faq_file = serenity::CreateAttachment::bytes(
+        faq_str, format!(
+            "FAQ_dump_{}_{}.json", 
+            server_id, 
+            ctx.created_at().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+        )
+    );
     let builder = CreateReply::default()
         .content("Created dump of FAQ contents:")
         .attachment(faq_file);

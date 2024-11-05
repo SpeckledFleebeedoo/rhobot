@@ -274,7 +274,7 @@ async fn autocomplete_faq<'a>(
 
 /// Add, remove or link FAQ entries
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, guild_only, check="is_mod", category="Settings", subcommands("new", "remove", "link"), aliases("faq-edit", "faqedit"), subcommand_required)]
+#[poise::command(prefix_command, slash_command, guild_only, check="is_mod", category="Settings", subcommands("new", "remove", "link"), rename = "faqedit", aliases("faq-edit", "faq_edit"), subcommand_required)]
 pub async fn faq_edit(
     _ctx: Context<'_>
 ) -> Result<(), Error> {

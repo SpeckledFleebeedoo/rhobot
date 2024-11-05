@@ -399,6 +399,7 @@ pub struct ModCacheEntry {
     pub name: String,
     pub title: String,
     pub author: String,
+    pub factorio_version: String,
 }
 
 #[derive(Debug, Clone)]
@@ -431,6 +432,7 @@ pub async fn update_mod_cache(
                 name: rec.name.clone(),
                 title: rec.title.clone().unwrap_or_default(), // Default if mod has no name (title)
                 author: rec.owner.clone(),
+                factorio_version: rec.factorio_version.clone().unwrap(), // Unwrap should be safe due to filters in sql query
             }
         })
         .collect::<Vec<ModCacheEntry>>();

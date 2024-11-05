@@ -410,6 +410,7 @@ pub async fn mod_search(modname: &str, imprecise_search: bool, data: &Data) -> R
             summary: mod_data.summary.unwrap_or_default(),
             thumbnail: update_notifications::get_mod_thumbnail(&mod_data.name).await.unwrap_or_else(|_| "https://assets-mod.factorio.com/assets/.thumb.png".to_owned()),
             title: mod_data.title.unwrap_or_else(|| mod_data.name.clone()),
+            factorio_version: mod_data.factorio_version.unwrap_or_default(),
         }
     };
     
@@ -424,6 +425,7 @@ pub async fn mod_search(modname: &str, imprecise_search: bool, data: &Data) -> R
         .color(Colour::from_rgb(0x2E, 0xCC, 0x71))
         .field("Author", &search_result.owner, true)
         .field("Downloads", search_result.downloads_count.to_string(), true)
+        .field("Factorio version", &search_result.factorio_version, true)
         .thumbnail(&search_result.thumbnail);
     Ok(embed)
 }
@@ -452,7 +454,7 @@ async fn autocomplete_modname<'a>(
             listed_names.push(f.name.clone());
             let title = f.title.truncate_for_embed(100 - 4 - f.author.len());
             AutocompleteChoice::new(
-                title + " by " + &f.author,
+                "[".to_owned() + &f.factorio_version + "] " + &title + " by " + &f.author,
                 f.name,
             )
         })
@@ -468,7 +470,7 @@ async fn autocomplete_modname<'a>(
         .map(|f| {
             let title = f.title.clone().truncate_for_embed(100 - 4 - f.author.len());
             AutocompleteChoice::new(
-                title + " by " + &f.author,
+                "[".to_owned() + &f.factorio_version + "] " + &title + " by " + &f.author,
                 f.name.clone(),
             )
         })
@@ -485,7 +487,7 @@ async fn autocomplete_modname<'a>(
     .map(|f| {
         let title = f.title.clone().truncate_for_embed(100 - 4 - f.author.len());
         AutocompleteChoice::new(
-            title + " by " + &f.author,
+            "[".to_owned() + &f.factorio_version + "] " + &title + " by " + &f.author,
             f.name.clone(),
         )
     })

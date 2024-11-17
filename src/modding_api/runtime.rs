@@ -405,7 +405,7 @@ pub async fn get_runtime_api() -> Result<ApiResponse, Error> {
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, rename="class")]
+#[poise::command(prefix_command, slash_command, track_edits, rename="class", install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn api_class (
     ctx: Context<'_>,
     #[description = "Search term"]
@@ -510,7 +510,7 @@ async fn autocomplete_class_property<'a>(
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, rename="event")]
+#[poise::command(prefix_command, slash_command, track_edits, rename="event", install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn api_event (
     ctx: Context<'_>,
     #[description = "Search term"]
@@ -559,7 +559,7 @@ async fn autocomplete_event<'a>(
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, rename="define")]
+#[poise::command(prefix_command, slash_command, track_edits, rename="define", install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn api_define (
     ctx: Context<'_>,
     #[description = "Search term"]
@@ -607,7 +607,7 @@ async fn autocomplete_define<'a>(
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, rename="concept")]
+#[poise::command(prefix_command, slash_command, track_edits, rename="concept", install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn api_concept (
     ctx: Context<'_>,
     #[description = "Search term"]

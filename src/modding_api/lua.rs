@@ -72,7 +72,7 @@ const CHAPTERS: [(&str, &str); 63] = [
 
 /// Link chapters in the lua 5.2 manual
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits)]
+#[poise::command(prefix_command, slash_command, track_edits, install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn lua_chapter (
     ctx: Context<'_>,
     #[description = "Chapter name"]
@@ -216,7 +216,7 @@ const FUNCTIONS: [(&str, &str); 101] = [
 
 /// Link functions in the lua 5.2 manual
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits)]
+#[poise::command(prefix_command, slash_command, track_edits, install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn lua_function (
     ctx: Context<'_>,
     #[description = "function name"]

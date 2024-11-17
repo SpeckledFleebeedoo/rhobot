@@ -373,7 +373,10 @@ pub async fn show_subscriptions(
 
 /// Find a mod on the mod portal. Can also be used inline with >>mod search<<.
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, rename="mod", aliases("find-mod", "find_mod"))]
+#[poise::command(prefix_command, slash_command, track_edits, 
+    rename="mod", aliases("find-mod", "find_mod"), 
+    install_context = "Guild|User", 
+    interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn find_mod(
     ctx: Context<'_>,
     #[autocomplete = "autocomplete_modname"]

@@ -21,7 +21,10 @@ use crate::{
 
 /// Link a page in the mod making API. Slash commands only.
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, subcommands("api_class", "api_event", "api_define", "api_concept", "api_prototype", "api_type", "api_page"))]
+#[poise::command(prefix_command, slash_command, track_edits, 
+    subcommands("api_class", "api_event", "api_define", "api_concept", "api_prototype", "api_type", "api_page"), 
+    install_context = "Guild|User", 
+    interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn api(
     _ctx: Context<'_>
 ) -> Result<(), Error> {
@@ -51,7 +54,7 @@ enum ApiPage{
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, rename="page")]
+#[poise::command(prefix_command, slash_command, track_edits, rename="page", install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn api_page (
     ctx: Context<'_>,
     #[description = "API page to link"]

@@ -8,10 +8,14 @@ use crate::{
 
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 pub async fn is_mod(ctx: Context<'_>) -> Result<bool, Error> {
-    let user_permissions = match ctx.author_member().await{
-        Some(p) => p.permissions(ctx.cache())?,
-        None => serenity::Permissions::empty(), // Assume user has no permissions
-    };
+
+    let Some(channel) = &ctx.guild_channel().await
+        else {return Ok(false)} ;
+    let Some(member) = &ctx.author_member().await
+        else {return Ok(false)};
+    let Some(guild) = ctx.partial_guild().await
+        else {return Ok(false)};
+    let user_permissions = guild.user_permissions_in(channel, member);
     if user_permissions.contains(serenity::Permissions::ADMINISTRATOR) {
         return Ok(true);
     };

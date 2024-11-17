@@ -4,7 +4,6 @@ mod mods;
 mod events;
 mod faq_commands;
 mod fff_commands;
-mod fun_commands;
 mod management;
 mod modding_api;
 mod wiki_commands;
@@ -164,7 +163,6 @@ async fn main() {
             modding_api::lua::lua_chapter(),
             modding_api::lua::lua_function(),
             wiki_commands::wiki(),
-            fun_commands::expansion(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("+".into()),
@@ -303,7 +301,6 @@ async fn main() {
     });
     
     let http_clone = client.as_ref().unwrap().http.clone();
-    // let _ = update_fff_channel_description(http_clone.clone()).await;
     let mut scheduler: AsyncScheduler = AsyncScheduler::new();
     scheduler.every(clokwerk::Interval::Friday)
         .at("12:02")

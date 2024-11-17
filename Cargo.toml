@@ -40,3 +40,7 @@ dashmap = "6.1.0"
 [patch.crates-io.serenity]
 git = "https://github.com/serenity-rs/serenity"
 branch = "current"
+
+[patch.crates-io.poise]
+git = "https://github.com/serenity-rs/poise/"
+branch = "current"

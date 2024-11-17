@@ -77,12 +77,14 @@ pub fn fff() -> poise::Command<crate::Data, Box<dyn std::error::Error + Send + S
     poise::Command {
         slash_action: fff_slash().slash_action,
         parameters: fff_slash().parameters,
+        install_context: fff_slash().install_context,
+        interaction_context: fff_slash().interaction_context,
         ..fff_prefix()
     }
 }
 
 /// Link an FFF
-#[poise::command(slash_command, guild_only)]
+#[poise::command(slash_command, install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn fff_slash(
     ctx: Context<'_>,
     #[description = "Number of the FFF"]
@@ -93,7 +95,7 @@ pub async fn fff_slash(
 }
 
 /// Link an FFF
-#[poise::command(prefix_command, guild_only, hide_in_help, track_edits, rename = "fff")]
+#[poise::command(prefix_command, hide_in_help, track_edits, rename = "fff")]
 pub async fn fff_prefix(
     ctx: Context<'_>,
     #[description = "Number of the FFF"]

@@ -22,7 +22,7 @@ pub async fn reset_server_settings(
 }
 
 /// Print bot info
-#[poise::command(prefix_command, slash_command)]
+#[poise::command(prefix_command, slash_command, install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn info(
     ctx: Context<'_>
 ) -> Result<(), Error> {
@@ -37,7 +37,7 @@ pub async fn info(
 }
 
 /// Show this help menu
-#[poise::command(prefix_command, track_edits, slash_command)]
+#[poise::command(prefix_command, track_edits, slash_command, install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn help(
     ctx: Context<'_>,
     #[description = "Specific command to show help about"]

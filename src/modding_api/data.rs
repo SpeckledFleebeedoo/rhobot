@@ -241,7 +241,7 @@ pub async fn get_data_api() -> Result<ApiResponse, Error> {
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, rename="prototype")]
+#[poise::command(prefix_command, slash_command, track_edits, rename="prototype", install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn api_prototype (
     ctx: Context<'_>,
     #[description = "Search term"]
@@ -338,7 +338,7 @@ async fn autocomplete_prototype_property<'a>(
 }
 
 #[allow(clippy::unused_async)]
-#[poise::command(prefix_command, slash_command, track_edits, rename="type")]
+#[poise::command(prefix_command, slash_command, track_edits, rename="type", install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn api_type (
     ctx: Context<'_>,
     #[description = "Search term"]

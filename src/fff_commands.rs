@@ -1,10 +1,6 @@
-use std::sync::Arc;
-use poise::serenity_prelude::{CreateEmbed, Colour, ChannelId, EditChannel, Http};
+use poise::serenity_prelude::{CreateEmbed, Colour};
 use poise::CreateReply;
 use scraper::{Html, Selector};
-use chrono::{DateTime, Datelike, TimeZone, Timelike};
-use chrono_tz::{Europe::Prague, Tz};
-use log::{error, info};
 
 use crate::{
     Context, 
@@ -138,36 +134,4 @@ async fn fff_default(
     let builder = CreateReply::default().embed(embed);
     ctx.send(builder).await?;
     Ok(())
-}
-
-#[allow(clippy::unreadable_literal)]
-pub async fn update_fff_channel_description(cache_http: Arc<Http>) {
-    // discord.gg/factorio #friday-facts channel
-    let fff_channel = ChannelId::from(603392474458882065);
-    let Some(next_fff_time) = next_friday_1pm() else {
-        error!("Error while updating FFF timestamp");
-        return ;
-    };
-    let topic = format!("FFF <t:{next_fff_time}:R> - \nIn Friday Facts We Trust: https://www.factorio.com/blog/");
-    let builder = EditChannel::new().topic(topic);
-    match fff_channel.edit(&cache_http, builder).await {
-        Ok(_) => info!("Updated FFF timestamp"),
-        Err(error) => error!("Error while updating FFF timestamp: {error}"),
-    };
-}
-
-// Find unix timestamp of next friday 1pm CET/CEST
-#[allow(clippy::cast_lossless)]
-fn next_friday_1pm() -> Option<i64> {
-    let prague_now: DateTime<Tz> = Prague.from_utc_datetime(&chrono::Utc::now().naive_utc());
-    let weekday = prague_now.weekday();
-    let mut days_to_friday = (chrono::Weekday::Fri.number_from_sunday() - weekday.number_from_sunday() + 7) % 7;
-    if days_to_friday == 0 && prague_now.hour() >= 13 {
-        days_to_friday = 7;
-    };
-
-    let next_friday = prague_now.date_naive().and_hms_opt(13, 0, 0)? + chrono::Duration::days(days_to_friday as i64);
-    let next_friday_prague = Prague.from_local_datetime(&next_friday).earliest()?;
-
-    Some(next_friday_prague.timestamp())
 }

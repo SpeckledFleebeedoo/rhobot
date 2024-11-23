@@ -10,7 +10,6 @@ mod wiki_commands;
 mod custom_errors;
 mod formatting_tools;
 
-use clokwerk::{AsyncScheduler, Job};
 use dashmap::DashMap;
 use tokio::time;
 use log::{error, info};
@@ -24,7 +23,6 @@ use std::{
 
 use crate::{
     faq_commands::{update_faq_cache, FaqCacheEntry}, 
-    fff_commands::update_fff_channel_description,
     mods::{
         update_notifications::{
             get_mod_count, 
@@ -298,19 +296,6 @@ async fn main() {
                 Err(error) => error!("Error whille updating data api cache: {error}")
             }
         };
-    });
-    
-    let http_clone = client.as_ref().unwrap().http.clone();
-    let mut scheduler: AsyncScheduler = AsyncScheduler::new();
-    scheduler.every(clokwerk::Interval::Friday)
-        .at("12:02")
-        .run(move || update_fff_channel_description(http_clone.clone()));
-    
-    tokio::spawn(async move {
-        loop{
-            scheduler.run_pending().await;
-            tokio::time::sleep(Duration::from_millis(1000)).await;
-        }
     });
 
     client.unwrap().start().await.unwrap();

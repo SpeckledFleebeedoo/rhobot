@@ -141,7 +141,7 @@ impl Property {
                 let optional = if self.optional {" (optional)"} else {""};
                 let parent_name = &t.common.name;
                 let t_name = &self.common.name;
-                let description = format!("`{}{}`\n{}", &self.r#type, optional, resolve_internal_links(data, &t.common.description))
+                let description = format!("`{}{}`\n{}", &self.r#type, optional, resolve_internal_links(data, &self.common.description))
                     .truncate_for_embed(4096);
 
                 serenity::CreateEmbed::new()
@@ -155,7 +155,7 @@ impl Property {
                 let optional = if self.optional {" (optional)"} else {""};
                 let parent_name = &p.common.name;
                 let p_name = &self.common.name;
-                let description = format!("`{}{}`\n{}", &self.r#type, optional, resolve_internal_links(data, &p.common.description))
+                let description = format!("`{}{}`\n{}", &self.r#type, optional, resolve_internal_links(data, &self.common.description))
                     .truncate_for_embed(4096);
 
                 serenity::CreateEmbed::new()

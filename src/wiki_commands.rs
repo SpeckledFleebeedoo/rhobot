@@ -68,29 +68,7 @@ impl fmt::Display for NodeWrap<'_> {
                 write!(f, "`")
             },
             Node::Tag { name, nodes, .. } => {
-                match name.as_ref() {
-                    "syntaxhighlight" => {
-                        let node_str = nodes.iter().fold(String::new(), |mut output, node| {
-                            let _ = write!(output, "{}", NodeWrap{n: node});
-                            output
-                        });
-                        writeln!(f, "```lua\n{node_str}```",)
-                    },
-                    "nowiki" => {
-                        let node_str = nodes.iter().fold(String::new(), |mut output, node| {
-                            let _ = write!(output, "{}", NodeWrap{n: node});
-                            output
-                        });
-                        write!(f, "{node_str}")
-                    },
-                    _ => {
-                        let node_str = nodes.iter().fold(String::new(), |mut output, node| {
-                            let _ = write!(output, "{}", NodeWrap{n: node});
-                            output
-                        });
-                        write!(f, "TAG {name}: {node_str}")
-                    },
-                }
+                format_tag(name, nodes, f)
             },
             Node::Text { value, .. } => write!(f, "{value}"),
             Node::UnorderedList { items, .. } => {
@@ -104,17 +82,8 @@ impl fmt::Display for NodeWrap<'_> {
                 write!(f, "{node_str}")
             },
             Node::Template {  name, parameters , .. } => {
-                let Some(Node::Text{value: "imagelink" | "Imagelink", .. }) = name.first() else {
-                    return write!(f, "");
-                };
-                let Some(par) = parameters.first() else {
-                    return write!(f, "");
-                };
-                let Some(Node::Text { value, .. }) = par.value.first() else {
-                    return write!(f, "");
-                };
-                // Assumes imagelinks never have a custom caption.
-                write!(f, "[{value}](https://wiki.factorio.com/{})", value.replace(' ', "_"))
+                format_template(name, parameters, f)
+                
             },
             // Node::Parameter { default, end, name, start } => todo!(),
             // Node::Category { end, ordinal, start, target } => todo!(),
@@ -125,8 +94,53 @@ impl fmt::Display for NodeWrap<'_> {
             // Node::MagicWord { end, start } => todo!(),
             // Node::Redirect { end, target, start } => todo!(),
             // Node::Table { attributes, captions, end, rows, start } => todo!(),
-            _ => write!(f, "")
+            _ => Ok(())
         }
+    }
+}
+
+fn format_template(name: &[Node<'_>], parameters: &[parse_wiki_text::Parameter<'_>], f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+    match name.first() {
+        Some(Node::Text{value: "imagelink" | "Imagelink", ..}) => {
+            let Some(par) = parameters.first() else {
+                return Ok(());
+            };
+            let Some(Node::Text { value, .. }) = par.value.first() else {
+                return Ok(());
+            };
+            // Assumes imagelinks never have a custom caption.
+            write!(f, "[{value}](https://wiki.factorio.com/{})", value.replace(' ', "_"))
+        },
+        Some(Node::Text{value: "About/Space age", ..}) => {
+            writeln!(f, "_[Space Age](https://wiki.factorio.com/Space_Age) expansion exclusive feature._")
+        }
+        _ => Ok(())
+    }
+}
+
+fn format_tag(name: &str, nodes: &[Node<'_>], f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+    match name {
+        "syntaxhighlight" => {
+            let node_str = nodes.iter().fold(String::new(), |mut output, node| {
+                let _ = write!(output, "{}", NodeWrap{n: node});
+                output
+            });
+            writeln!(f, "```lua\n{node_str}```",)
+        },
+        "nowiki" => {
+            let node_str = nodes.iter().fold(String::new(), |mut output, node| {
+                let _ = write!(output, "{}", NodeWrap{n: node});
+                output
+            });
+            write!(f, "{node_str}")
+        },
+        _ => {
+            let node_str = nodes.iter().fold(String::new(), |mut output, node| {
+                let _ = write!(output, "{}", NodeWrap{n: node});
+                output
+            });
+            write!(f, "TAG {name}: {node_str}")
+        },
     }
 }
 

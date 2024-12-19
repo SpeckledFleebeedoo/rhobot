@@ -240,6 +240,7 @@ pub async fn get_data_api() -> Result<ApiResponse, Error> {
     Ok(response.json::<ApiResponse>().await?)
 }
 
+/// Link a modding API prototype
 #[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, track_edits, rename="prototype", install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn api_prototype (
@@ -337,6 +338,7 @@ async fn autocomplete_prototype_property<'a>(
         .collect::<Vec<String>>()
 }
 
+/// Link a modding API type
 #[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, track_edits, rename="type", install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn api_type (

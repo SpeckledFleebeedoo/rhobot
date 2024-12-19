@@ -404,6 +404,7 @@ pub async fn get_runtime_api() -> Result<ApiResponse, Error> {
     Ok(response.json::<ApiResponse>().await?)
 }
 
+/// Link a runtime modding API class.
 #[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, track_edits, rename="class", install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn api_class (
@@ -509,6 +510,8 @@ async fn autocomplete_class_property<'a>(
         .collect::<Vec<String>>()
 }
 
+
+/// Link a runtime modding API event
 #[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, track_edits, rename="event", install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn api_event (
@@ -558,6 +561,7 @@ async fn autocomplete_event<'a>(
         .collect::<Vec<String>>()
 }
 
+/// Link a runtime modding API define
 #[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, track_edits, rename="define", install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn api_define (
@@ -606,6 +610,7 @@ async fn autocomplete_define<'a>(
         .collect::<Vec<String>>()
 }
 
+/// Link a runtime modding API concept
 #[allow(clippy::unused_async)]
 #[poise::command(prefix_command, slash_command, track_edits, rename="concept", install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
 pub async fn api_concept (

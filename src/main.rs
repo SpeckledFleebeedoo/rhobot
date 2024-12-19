@@ -158,8 +158,7 @@ async fn main() {
             faq_commands::import_faqs(),
             fff_commands::fff(),
             modding_api::api(),
-            modding_api::lua::lua_chapter(),
-            modding_api::lua::lua_function(),
+            modding_api::lua::lua(),
             wiki_commands::wiki(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {

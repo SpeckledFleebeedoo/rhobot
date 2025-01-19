@@ -112,7 +112,7 @@ fn format_template(name: &[Node<'_>], parameters: &[parse_wiki_text::Parameter<'
             write!(f, "[{value}](https://wiki.factorio.com/{})", value.replace(' ', "_"))
         },
         Some(Node::Text{value: "About/Space age", ..}) => {
-            writeln!(f, "_[Space Age](https://wiki.factorio.com/Space_Age) expansion exclusive feature._")
+            writeln!(f, r"_[Space Age](https://wiki.factorio.com/Space\_Age) expansion exclusive feature._")
         }
         _ => Ok(())
     }

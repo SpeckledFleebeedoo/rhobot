@@ -10,7 +10,9 @@ use crate::{
     Data, 
     Error,
     formatting_tools::DiscordFormat, 
-    modding_api::resolve_internal_links, 
+    modding_api::resolve_internal_links,
+    modding_api::split_inputs, 
+    SEPARATOR,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -412,11 +414,12 @@ pub async fn api_class (
     #[description = "Search term"]
     #[autocomplete = "autocomplete_class"]
     #[rename = "class"]
-    class_search: String,
+    mut class_search: String,
     #[description = "Class property"]
     #[autocomplete = "autocomplete_class_property"]
     #[rename = "property"]
-    property_search: Option<String>,
+    #[rest]
+    mut property_search: Option<String>,
 ) -> Result<(), Error> {
 
     let cache = ctx.data().runtime_api_cache.clone();
@@ -426,6 +429,9 @@ pub async fn api_class (
             return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
         },
     }.clone();
+
+    split_inputs(&mut class_search, &mut property_search);
+
     let Some(search_result) = api.classes.iter()
         .find(|class| class_search.eq_ignore_ascii_case(&class.common.name)) 
     else {
@@ -519,7 +525,8 @@ pub async fn api_event (
     #[description = "Search term"]
     #[autocomplete = "autocomplete_event"]
     #[rename = "event"]
-    event_search: String,
+    #[rest]
+    mut event_search: String,
 ) -> Result<(), Error> {
 
     let cache = ctx.data().runtime_api_cache.clone();
@@ -529,6 +536,10 @@ pub async fn api_event (
             return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
         },
     }.clone();
+
+    if event_search.contains(SEPARATOR) {
+        event_search = event_search.split_once(SEPARATOR).unwrap().0.trim().to_string(); // Safe due to if condition before
+    }
 
     let Some(search_result) = api.events.iter()
         .find(|event| event_search.eq_ignore_ascii_case(&event.common.name)) 
@@ -569,7 +580,8 @@ pub async fn api_define (
     #[description = "Search term"]
     #[autocomplete = "autocomplete_define"]
     #[rename = "define"]
-    define_search: String,
+    #[rest]
+    mut define_search: String,
 ) -> Result<(), Error> {
 
     let cache = ctx.data().runtime_api_cache.clone();
@@ -579,6 +591,10 @@ pub async fn api_define (
             return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
         },
     }.clone();
+
+    if define_search.contains(SEPARATOR) {
+        define_search = define_search.split_once(SEPARATOR).unwrap().0.trim().to_string(); // Safe due to if condition before
+    }
 
     let Some(search_result) = api.defines.iter()
         .find(|define| define_search.eq_ignore_ascii_case(&define.common.name)) 
@@ -618,7 +634,8 @@ pub async fn api_concept (
     #[description = "Search term"]
     #[autocomplete = "autocomplete_concept"]
     #[rename = "concept"]
-    concept_search: String,
+    #[rest]
+    mut concept_search: String,
 ) -> Result<(), Error> {
 
     let cache = ctx.data().runtime_api_cache.clone();
@@ -628,6 +645,10 @@ pub async fn api_concept (
             return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
         },
     }.clone();
+
+    if concept_search.contains(SEPARATOR) {
+        concept_search = concept_search.split_once(SEPARATOR).unwrap().0.trim().to_string(); // Safe due to if condition before
+    }
 
     let Some(search_result) = api.concepts.iter()
         .find(|concept| concept_search.eq_ignore_ascii_case(&concept.common.name)) 

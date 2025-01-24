@@ -5,7 +5,13 @@ use std::{fmt, sync::{Arc, RwLock}};
 use log::{error, info};
 
 use crate::{
-    custom_errors::CustomError, formatting_tools::DiscordFormat, modding_api::resolve_internal_links, Context, Data, Error 
+    custom_errors::CustomError, 
+    formatting_tools::DiscordFormat, 
+    modding_api::resolve_internal_links, 
+    modding_api::split_inputs, 
+    Context, 
+    Data, 
+    Error
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -248,11 +254,12 @@ pub async fn api_prototype (
     #[description = "Search term"]
     #[autocomplete = "autocomplete_prototype"]
     #[rename = "prototype"]
-    prototype_search: String,
+    mut prototype_search: String,
     #[description = "Prototype property"]
     #[autocomplete = "autocomplete_prototype_property"]
     #[rename = "property"]
-    property_search: Option<String>,
+    #[rest]
+    mut property_search: Option<String>,
 ) -> Result<(), Error> {
     let cache = ctx.data().data_api_cache.clone();
     let api = match cache.read() {
@@ -261,7 +268,9 @@ pub async fn api_prototype (
             return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
         },
     }.clone();
-    
+
+    split_inputs(&mut prototype_search, &mut property_search);
+
     let Some(search_result) = api.prototypes.iter()
         .find(|p| prototype_search.eq_ignore_ascii_case(&p.common.name)) 
     else {
@@ -269,15 +278,7 @@ pub async fn api_prototype (
     };
 
     let embed = if let Some(property_name) = property_search {
-        let property = search_result.properties.clone()
-            .into_iter()
-            .find(|m| m.common.name.eq_ignore_ascii_case(&property_name));
-
-        if let Some(p) = property {
-            p.to_embed(ctx.data(), &TypeOrPrototype::Prototype(search_result))
-        } else {
-            return Err(Box::new(CustomError::new(&format!("Could not find property `{property_name}`"))));
-        }
+        make_property_embed(&TypeOrPrototype::Prototype(search_result), &property_name, ctx)?
     } else {
         search_result.to_embed(ctx.data())
     };
@@ -346,11 +347,12 @@ pub async fn api_type (
     #[description = "Search term"]
     #[autocomplete = "autocomplete_type"]
     #[rename = "type"]
-    type_search: String,
+    mut type_search: String,
     #[description = "Type property"]
     #[autocomplete = "autocomplete_type_property"]
     #[rename = "property"]
-    property_search: Option<String>,
+    #[rest]
+    mut property_search: Option<String>,
 ) -> Result<(), Error> {
     let cache = ctx.data().data_api_cache.clone();
     let api = match cache.read(){
@@ -359,6 +361,9 @@ pub async fn api_type (
             return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
         },
     }.clone();
+
+    split_inputs(&mut type_search, &mut property_search);
+
     let Some(search_result) = api.types.iter()
         .find(|t| type_search.eq_ignore_ascii_case(&t.common.name)) 
         else {
@@ -366,18 +371,7 @@ pub async fn api_type (
         };
     
     let embed = if let Some(property_name) = property_search {
-        if search_result.properties.is_none() {
-            return Err(Box::new(CustomError::new("Type has no properties")));
-        }
-        let properties = &search_result.properties.clone().unwrap();
-        let property = properties
-            .iter()
-            .find(|m| m.common.name.eq_ignore_ascii_case(&property_name));
-        if let Some(p) = property {
-            p.to_embed(ctx.data(), &TypeOrPrototype::Type(search_result))
-        } else {
-            return Err(Box::new(CustomError::new(&format!("Could not find property `{property_name}`"))));
-        }
+        make_property_embed(&TypeOrPrototype::Type(search_result), &property_name, ctx)?
     } else {
         search_result.to_embed(ctx.data())
     };
@@ -386,6 +380,29 @@ pub async fn api_type (
         .embed(embed);
     ctx.send(builder).await?;
     Ok(())
+}
+
+#[allow(clippy::option_if_let_else)]
+fn make_property_embed(search_result: &TypeOrPrototype, property_name: &str, ctx: Context<'_>) ->Result<serenity::CreateEmbed, Error> {
+    let properties = match search_result {
+        TypeOrPrototype::Prototype(pt) => pt.properties.clone(),
+        TypeOrPrototype::Type(t) => {
+            if t.properties.is_none() {
+                return Err(Box::new(CustomError::new("Type has no properties")));
+            };
+            t.properties.clone().unwrap()
+        },
+    };
+
+    let property = properties
+        .iter()
+        .find(|m| m.common.name.eq_ignore_ascii_case(property_name));
+    
+    if let Some(p) = property {
+        Ok(p.to_embed(ctx.data(), search_result))
+    } else {
+        Err(Box::new(CustomError::new(&format!("Could not find property `{property_name}`"))))
+    }
 }
 
 #[allow(clippy::unused_async)]

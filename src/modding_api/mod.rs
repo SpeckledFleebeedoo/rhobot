@@ -18,6 +18,7 @@ use crate::{
     custom_errors::CustomError, 
     Data, 
     Error, 
+    SEPARATOR, 
 };
 
 /// Link a page in the mod making API. Slash commands only.
@@ -178,4 +179,21 @@ fn get_prototype_category(prototype_api_cache: &Arc<RwLock<data::ApiResponse>>, 
         return Ok(ApiSection::Type);
     };
     Ok(ApiSection::default())
+}
+
+/// Splits and sanitizes inputs that use ``item::property`` shorthand or include comments
+fn split_inputs(main_search: &mut String, property_search: &mut Option<String>) {
+    if main_search.contains("::") {
+        let search_clone = main_search.clone();
+        let parts = search_clone.split_once("::").unwrap();
+        *main_search = parts.0.to_string();
+        *property_search = Some(parts.1.to_string());
+    }
+
+    if let Some(ref property) = property_search {
+        if property.contains(SEPARATOR) {
+            let parts = property.split_once(SEPARATOR).unwrap(); // Safe due to if condition before
+            *property_search = Some(parts.0.trim().to_owned());
+        }
+    }
 }

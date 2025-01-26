@@ -1,6 +1,7 @@
 use poise::serenity_prelude as serenity;
 use poise::reply::CreateReply;
 
+use crate::SEPARATOR;
 use crate::{custom_errors::CustomError, Context, Error,};
 use crate::modding_api::lua_constants::{CHAPTERS, FUNCTIONS};
 
@@ -24,8 +25,12 @@ pub async fn chapter (
     #[description = "Chapter name"]
     #[autocomplete = "autocomplete_chapter"]
     #[rename = "chapter"]
-    chapter_name: String,
+    #[rest]
+    chapter_raw: String,
 ) -> Result<(), Error> {
+
+    let chapter_name = chapter_raw.split_once(SEPARATOR).unwrap_or((&chapter_raw, "")).0.trim();
+
     if let Some(chapter) = CHAPTERS.iter().find(|ch| ch.0 == chapter_name){
         let embed = serenity::CreateEmbed::new()
             .title(chapter.0)
@@ -64,8 +69,11 @@ pub async fn function (
     #[description = "function name"]
     #[autocomplete = "autocomplete_function"]
     #[rename = "function"]
-    function_name: String,
+    #[rest]
+    function_raw: String,
 ) -> Result<(), Error> {
+    let function_name = function_raw.split_once(SEPARATOR).unwrap_or((&function_raw, "")).0.trim();
+
     if let Some(function) = FUNCTIONS.iter().find(|f| f.0 == function_name){
         let embed = serenity::CreateEmbed::new()
             .title(function.0)

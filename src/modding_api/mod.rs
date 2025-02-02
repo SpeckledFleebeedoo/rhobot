@@ -194,7 +194,12 @@ fn split_inputs(main_search: &mut String, property_search: &mut Option<String>) 
     if let Some(ref property) = property_search {
         if property.contains(SEPARATOR) {
             let parts = property.split_once(SEPARATOR).unwrap(); // Safe due to if condition before
-            *property_search = Some(parts.0.trim().to_owned());
+            let property = parts.0.trim().to_owned();
+            if property.is_empty() {
+                *property_search = None;
+            } else {
+                *property_search = Some(parts.0.trim().to_owned());
+            }
         }
     }
 }

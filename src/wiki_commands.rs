@@ -113,8 +113,14 @@ fn format_template(name: &[Node<'_>], parameters: &[parse_wiki_text::Parameter<'
         },
         Some(Node::Text{value: "About/Space age", ..}) => {
             writeln!(f, r"_[Space Age](https://wiki.factorio.com/Space\_Age) expansion exclusive feature._")
+        },
+        Some(Node::Text{value, ..}) if value.contains("DISPLAYTITLE") => {
+            write!(f, "DISPLAYTITLE: {}", value.strip_prefix("DISPLAYTITLE:").unwrap())
+        },
+        _ => {
+            // println!("{name:?}");
+            Ok(())
         }
-        _ => Ok(())
     }
 }
 
@@ -235,7 +241,11 @@ pub async fn wiki(
     #[rest]
     name: String,
 ) -> Result<(), Error> {
-    let command = name.split(SEPARATOR).next().unwrap_or(&name).trim();
+    let mut command = name.split(SEPARATOR).next().unwrap_or(&name).trim();
+    if command.is_empty() {
+        command = "Main Page";
+    };
+
     let search_result: String = match ctx {
         poise::Context::Application(_) => command.to_owned(),
         poise::Context::Prefix(_) => {

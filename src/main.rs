@@ -242,7 +242,7 @@ async fn main() {
         let result = update_database(&db, &http_clone, true).await;
         match result {
             Ok(()) => info!{"Initialized mod database"},
-            Err(error) => error!("Error while updating mod database: {error}")
+            Err(error) => error!("Error while initializing mod database: {error}")
         }
     }
     

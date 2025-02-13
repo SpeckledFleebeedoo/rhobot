@@ -56,11 +56,11 @@ pub struct FullMod {
     pub summary: String,
     pub title: String,
     pub category: Option<Category>,
-    pub thumbnail: String,
-    pub changelog: String,
+    pub thumbnail: Option<String>,
+    pub changelog: Option<String>,
     pub created_at: String,
     pub updated_at: String,
-    pub description: String,
+    pub description: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -309,10 +309,10 @@ pub async fn get_mod_info(name: &str) -> Result<FullMod, Error> {
 fn get_mod_changelog(mod_info: &FullMod) -> Vec<ModChangelogEntry> {
     let versionsplit = "-".repeat(99);
 
-    if mod_info.changelog.is_empty() {
+    if mod_info.changelog.is_none() {
         return Vec::new()
     }
-    let ch = &mod_info.changelog;
+    let ch = mod_info.changelog.as_ref().unwrap();
     let version_entries = ch.split(&versionsplit);
     let mut out = Vec::new();
     for changelog in version_entries {
@@ -444,7 +444,7 @@ mod tests{
     #[test]
     fn try_get_changelogs() {
         let mod_info = FullMod{
-            changelog: String::from(r"
+            changelog: Some(String::from(r"
 Version: 1.0.1
 Date: 06. 07. 2024
   Bugfixes:
@@ -456,7 +456,7 @@ Date: 06. 07. 2024
 Version: 1.0.0
   Features:
     - Initial release."
-            ),
+            )),
         ..Default::default()
         };
 

@@ -349,7 +349,7 @@ pub async fn mod_search(modname: &str, imprecise_search: bool, data: &Data) -> R
         let data = super::update_notifications::get_mod_info(modname).await?;
         let latest_release = data.releases.last().unwrap();
         let factorio_version = latest_release.info_json.factorio_version.clone();
-        let thumbnail = format!("https://assets-mod.factorio.com{}", data.thumbnail);
+        let thumbnail = format!("https://assets-mod.factorio.com{}", data.thumbnail.unwrap_or_else(|| "/assets/.thumb.png".to_owned()));
         search_api::FoundMod {
             downloads_count: i64::from(data.downloads_count),
             name: data.name,

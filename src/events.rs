@@ -6,6 +6,7 @@ use sqlx::{Pool, Sqlite};
 use crate::{
     wiki_commands,
     mods::commands,
+    database,
     Error,
     Data,
 };
@@ -112,20 +113,9 @@ pub fn clean_inline_command_log(command_log: &dashmap::DashMap<serenity::Message
 }
 
 #[allow(clippy::cast_possible_wrap)]
-pub async fn on_guild_leave(id: serenity::GuildId, db: Pool<Sqlite>) -> Result<(), Error> {
+pub async fn on_guild_leave(id: serenity::GuildId, db: &Pool<Sqlite>) -> Result<(), Error> {
     let server_id = id.get() as i64;
-    sqlx::query!(r#"DELETE FROM servers WHERE server_id = $1"#, server_id)
-        .execute(&db)
-        .await?;
-    sqlx::query!(r#"DELETE FROM subscribed_mods WHERE server_id = $1"#, server_id)
-        .execute(&db)
-        .await?;
-    sqlx::query!(r#"DELETE FROM subscribed_authors WHERE server_id = $1"#, server_id)
-        .execute(&db)
-        .await?;
-    sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1"#, server_id)
-        .execute(&db)
-        .await?;
+    database::clear_server_data(server_id, db).await?;
     info!("Left guild {server_id}");
     Ok(())
 }

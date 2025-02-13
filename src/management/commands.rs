@@ -5,6 +5,7 @@ use crate::{
     Context,
     Error,
     management::{get_server_id, checks::is_mod},
+    database,
 };
 
 /// Remove all stored data for this server, resetting all settings.
@@ -14,9 +15,7 @@ pub async fn reset_server_settings(
 ) -> Result<(), Error> {
     let server_id = get_server_id(ctx)?;
     let db = &ctx.data().database;
-    sqlx::query!(r#"DELETE FROM servers WHERE server_id = $1"#, server_id)
-        .execute(db)
-        .await?;
+    database::clear_server_data(server_id, db).await?;
     ctx.say("Server data reset").await?;
     Ok(())
 }
@@ -61,9 +60,7 @@ pub async fn get_server_info(
     let server_id = get_server_id(ctx)?;
     
     let db = &ctx.data().database;
-    let serverdata = sqlx::query!(r#"SELECT * FROM servers WHERE server_id = $1"#, server_id)
-        .fetch_optional(db)
-        .await?;
+    let serverdata = database::get_server_info(db, server_id).await?;
     match serverdata {
         Some(data) => {
             let updates_channel = data.updates_channel.map_or_else(|| "Not set".to_owned(), |ch| format!("<#{ch}>"));

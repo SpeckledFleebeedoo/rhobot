@@ -6,12 +6,9 @@ use log::{error, info};
 
 use crate::{
     custom_errors::CustomError,
-    Error,
-    mods::{
-        get_subscribed_authors,
-        get_subscribed_mods,
-    },
+    database,
     formatting_tools::DiscordFormat,
+    Error
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -50,16 +47,32 @@ pub struct Mod {
     pub changelog: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct FullMod {
+    pub downloads_count: i32,
+    pub name: String,
+    pub owner: String,
+    pub releases: Vec<Release>,
+    pub summary: String,
+    pub title: String,
+    pub category: Option<Category>,
+    pub thumbnail: String,
+    pub changelog: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub description: String,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Release {
-    info_json: InfoJson,
-    released_at: String,
-    version: String,
+    pub info_json: InfoJson,
+    pub released_at: String,
+    pub version: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct InfoJson {
-    factorio_version: String
+    pub factorio_version: String
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -115,7 +128,7 @@ pub async fn get_mods(page: i32, initializing: bool) -> Result<ApiResponse, Erro
 }
 
 pub async fn update_database(
-        db: Pool<Sqlite>, 
+        db: &Pool<Sqlite>, 
         cache_http: &Arc<poise::serenity_prelude::Http>, 
         initializing: bool
     ) -> Result<(), Error> {
@@ -133,36 +146,31 @@ pub async fn update_database(
             let released_at = latest_release.as_ref().map_or_else(String::new, |ver| ver.clone().released_at);
             let timestamp = chrono::DateTime::parse_from_rfc3339(&released_at).map_or(0, |datetime| datetime.timestamp());
 
-            let state;
-            let record = sqlx::query!(r#"SELECT released_at FROM mods WHERE name = $1"#, result.name).fetch_optional(&db).await?;
-
-            if let Some(rec) = record { // Mod found in database
-                if rec.released_at == timestamp {
+            let state = if let Some(release_time) = database::get_last_mod_update_time(db, &result.name).await? { // Mod found in database
+                if release_time == timestamp {
                     info!("Already known mod found: {}", result.title);
                     old_mod_encountered = true;
                     break;
                 }
-                state = ModState::Updated;
                 info!("Updated mod found: {}", result.title);
+                ModState::Updated
             } else { // Mod not found in database
-                state = ModState::New;
                 info!("New mod found: {}", result.title);
+                ModState::New
             };
             
-            sqlx::query!(r#"INSERT OR REPLACE INTO mods 
-                    (name, title, owner, summary, category, downloads_count, factorio_version, version, released_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"#, 
-                    result.name,
-                    result.title,
-                    result.owner,
-                    result.summary,
-                    category,
-                    result.downloads_count,
-                    factorio_version,
-                    version,
-                    timestamp)
-                    .execute(&db)
-                    .await?;
+            let mod_details = database::DBModEntry {
+                name: &result.name,
+                title: &result.title,
+                owner: &result.owner,
+                summary: &result.summary,
+                category: &category,
+                downloads_count: result.downloads_count,
+                factorio_version: &factorio_version,
+                version: &version,
+                released_at: timestamp,
+            };
+            database::store_mod_data(db, mod_details).await?;
             
             if !initializing {  // Only send messages when not initializing database
                 let thumbnail = get_mod_thumbnail(&result.name).await?;
@@ -178,7 +186,7 @@ pub async fn update_database(
                     changelog,
                     state
                 };
-                send_mod_update(updated_mod, db.clone(), cache_http).await?;
+                send_mod_update(updated_mod, db, cache_http).await?;
             }
         };
         if initializing {
@@ -199,42 +207,19 @@ struct UpdatedMod{
     state: ModState,
 }
 
-struct Server {
-    id: i64,
-    updates_channel: Option<i64>,
-    show_changelog: bool,
-}
-
 #[allow(clippy::cast_sign_loss)]
 async fn send_mod_update(
         updated_mod: UpdatedMod, 
-        db: Pool<Sqlite>, 
+        db: &Pool<Sqlite>, 
         cache_http: &Arc<poise::serenity_prelude::Http>
     ) -> Result<(), Error> {
     info!("Sending mod update message for {}", updated_mod.title);
-    let server_data = sqlx::query!(r#"SELECT * FROM servers"#)
-        .fetch_all(&db)
-        .await?
-        .into_iter()
-        .map(|s| { 
-            Ok(Server{
-                id: s.server_id,
-                updates_channel: s.updates_channel,
-                show_changelog: s.show_changelog.unwrap_or(true),
-            })
-        })
-        .collect::<Vec<Result<Server, Error>>>();
-    for server_res in server_data {
-        let server = match server_res {
-            Ok(s) => s,
-            Err(e) => {
-                error!{"Error sending update message: {e}"};
-                continue;
-            },
-        };
-        let subscribed_mods = get_subscribed_mods(&db, server.id).await?;
-        let subscribed_authors = get_subscribed_authors(&db, server.id).await?;
+    let server_data = database::get_all_servers(db).await?;
 
+    for server in server_data {
+
+        let subscribed_mods = database::get_subscribed_mods(db, server.server_id).await?;
+        let subscribed_authors = database::get_subscribed_authors(db, server.server_id).await?;
         
         let updates_channel: poise::serenity_prelude::ChannelId = match server.updates_channel {
             Some(ch) => poise::serenity_prelude::ChannelId::new(ch as u64),
@@ -245,7 +230,7 @@ async fn send_mod_update(
             subscribed_mods.contains(&updated_mod.name) ||      // Subscribed to mod
             subscribed_authors.contains(&updated_mod.author)    // Subscribed to author
         {
-            make_update_message(&updated_mod, updates_channel, server.show_changelog, cache_http).await?;
+            make_update_message(&updated_mod, updates_channel, server.show_changelog.unwrap_or(false), cache_http).await?;
         }
     }
     Ok(())
@@ -311,23 +296,23 @@ struct ModChangelogCategory {
     entries: Vec<String>,
 }
 
-async fn get_mod_info(name: &str) -> Result<Mod, Error> {
+pub async fn get_mod_info(name: &str) -> Result<FullMod, Error> {
     let url = format!("https://mods.factorio.com/api/mods/{name}/full");
     let response = reqwest::get(url).await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(Box::new(CustomError::new(&format!("Received HTTP status code {} while accessing mod portal API", response.status().as_str())))),
     };
-    Ok(response.json::<Mod>().await?)
+    Ok(response.json::<FullMod>().await?)
 }
 
-fn get_mod_changelog(mod_info: &Mod) -> Vec<ModChangelogEntry> {
+fn get_mod_changelog(mod_info: &FullMod) -> Vec<ModChangelogEntry> {
     let versionsplit = "-".repeat(99);
 
-    if mod_info.changelog.is_none() {
+    if mod_info.changelog.is_empty() {
         return Vec::new()
     }
-    let ch = mod_info.changelog.as_ref().unwrap();
+    let ch = &mod_info.changelog;
     let version_entries = ch.split(&versionsplit);
     let mut out = Vec::new();
     for changelog in version_entries {
@@ -386,14 +371,6 @@ fn format_mod_changelog(changelogs: &[ModChangelogEntry], version: &str, max_lin
     Some(lines.join("\n"))
 }
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-pub async fn get_mod_count(db: Pool<Sqlite>) -> i32 {
-    let record = sqlx::query!(r#"SELECT name FROM mods"#)
-        .fetch_all(&db)
-        .await;
-    record.map_or(0, |mods| mods.len() as i32)
-}
-
 #[derive(Debug, Clone)]
 pub struct ModCacheEntry {
     pub name: String,
@@ -416,26 +393,9 @@ pub struct SubCacheEntry{
 
 pub async fn update_mod_cache(
     cache: Arc<RwLock<Vec<ModCacheEntry>>>, 
-    db: Pool<Sqlite>
+    db: &Pool<Sqlite>
 ) -> Result<(), Error> {
-    let records = sqlx::query!(r#"
-        SELECT name, title, owner, downloads_count, factorio_version 
-        FROM mods 
-        WHERE (factorio_version = $1 OR factorio_version = $2) 
-        ORDER BY downloads_count DESC"#, "1.1", "2.0"
-    )
-        .fetch_all(&db)
-        .await?
-        .iter()
-        .map(|rec| {
-            ModCacheEntry{
-                name: rec.name.clone(),
-                title: rec.title.clone().unwrap_or_default(), // Default if mod has no name (title)
-                author: rec.owner.clone(),
-                factorio_version: rec.factorio_version.clone().unwrap(), // Unwrap should be safe due to filters in sql query
-            }
-        })
-        .collect::<Vec<ModCacheEntry>>();
+    let records= database::create_mods_cache(db).await?;
     match cache.write() {
         Ok(mut c) => *c = records,
         Err(e) => {
@@ -447,31 +407,9 @@ pub async fn update_mod_cache(
 
 pub async fn update_sub_cache(
     cache: Arc<RwLock<Vec<SubCacheEntry>>>,
-    db: Pool<Sqlite>
+    db: &Pool<Sqlite>
 ) -> Result<(), Error> {
-    let mod_records = sqlx::query!(r#"SELECT * FROM subscribed_mods"#)
-        .fetch_all(&db)
-        .await?
-        .iter()
-        .map(|rec| {
-            SubCacheEntry{
-                server_id: rec.server_id,
-                subscription: SubscriptionType::Modname(rec.mod_name.clone())
-            }
-        })
-        .chain(
-            sqlx::query!(r#"SELECT * FROM subscribed_authors"#)
-                .fetch_all(&db)
-                .await?
-                .iter()
-                .filter_map(|rec| {
-                    Some(SubCacheEntry{
-                        server_id: rec.server_id?,
-                        subscription: SubscriptionType::Author(rec.author_name.clone()?)
-                    })
-                })
-        )
-        .collect::<Vec<SubCacheEntry>>();
+    let mod_records = database::create_subscriptions_cache(db).await?;
 
     match cache.write() {
         Ok(mut c) => *c = mod_records,
@@ -485,16 +423,9 @@ pub async fn update_sub_cache(
 
 pub async fn update_author_cache(
     cache: Arc<RwLock<Vec<String>>>,
-    db: Pool<Sqlite>
+    db: &Pool<Sqlite>
 ) -> Result<(), Error> {
-    let mut author_records = sqlx::query!(r#"SELECT owner FROM mods"#)
-        .fetch_all(&db)
-        .await?
-        .into_iter()
-        .map(|rec| rec.owner)
-        .collect::<Vec<String>>();
-    author_records.sort_unstable();
-    author_records.dedup();
+    let author_records = database::create_mod_author_cache(db).await?;
     
     match cache.write() {
         Ok(mut c) => *c = author_records,
@@ -512,16 +443,8 @@ mod tests{
     
     #[test]
     fn try_get_changelogs() {
-        let mod_info = Mod {
-            downloads_count: 312_312,
-            latest_release: None,
-            name: String::from("Modname"),
-            owner: String::from("Ownername"),
-            summary: String::from("Summary String"),
-            title: String::from("Title here"),
-            category: None,
-            thumbnail: None,
-            changelog: Some(r"
+        let mod_info = FullMod{
+            changelog: String::from(r"
 Version: 1.0.1
 Date: 06. 07. 2024
   Bugfixes:
@@ -533,8 +456,10 @@ Date: 06. 07. 2024
 Version: 1.0.0
   Features:
     - Initial release."
-    .to_owned()),
+            ),
+        ..Default::default()
         };
+
         let changelog = get_mod_changelog(&mod_info);
         // println!("{changelog:#?}");
         let expected = [

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::time::Duration;
 use poise::ReplyHandle;
 use sqlx::{Pool, Sqlite};
@@ -8,8 +7,10 @@ use poise::CreateReply;
 use log::error;
 
 use crate::{
-    Context, 
     custom_errors::CustomError, 
+    Context, 
+    database,
+    database::DBFaqEntry,
     Error, 
     management::{self, checks::is_mod},
     SEPARATOR, 
@@ -18,25 +19,23 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct FaqCacheEntry {
-    server_id: i64,
-    title: String,
+    pub server_id: i64,
+    pub title: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-struct FaqEntry {
-    title: String,
-    contents: Option<String>,
-    image: Option<String>,
-    link: Option<String>,
+pub struct BasicFaqEntry {
+    pub title: String,
+    pub contents: Option<String>,
+    pub image: Option<String>,
+    pub link: Option<String>,
 }
 
 pub async fn update_faq_cache(
     cache: Arc<RwLock<Vec<FaqCacheEntry>>>,
-    db: Pool<Sqlite>
+    db: &Pool<Sqlite>
 ) -> Result<(), Error> {
-    let records = sqlx::query_as!(FaqCacheEntry, r#"SELECT server_id, title FROM faq"#)
-        .fetch_all(&db)
-        .await?;
+    let records = database::get_faq_titles(db).await?;
 
     match cache.write() {
         Ok(mut c) => {*c = records},
@@ -90,26 +89,11 @@ async fn list_faqs(
 ) -> Result<(), Error> {
     let db = &ctx.data().database;
     let server_id = management::get_server_id(ctx)?;
-    let db_entries = sqlx::query!(r#"SELECT title, link FROM faq WHERE server_id = $1"#, server_id)
-        .fetch_all(db)
-        .await?;
-    let mut faq_map: HashMap<String, Vec<String>> = HashMap::new();
-    let base_faqs: Vec<String> = db_entries.iter().filter(|f| f.link.is_none()).map(|f| f.title.clone()).collect();
-    let link_faqs: Vec<(String, String)> = db_entries.iter()
-        .filter_map(|f| f.link
-            .clone()
-            .map(|l| (f.title.clone(), l))
-        )
-        .collect();
-    
-    for entry in &base_faqs {
-        faq_map.insert(entry.clone(), Vec::new());
-    }
-    for (faq, link) in link_faqs {
-        if let Some(map) = faq_map.get_mut(&link) {
-            map.push(faq);
-        }
-    }
+    let faq_map = database::get_server_faqs(server_id, db).await?;
+    let base_faqs = faq_map.iter()
+        .filter(|f| f.1.is_empty())
+        .map(|f| f.0.clone())
+        .collect::<Vec<String>>();
     let mut faq_names = Vec::new();
     for key in base_faqs {
         #[allow(clippy::option_if_let_else)]
@@ -153,7 +137,7 @@ async fn faq_core(
 }
 
 // Make and send embed for faq entry
-fn create_faq_embed(name: &str, faq_entry: FaqEntry, close_match: bool) -> CreateReply {
+fn create_faq_embed(name: &str, faq_entry: BasicFaqEntry, close_match: bool) -> CreateReply {
     let title = if close_match {
         format!(r#"Could not find "{}" in FAQ tags. Did you mean "{}"?"#, name.escape_formatting(), &faq_entry.title.clone().escape_formatting())
     } else {
@@ -174,9 +158,9 @@ fn create_faq_embed(name: &str, faq_entry: FaqEntry, close_match: bool) -> Creat
     CreateReply::default().embed(embed)
 }
 
-async fn resolve_faq_name(db: &Pool<Sqlite>, ctx: Context<'_>, server_id: i64, name: &str) -> Result<(FaqEntry, bool), Error> {
+async fn resolve_faq_name(db: &Pool<Sqlite>, ctx: Context<'_>, server_id: i64, name: &str) -> Result<(BasicFaqEntry, bool), Error> {
     // Find entry matching given `name`
-    let entry_option = find_faq_entry_opt(db, server_id, name).await?;
+    let entry_option = database::find_faq_entry_opt(db, server_id, name).await?;
 
     // Check if entry found
     let (entry, close_match) = if let Some(e) = entry_option 
@@ -196,7 +180,7 @@ async fn resolve_faq_name(db: &Pool<Sqlite>, ctx: Context<'_>, server_id: i64, n
     };
 
     // If link to other entry found, get other entry
-    let entry_final: FaqEntry = match entry.link {
+    let entry_final: BasicFaqEntry = match entry.link {
         None => entry,
         Some(entry_link) => {
             get_faq_entry(db, server_id, &entry_link).await?
@@ -205,18 +189,11 @@ async fn resolve_faq_name(db: &Pool<Sqlite>, ctx: Context<'_>, server_id: i64, n
     Ok((entry_final, close_match))
 }
 
-async fn get_faq_entry(db: &Pool<Sqlite>, server_id: i64, name: &str) -> Result<FaqEntry, Error> {
-    Ok(find_faq_entry_opt(db, server_id, name)
+async fn get_faq_entry(db: &Pool<Sqlite>, server_id: i64, name: &str) -> Result<BasicFaqEntry, Error> {
+    Ok(database::find_faq_entry_opt(db, server_id, name)
         .await?
         .map_or_else(|| Err(Box::new(CustomError::new(&format!("Could not get FAQ entry {name} from database")))), Ok)?
     )
-}
-
-async fn find_faq_entry_opt(db: &Pool<Sqlite>, server_id: i64, name: &str) -> Result<Option<FaqEntry>, Error> {
-    Ok(sqlx::query_as!(FaqEntry, 
-        r#"SELECT title, contents, image, link FROM faq WHERE server_id = $1 AND title = $2"#, server_id, name)
-        .fetch_optional(db)
-        .await?)
 }
 
 fn find_closest_faq(ctx: Context<'_>, name: &str, server_id: i64) -> Result<Option<String>, Error> {
@@ -298,7 +275,7 @@ pub async fn new(
     let db = &ctx.data().database;
 
     // Check if name already exists
-    let pre_existing = find_faq_entry_opt(db, server_id, &name_lc).await?.is_some();
+    let pre_existing = database::find_faq_entry_opt(db, server_id, &name_lc).await?.is_some();
 
     // If image attached, re-upload image to generate a non-ephemeral link for storage
     let (attachment_url, reply_handle) = get_attachment_url(image, ctx, &name_lc).await?;
@@ -308,12 +285,18 @@ pub async fn new(
 
     // Delete previous entry to prevent duplication
     if pre_existing {
-        delete_faq_entry(db, server_id, &name_lc).await?;
+        database::delete_faq_entry(db, server_id, &name_lc).await?;
     };
-    sqlx::query!(r#"INSERT INTO faq (server_id, title, contents, image, edit_time, author)
-    VALUES ($1, $2, $3, $4, $5, $6)"#, server_id, name_lc, content, attachment_url, timestamp, author_id)
-        .execute(db)
-        .await?;
+    let faq_entry = DBFaqEntry {
+        server_id,
+        name: &name_lc,
+        content: content.as_deref(),
+        attachment_url: attachment_url.as_deref(),
+        timestamp,
+        author_id,
+        link: None,
+    };
+    database::add_faq_entry(db, faq_entry).await?;
 
     let title = if pre_existing {format!(r#"Successfully edited "{name_lc}""#)}
         else {format!(r#"Successfully added "{name_lc}" to database"#)};
@@ -334,13 +317,6 @@ pub async fn new(
         ctx.send(builder).await?;
     }
     Ok(())
-}
-
-async fn delete_faq_entry(db: &Pool<Sqlite>, server_id: i64, name: &str) -> Result<u64, Error> {
-    Ok(sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1 AND title = $2"#, server_id, name)
-        .execute(db)
-        .await?
-        .rows_affected())
 }
 
 async fn get_attachment_url<'a>(attachment: Option<serenity::Attachment>, ctx: Context<'a>, name: &str) -> Result<(Option<String>, Option<ReplyHandle<'a>>), Error> {
@@ -385,7 +361,7 @@ pub async fn remove(
     };
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
-    match delete_faq_entry(db, server_id, &name_lc).await? {
+    match database::delete_faq_entry(db, server_id, &name_lc).await? {
         0 => {
             ctx.say(format!("FAQ entry {name_lc} does not exist in database")).await?;
         },
@@ -416,7 +392,7 @@ pub async fn link(
     let db = &ctx.data().database;
 
     // Check if name already exists
-    if find_faq_entry_opt(db, server_id, &name_lc)
+    if database::find_faq_entry_opt(db, server_id, &name_lc)
         .await?
         .is_some() 
     {
@@ -429,23 +405,17 @@ pub async fn link(
     // Find entry to link to
     let linked_entry = get_faq_entry(db, server_id, &link_to_lc).await?;
     let link_no_chain = linked_entry.link.map_or(link_to_lc, |link| link);
-    insert_faq_link(db, server_id, &name_lc, &link_no_chain, author_id, timestamp).await?;
+    let faq_entry = DBFaqEntry {
+        server_id,
+        name: &name_lc,
+        content: None,
+        attachment_url: None,
+        timestamp,
+        author_id,
+        link: Some(&link_no_chain),
+    };
+    database::add_faq_entry(db, faq_entry).await?;
     ctx.say(format!("FAQ link {name_lc} added to database, linking to {link_no_chain}")).await?;
-    Ok(())
-}
-
-async fn insert_faq_link(
-    db: &Pool<Sqlite>, 
-    server_id: i64, 
-    name: &str, 
-    link: &str, 
-    author_id: i64, 
-    timestamp: i64
-) -> Result<(), Error> {
-    sqlx::query!(r#"INSERT INTO faq (server_id, title, edit_time, author, link)
-        VALUES ($1, $2, $3, $4, $5)"#, server_id, name, timestamp, author_id, link)
-        .execute(db)
-        .await?;
     Ok(())
 }
 
@@ -492,9 +462,7 @@ pub async fn drop_faqs(
                 .content("Created dump of FAQ contents:")
                 .attachment(faq_file);
             ctx.send(builder).await?;
-            sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1"#, server_id)
-                .execute(db)
-                .await?;
+            database::clear_server_faq(db, server_id).await?;
             let new_message = CreateReply::default()
                 .content("All FAQ entries for this server deleted")
                 .components(Vec::default());
@@ -514,9 +482,7 @@ pub async fn drop_faqs(
 }
 
 async fn create_faq_dump(server_id: i64, db: &Pool<Sqlite>) -> Result<String, Error> {
-    let server_faqs = sqlx::query_as!(FaqEntry, r#"SELECT title, contents, image, link FROM faq WHERE server_id = $1"#, server_id)
-        .fetch_all(db)
-        .await?;
+    let server_faqs = database::get_server_faq_dump(db, server_id).await?;
 
     let faq_json = serde_json::to_string(&server_faqs)?;
 
@@ -557,25 +523,22 @@ pub async fn import_faqs(
     // let timestamp = ctx.created_at().timestamp();
     let content = faq_json.download().await?;
     let file_str = std::str::from_utf8(&content)?;
-    let faqs: Vec<FaqEntry> = serde_json::from_str(file_str)?;
+    let faqs: Vec<BasicFaqEntry> = serde_json::from_str(file_str)?;
     let db = &ctx.data().database;
     let timestamp = ctx.created_at().timestamp();
     let author = ctx.author().id.get() as i64;
     for faq in faqs {
-        sqlx::query!(r#"
-            INSERT INTO faq (server_id, title, contents, image, edit_time, author, link) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7)"#, 
+        let db_faq_entry = database::DBFaqEntry{
             server_id,
-            faq.title,
-            faq.contents,
-            faq.image,
+            name: &faq.title,
+            content: faq.contents.as_deref(),
+            attachment_url: faq.image.as_deref(),
             timestamp,
-            author,
-            faq.link
-        )
-            .execute(db)
-            .await?;
-    };
+            author_id: author,
+            link: faq.link.as_deref(),
+        };
+        database::add_faq_entry(db, db_faq_entry).await?;
+    }
     ctx.say("Successfully imported all FAQ entries").await?;
     Ok(())
 }

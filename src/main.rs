@@ -9,6 +9,7 @@ mod modding_api;
 mod wiki_commands;
 mod custom_errors;
 mod formatting_tools;
+mod database;
 
 use dashmap::DashMap;
 use tokio::time;
@@ -25,7 +26,7 @@ use crate::{
     faq_commands::{update_faq_cache, FaqCacheEntry}, 
     mods::{
         update_notifications::{
-            get_mod_count, 
+            // get_mod_count, 
             update_database, 
             update_mod_cache, 
             update_sub_cache, 
@@ -186,7 +187,7 @@ async fn main() {
             Box::pin(async move {
                 if let serenity::FullEvent::GuildDelete { incomplete, full: _} = event {
                     if !incomplete.unavailable {
-                        events::on_guild_leave(incomplete.id, data.database.clone()).await?;
+                        events::on_guild_leave(incomplete.id, &data.database).await?;
                     }
                 }
                 if let serenity::FullEvent::Message { new_message } = event {
@@ -233,10 +234,12 @@ async fn main() {
 
     let http_clone = client.as_ref().unwrap().http.clone();
 
-    let mods_count = get_mod_count(db.clone()).await;
+    let Ok(mods_count) = database::get_mod_count(&db).await else {
+        panic!("Failed to get mod count from database, aborting.")
+    };
     if mods_count == 0 {
         println!("Start initializing mod database");
-        let result = update_database(db.clone(), &http_clone, true).await;
+        let result = update_database(&db, &http_clone, true).await;
         match result {
             Ok(()) => info!{"Initialized mod database"},
             Err(error) => error!("Error while updating mod database: {error}")
@@ -248,7 +251,7 @@ async fn main() {
     tokio::spawn(async move {
         loop {
             mod_update_interval.tick().await;
-            let result = update_database(db_clone_2.clone(), &http_clone, false).await;
+            let result = update_database(&db_clone_2, &http_clone, false).await;
             match result {
                 Ok(()) => info!{"Updated mod database"},
                 Err(error) => error!("Error while updating mod database: {error}")
@@ -261,19 +264,19 @@ async fn main() {
     tokio::spawn(async move {
         loop {
             cache_update_interval.tick().await;
-            match update_mod_cache(mods_cache.clone(), db.clone()).await {
+            match update_mod_cache(mods_cache.clone(), &db).await {
                 Ok(()) => info!("Updated mod cache"),
                 Err(error) => error!("Error while updating mod cache: {error}"),
             };
-            match update_faq_cache(faq_cache.clone(), db.clone()).await {
+            match update_faq_cache(faq_cache.clone(), &db).await {
                 Ok(()) => info!("Updated faq cache"),
                 Err(error) => error!("Error while updating faq cache: {error}"),
             };
-            match update_sub_cache(subscription_cache.clone(), db.clone()).await {
+            match update_sub_cache(subscription_cache.clone(), &db).await {
                 Ok(()) => info!("Updated subscription cache"),
                 Err(error) => error!("Error while updating subscription cache: {error}"),
             };
-            match update_author_cache(authorname_cache.clone(), db.clone()).await {
+            match update_author_cache(authorname_cache.clone(), &db).await {
                 Ok(()) => info!("Updated subscription cache"),
                 Err(error) => error!("Error while updating author name cache: {error}"),
             };

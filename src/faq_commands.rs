@@ -90,22 +90,13 @@ async fn list_faqs(
     let db = &ctx.data().database;
     let server_id = management::get_server_id(ctx)?;
     let faq_map = database::get_server_faqs(server_id, db).await?;
-    let base_faqs = faq_map.iter()
-        .filter(|f| f.1.is_empty())
-        .map(|f| f.0.clone())
-        .collect::<Vec<String>>();
-    let mut faq_names = Vec::new();
-    for key in base_faqs {
-        #[allow(clippy::option_if_let_else)]
-        let link_list = match faq_map.get(&key) {
-            Some(l) => l,
-            None => &Vec::new(),
-        };
-        if link_list.is_empty() {
+
+    let mut faq_names: Vec<String> = Vec::new();
+    for (key, links) in faq_map {
+        if links.is_empty() {
             faq_names.push(key);
         } else {
-            let links = link_list.join(", ");
-            faq_names.push(format!("{key} ({links})"));
+            faq_names.push(format!("{key} ({})", links.join(", ")));
         }
     }
 

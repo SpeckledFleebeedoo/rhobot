@@ -230,7 +230,7 @@ async fn send_mod_update(
             subscribed_mods.contains(&updated_mod.name) ||      // Subscribed to mod
             subscribed_authors.contains(&updated_mod.author)    // Subscribed to author
         {
-            make_update_message(&updated_mod, updates_channel, server.show_changelog.unwrap_or(false), cache_http).await?;
+            make_update_message(&updated_mod, updates_channel, server.show_changelog.unwrap_or(true), cache_http).await?;
         }
     }
     Ok(())

@@ -7,7 +7,6 @@ mod fff_commands;
 mod management;
 mod modding_api;
 mod wiki_commands;
-mod custom_errors;
 mod formatting_tools;
 mod database;
 
@@ -26,7 +25,6 @@ use crate::{
     faq_commands::{update_faq_cache, FaqCacheEntry}, 
     mods::{
         update_notifications::{
-            // get_mod_count, 
             update_database, 
             update_mod_cache, 
             update_sub_cache, 
@@ -57,26 +55,7 @@ pub struct Data {
     inline_command_log: Arc<DashMap<serenity::MessageId, (serenity::ChannelId, serenity::MessageId, time::Instant)>>,
 }
 
-async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
-    // This is our custom error handler
-    // They are many errors that can occur, so we only handle the ones we want to customize
-    // and forward the rest to the default handler
-    match error {
-        poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {error}"),
-        poise::FrameworkError::Command { error, ctx, .. } => {
-            error!("Error in command `{}`: {}", ctx.command().name, error,);
-            let _ = custom_errors::send_custom_error_message(ctx, &format!("{error}")).await;
-        }
-        poise::FrameworkError::CommandCheckFailed { ctx, .. } => {
-            let _ = custom_errors::send_custom_error_message(ctx, "invalid permissions").await;
-        }
-        error => {
-            if let Err(e) = poise::builtins::on_error(error).await {
-                error!("Error while handling error: {e}");
-            }
-        }
-    }
-}
+
 
 #[allow(clippy::too_many_lines, clippy::unreadable_literal)]
 #[tokio::main]
@@ -170,7 +149,7 @@ async fn main() {
             ..Default::default()
         },
         // The global error handler for all error cases that may occur
-        on_error: |error| Box::pin(on_error(error)),
+        on_error: |error| Box::pin(events::on_error(error)),
         // Every command invocation must pass this check to continue execution
         command_check: Some(|ctx| {
             Box::pin(async move {

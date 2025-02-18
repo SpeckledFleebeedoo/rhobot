@@ -1,28 +1,31 @@
-use poise::serenity_prelude::{
-    AutocompleteChoice, 
-    CreateEmbed, 
-    Colour
+use poise::{
+    serenity_prelude::{
+        AutocompleteChoice, 
+        CreateEmbed, 
+        Colour,
+    },
+    CreateReply,
 };
-use poise::CreateReply;
 use log::error;
 
-use crate::database::store_changelog_setting;
-use crate::formatting_tools::DiscordFormat;
+
 use crate::{
     Context, 
-    custom_errors::CustomError, 
     Data, 
     Error, 
     management::{get_server_id, checks::is_mod},
-    mods::{
-        search_api, 
-        update_notifications::{
-            SubCacheEntry, 
-            SubscriptionType
-        }
-    },
+    formatting_tools::DiscordFormat,
     database,
     SEPARATOR,
+};
+
+use super::{
+    error::ModError,
+    search_api, 
+    update_notifications::{
+        SubCacheEntry, 
+        SubscriptionType
+    },
 };
 
 enum AutocompleteType{
@@ -74,7 +77,7 @@ pub async fn show_changelogs(
 ) -> Result<(), Error> {
     let server_id = get_server_id(ctx)?;
     let db = &ctx.data().database;
-    store_changelog_setting(db, server_id, show_changelogs).await?;
+    database::store_changelog_setting(db, server_id, show_changelogs).await?;
 
     if show_changelogs { ctx.say("Now showing changelogs in mod updates feed.").await?
     } else { ctx.say("No longer showing changelogs in mod updates feed.").await? };
@@ -108,9 +111,7 @@ pub async fn subscribe_mod(
     #[autocomplete = "autocomplete_modname"]
     modname: String,
 ) -> Result<(), Error> {
-    let Some(server) = ctx.guild_id() else {
-        return Err(Box::new(CustomError::new("Could not get server ID")))
-    };
+    let server = ctx.guild_id().ok_or_else(|| ModError::ServerNotFound)?;
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
 
@@ -126,7 +127,7 @@ pub async fn subscribe_mod(
             }
         ),
         Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            return Err(ModError::CacheError(e.to_string()))?
         }
     }
     Ok(())
@@ -142,9 +143,7 @@ pub async fn unsubscribe_mod(
     #[autocomplete = "autocomplete_subscribed_modname"]
     modname: String,
 ) -> Result<(), Error> {
-    let Some(server) = ctx.guild_id() else {
-        return Err(Box::new(CustomError::new("Could not get server ID")))
-    };
+    let server = ctx.guild_id().ok_or_else(|| ModError::ServerNotFound)?;
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
     database::remove_mod_subscription(db, server_id, &modname).await?;
@@ -170,9 +169,7 @@ pub async fn subscribe_author(
     #[autocomplete = "autocomplete_author"]
     author: String,
 ) -> Result<(), Error> {
-    let Some(server) = ctx.guild_id() else {
-        return Err(Box::new(CustomError::new("Could not get server ID")))
-    };
+    let server = ctx.guild_id().ok_or_else(|| ModError::ServerNotFound)?;
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
 
@@ -189,7 +186,7 @@ pub async fn subscribe_author(
             }
         ),
         Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            return Err(ModError::CacheError(e.to_string()))?
         }
     }
     Ok(())
@@ -222,9 +219,7 @@ pub async fn unsubscribe_author(
     #[autocomplete = "autocomplete_subscribed_author"]
     author: String,
 ) -> Result<(), Error> {
-    let Some(server) = ctx.guild_id() else {
-        return Err(Box::new(CustomError::new("Could not get server ID")))
-    };
+    let server = ctx.guild_id().ok_or_else(|| ModError::ServerNotFound)?;
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
     database::remove_author_subscription(db, server_id, &author).await?;
@@ -291,9 +286,7 @@ fn autocomplete_unsubscribe(
 pub async fn show_subscriptions(
     ctx: Context<'_>,
 ) -> Result<(), Error> {
-    let Some(server) = ctx.guild_id() else {
-        return Err(Box::new(CustomError::new("Could not get server ID")))
-    };
+    let server = ctx.guild_id().ok_or_else(|| ModError::ServerNotFound)?;
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
 
@@ -347,8 +340,12 @@ pub async fn mod_search(modname: &str, imprecise_search: bool, data: &Data) -> R
 
     } else {
         let data = super::update_notifications::get_mod_info(modname).await?;
-        let latest_release = data.releases.last().unwrap();
-        let factorio_version = latest_release.info_json.factorio_version.clone();
+        let factorio_version = data.releases
+            .last()
+            .map_or_else(
+                || String::from("N/A"), 
+                |release| release.info_json.factorio_version.clone()
+            );
         let thumbnail = format!("https://assets-mod.factorio.com{}", data.thumbnail.unwrap_or_else(|| "/assets/.thumb.png".to_owned()));
         search_api::FoundMod {
             downloads_count: i64::from(data.downloads_count),

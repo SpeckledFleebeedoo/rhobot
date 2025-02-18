@@ -1,9 +1,11 @@
 use poise::serenity_prelude as serenity;
 use poise::reply::CreateReply;
 
-use crate::SEPARATOR;
-use crate::{custom_errors::CustomError, Context, Error,};
-use crate::modding_api::lua_constants::{CHAPTERS, FUNCTIONS};
+use crate::{Context, Error, SEPARATOR};
+use super::{
+    lua_constants::{CHAPTERS, FUNCTIONS},
+    error::ApiError,
+};
 
 /// Link items in the Lua 5.2 manual
 #[allow(clippy::unused_async)]
@@ -41,7 +43,7 @@ pub async fn chapter (
             .embed(embed);
         ctx.send(builder).await?;
     } else {
-        return Err(Box::new(CustomError::new(&format!(r#"Could not find chapter "{chapter_name}" in lua manual"#))))
+        return Err(ApiError::LuaChapterNotFound(chapter_name.to_string()))?
     }
     
     Ok(())
@@ -84,7 +86,7 @@ pub async fn function (
             .embed(embed);
         ctx.send(builder).await?;
     } else {
-        return Err(Box::new(CustomError::new(&format!(r#"Could not find function "{function_name}" in lua manual"#))))
+        return Err(ApiError::LuaFunctionNotFound(function_name.to_string()))?
     }
     Ok(())
 }

@@ -1,6 +1,7 @@
 pub mod data;
 pub mod runtime;
 pub mod lua;
+mod error;
 mod lua_constants;
 
 use data::{api_prototype, api_type};
@@ -15,11 +16,11 @@ use std::sync::{Arc, RwLock};
 
 use crate::{
     Context, 
-    custom_errors::CustomError, 
     Data, 
     Error, 
     SEPARATOR, 
 };
+use error::ApiError;
 
 /// Link a page in the mod making API.
 #[allow(clippy::unused_async)]
@@ -161,7 +162,7 @@ fn get_prototype_category(prototype_api_cache: &Arc<RwLock<data::ApiResponse>>, 
     let api = match prototype_api_cache.read() {
         Ok(c) => c,
         Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            return Err(ApiError::CacheError(e.to_string()))?;
         },
     }.clone();
 

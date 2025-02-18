@@ -2,17 +2,55 @@ use parse_wiki_text::{Node, Configuration};
 use poise::serenity_prelude::{CreateEmbed, Colour};
 use poise::CreateReply;
 use std::fmt::Debug;
-use std::{fmt, fmt::Write};
+use std::{fmt, fmt::Write, error};
 use serde::Deserialize;
 use log::error;
 
 use crate::formatting_tools::DiscordFormat;
 use crate::{
     Context, 
-    custom_errors::CustomError, 
     Error, 
     SEPARATOR, 
 };
+
+#[derive(Debug)]
+pub enum WikiError {
+    ReqwestError(reqwest::Error),
+    NoSearchResults(String),
+    SendMessageFailed(serenity::Error),
+    UrlParseError(url::ParseError),
+}
+
+impl fmt::Display for WikiError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ReqwestError(error) => write!(f, "Error retrieving wiki page: {error}"),
+            Self::NoSearchResults(prompt) => write!(f, "No search results found for `{prompt}`"),
+            Self::SendMessageFailed(error) => write!(f, "Failed to send message: {error}"),
+            Self::UrlParseError(error) => write!(f, "Failed to parse wiki url: {error}"),
+        }
+    }
+}
+
+impl error::Error for WikiError {}
+
+impl From<serenity::Error> for WikiError {
+    fn from(value: serenity::Error) -> Self {
+        Self::SendMessageFailed(value)
+    }
+}
+
+impl From<reqwest::Error> for WikiError {
+    fn from(value: reqwest::Error) -> Self {
+        Self::ReqwestError(value)
+    }
+}
+
+impl From<url::ParseError> for WikiError {
+    fn from(value: url::ParseError) -> Self {
+        Self::UrlParseError(value)
+    }
+}
 
 struct NodeWrap<'a>{n: &'a parse_wiki_text::Node<'a>}
 
@@ -118,7 +156,6 @@ fn format_template(name: &[Node<'_>], parameters: &[parse_wiki_text::Parameter<'
             write!(f, "DISPLAYTITLE: {}", value.strip_prefix("DISPLAYTITLE:").unwrap())
         },
         _ => {
-            // println!("{name:?}");
             Ok(())
         }
     }
@@ -184,7 +221,7 @@ const LANG_CODES: [&str; 284] = ["/aa", "/ab", "/ae", "/af", "/ak", "/am", "/an"
 "/tt", "/tw", "/ty", "/ug", "/uk", "/ur", "/us", "/uz", "/ve", "/vi", "/vo", "/wa", "/wo", "/xh", "/yi", "/yo", 
 "/za", "/zh", "/zh-cn", "/zh-hk", "/zh-mo", "/zh-sg", "/zh-tw", "/zu"];
 
-async fn get_mediawiki_page(name: &str) -> Result<Parse, Error> {
+async fn get_mediawiki_page(name: &str) -> Result<Parse, WikiError> {
     let url = reqwest::Url::parse_with_params("https://wiki.factorio.com/api.php?", &[
             ("action", "parse"),
             ("format", "json"),
@@ -206,7 +243,7 @@ struct WikiData {
     _urls: Vec<String>,
 }
 
-pub async fn opensearch_mediawiki(name: &str) -> Result<Vec<String>, Error> {
+pub async fn opensearch_mediawiki(name: &str) -> Result<Vec<String>, WikiError> {
     let url = reqwest::Url::parse_with_params("https://wiki.factorio.com/api.php", &[
         ("action", "opensearch"),
         ("format", "json"),
@@ -250,9 +287,7 @@ pub async fn wiki(
         poise::Context::Application(_) => command.to_owned(),
         poise::Context::Prefix(_) => {
             let results = opensearch_mediawiki(command).await?;
-            let Some(res) = results.first() else {
-                return Err(Box::new(CustomError::new("Wiki search returned no results")))
-            };
+            let res = results.first().ok_or_else(|| WikiError::NoSearchResults(command.to_owned()))?;
             res.to_owned()
         },
     };
@@ -283,13 +318,8 @@ fn get_factorio_wiki_parser_config() -> Configuration {
     })
 }
 
-pub async fn get_wiki_page(search_result: &str) -> Result<CreateEmbed, Error> {
-    let article = match get_mediawiki_page(search_result).await{
-        Ok(page) => page,
-        Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Failed to parse page. The page you searched for may not exist.\nOriginal error: {e}"))));
-        },
-    };
+pub async fn get_wiki_page(search_result: &str) -> Result<CreateEmbed, WikiError> {
+    let article = get_mediawiki_page(search_result).await?;
 
     let parsed_text = get_factorio_wiki_parser_config()
         .parse(&article.wikitext)

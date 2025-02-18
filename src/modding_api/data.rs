@@ -5,13 +5,16 @@ use std::{fmt, sync::{Arc, RwLock}};
 use log::{error, info};
 
 use crate::{
-    custom_errors::CustomError, 
     formatting_tools::DiscordFormat, 
-    modding_api::resolve_internal_links, 
-    modding_api::split_inputs, 
     Context, 
     Data, 
     Error
+};
+
+use super::{
+    resolve_internal_links,
+    split_inputs,
+    error::ApiError,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -231,7 +234,7 @@ pub async fn update_api_cache(
     match cache.write() {
         Ok(mut c) => *c = new_data_api,
         Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            return Err(ApiError::CacheError(e.to_string()))?;
         },
     };
     Ok(())
@@ -241,7 +244,7 @@ pub async fn get_data_api() -> Result<ApiResponse, Error> {
     let response = reqwest::get("https://lua-api.factorio.com/latest/prototype-api.json").await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
-        _ => return Err(Box::new(CustomError::new(&format!("Received HTTP status code {} while accessing Lua prototype API", response.status().as_str()))))
+        _ => return Err(ApiError::BadStatusCode(response.status().to_string()))?
     };
     Ok(response.json::<ApiResponse>().await?)
 }
@@ -265,7 +268,7 @@ pub async fn api_prototype (
     let api = match cache.read() {
         Ok(c) => c,
         Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            return Err(ApiError::CacheError(e.to_string()))?
         },
     }.clone();
 
@@ -274,7 +277,7 @@ pub async fn api_prototype (
     let Some(search_result) = api.prototypes.iter()
         .find(|p| prototype_search.eq_ignore_ascii_case(&p.common.name)) 
     else {
-        return Err(Box::new(CustomError::new(&format!("Could not find prototype `{prototype_search}` in API documentation"))));
+        return Err(ApiError::PrototypeNotFound(prototype_search))?;
     };
 
     let embed = if let Some(property_name) = property_search {
@@ -358,7 +361,7 @@ pub async fn api_type (
     let api = match cache.read(){
         Ok(c) => c,
         Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            return Err(ApiError::CacheError(e.to_string()))?
         },
     }.clone();
 
@@ -367,7 +370,7 @@ pub async fn api_type (
     let Some(search_result) = api.types.iter()
         .find(|t| type_search.eq_ignore_ascii_case(&t.common.name)) 
         else {
-            return Err(Box::new(CustomError::new(&format!("Could not find type `{type_search}` in API documentation"))));
+            return Err(ApiError::TypeNotFound(type_search))?;
         };
     
     let embed = if let Some(property_name) = property_search {
@@ -387,10 +390,7 @@ fn make_property_embed(search_result: &TypeOrPrototype, property_name: &str, ctx
     let properties = match search_result {
         TypeOrPrototype::Prototype(pt) => pt.properties.clone(),
         TypeOrPrototype::Type(t) => {
-            if t.properties.is_none() {
-                return Err(Box::new(CustomError::new("Type has no properties")));
-            };
-            t.properties.clone().unwrap()
+            t.properties.clone().ok_or(ApiError::NoTypeProperties)?
         },
     };
 
@@ -401,7 +401,7 @@ fn make_property_embed(search_result: &TypeOrPrototype, property_name: &str, ctx
     if let Some(p) = property {
         Ok(p.to_embed(ctx.data(), search_result))
     } else {
-        Err(Box::new(CustomError::new(&format!("Could not find property `{property_name}`"))))
+        Err(ApiError::PropertyNotFound(property_name.to_string()))?
     }
 }
 

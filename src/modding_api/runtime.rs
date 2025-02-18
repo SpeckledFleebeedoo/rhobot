@@ -6,13 +6,16 @@ use log::{error, info};
 
 use crate::{
     Context, 
-    custom_errors::CustomError, 
     Data, 
     Error,
     formatting_tools::DiscordFormat, 
-    modding_api::resolve_internal_links,
-    modding_api::split_inputs, 
     SEPARATOR,
+};
+
+use super::{
+    error::ApiError,
+    resolve_internal_links,
+    split_inputs, 
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -388,7 +391,7 @@ pub async fn update_api_cache(
     let mut c = match cache.write() {
         Ok(c) => c,
         Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            return Err(ApiError::CacheError(e.to_string()))?
         },
     };
     *c = new_runtime_api;
@@ -401,7 +404,7 @@ pub async fn get_runtime_api() -> Result<ApiResponse, Error> {
 
     match response.status() {
         reqwest::StatusCode::OK => (),
-        _ => return Err(Box::new(CustomError::new(&format!("Received HTTP status code {} while accessing Lua runtime API", response.status().as_str()))))
+        _ => return Err(ApiError::BadStatusCode(response.status().to_string()))?
     };
     Ok(response.json::<ApiResponse>().await?)
 }
@@ -426,7 +429,7 @@ pub async fn api_class (
     let api = match cache.read() {
         Ok(c) => c,
         Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            return Err(ApiError::CacheError(e.to_string()))?
         },
     }.clone();
 
@@ -435,7 +438,7 @@ pub async fn api_class (
     let Some(search_result) = api.classes.iter()
         .find(|class| class_search.eq_ignore_ascii_case(&class.common.name)) 
     else {
-        return Err(Box::new(CustomError::new(&format!("Could not find class `{class_search}` in runtime API documentation"))));
+        return Err(ApiError::ClassNotFound(class_search))?;
     };
 
     let embed = if let Some(property_name) = property_search {
@@ -452,7 +455,7 @@ pub async fn api_class (
         else if let Some(a) = attribute {
             a.to_embed(search_result, ctx.data())
         } else {
-            return Err(Box::new(CustomError::new(&format!("Could not find property `{property_name}`"))));
+            return Err(ApiError::PropertyNotFound(property_name))?;
         }
     } else {
         search_result.to_embed(ctx.data())
@@ -533,7 +536,7 @@ pub async fn api_event (
     let api = match cache.read() {
         Ok(c) => c,
         Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            return Err(ApiError::CacheError(e.to_string()))?
         },
     }.clone();
 
@@ -544,7 +547,7 @@ pub async fn api_event (
     let Some(search_result) = api.events.iter()
         .find(|event| event_search.eq_ignore_ascii_case(&event.common.name)) 
         else {
-            return Err(Box::new(CustomError::new(&format!("Could not find event `{event_search}` in runtime API documentation"))));
+            return Err(ApiError::EventNotFound(event_search))?;
         };
 
     let builder = CreateReply::default()
@@ -588,7 +591,7 @@ pub async fn api_define (
     let api = match cache.read() {
         Ok(c) => c,
         Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            return Err(ApiError::CacheError(e.to_string()))?
         },
     }.clone();
 
@@ -599,7 +602,7 @@ pub async fn api_define (
     let Some(search_result) = api.defines.iter()
         .find(|define| define_search.eq_ignore_ascii_case(&define.common.name)) 
     else {
-        return Err(Box::new(CustomError::new(&format!("Could not find define `{define_search}` in runtime API documentation"))));
+        return Err(ApiError::DefineNotFound(define_search))?;
     };
     let builder = CreateReply::default()
         .embed(search_result.to_embed(ctx.data()));
@@ -642,7 +645,7 @@ pub async fn api_concept (
     let api = match cache.read() {
         Ok(c) => c,
         Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            return Err(ApiError::CacheError(e.to_string()))?
         },
     }.clone();
 
@@ -653,7 +656,7 @@ pub async fn api_concept (
     let Some(search_result) = api.concepts.iter()
         .find(|concept| concept_search.eq_ignore_ascii_case(&concept.common.name)) 
     else {
-        return Err(Box::new(CustomError::new(&format!("Could not find concept `{concept_search}` in runtime API documentation"))))
+        return Err(ApiError::ConceptNotFound(concept_search))?;
     };
 
     let builder = CreateReply::default()

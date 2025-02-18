@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 use serde::Deserialize;
 use crate::{
-    custom_errors::CustomError, 
-    Error, 
     formatting_tools::DiscordFormat,
+    mods::error::ModError,
 };
 
 pub struct ModPortalCredentials {
@@ -56,7 +55,7 @@ impl FoundMod {
     }
 }
 
-pub async fn find_mod(name: &str, credentials: &ModPortalCredentials) -> Result<FoundMod, Error> {
+pub async fn find_mod(name: &str, credentials: &ModPortalCredentials) -> Result<FoundMod, ModError> {
     let mut name_truncated = name.to_owned();
     name_truncated.truncate(50);
     let map = HashMap::from([
@@ -80,15 +79,14 @@ pub async fn find_mod(name: &str, credentials: &ModPortalCredentials) -> Result<
         .await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
-        _ => return Err(Box::new(CustomError::new(&format!("Received HTTP status code {} while accessing mod search API", response.status().as_str())))),
+        _ => return Err(ModError::BadStatusCode(response.status().to_string())),
     };
     
-    let found_mod_details = response.json::<SearchApiResponse>().await.unwrap();
+    let found_mod_details = response.json::<SearchApiResponse>().await?;
 
-    if found_mod_details.results.first().is_none() {
-        return Err(Box::new(CustomError::new(&format!("Did not find any mods named {name}"))))
-    };
-    let mut mod_entry = found_mod_details.results.first().unwrap().to_owned();
+    let mut mod_entry = found_mod_details.results.first()
+        .ok_or_else(|| ModError::ModNotFound(name.to_owned()))?
+        .to_owned();
     mod_entry.thumbnail = format!("https://assets-mod.factorio.com{}", mod_entry.thumbnail);
     Ok(mod_entry)
 }

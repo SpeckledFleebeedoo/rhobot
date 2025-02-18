@@ -5,10 +5,9 @@ use std::{fmt, sync::{Arc, RwLock}};
 use log::{error, info};
 
 use crate::{
-    custom_errors::CustomError,
     database,
     formatting_tools::DiscordFormat,
-    Error
+    mods::error::ModError,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -113,7 +112,7 @@ pub enum ModState{
 }
 
 #[allow(clippy::module_name_repetitions)]
-pub async fn get_mods(page: i32, initializing: bool) -> Result<ApiResponse, Error> {
+pub async fn get_mods(page: i32, initializing: bool) -> Result<ApiResponse, ModError> {
 
     let url = if initializing {     // Load entire database at once during initialization, use pagination when updating.
         "https://mods.factorio.com/api/mods?page_size=max".to_string()
@@ -122,7 +121,7 @@ pub async fn get_mods(page: i32, initializing: bool) -> Result<ApiResponse, Erro
     let response = reqwest::get(url).await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
-        _ => return Err(Box::new(CustomError::new(&format!("Received HTTP status code {} while accessing mod portal API", response.status().as_str())))),
+        _ => return Err(ModError::BadStatusCode(response.status().to_string())),
     };
     Ok(response.json::<ApiResponse>().await?)
 }
@@ -131,7 +130,7 @@ pub async fn update_database(
         db: &Pool<Sqlite>, 
         cache_http: &Arc<poise::serenity_prelude::Http>, 
         initializing: bool
-    ) -> Result<(), Error> {
+    ) -> Result<(), ModError> {
     let mut page = 1;
     let mut old_mod_encountered = false;
     while !old_mod_encountered {
@@ -212,7 +211,7 @@ async fn send_mod_update(
         updated_mod: UpdatedMod, 
         db: &Pool<Sqlite>, 
         cache_http: &Arc<poise::serenity_prelude::Http>
-    ) -> Result<(), Error> {
+    ) -> Result<(), ModError> {
     info!("Sending mod update message for {}", updated_mod.title);
     let server_data = database::get_all_servers(db).await?;
 
@@ -241,7 +240,7 @@ async fn make_update_message(
         updates_channel: serenity::model::prelude::ChannelId,
         show_changelog: bool,
         cache_http: &Arc<serenity::all::Http>
-    ) -> Result<(), Error> {
+    ) -> Result<(), ModError> {
     let mut url = String::new();
     url.push_str("https://mods.factorio.com/mod/");
     url.push_str(&updated_mod.name.replace(' ', "%20"));
@@ -271,12 +270,12 @@ async fn make_update_message(
     Ok(())
 }
 
-pub async fn get_mod_thumbnail(name: &String) -> Result<String, Error> {
+pub async fn get_mod_thumbnail(name: &String) -> Result<String, ModError> {
     let url = format!("https://mods.factorio.com/api/mods/{name}");
     let response = reqwest::get(url).await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
-        _ => return Err(Box::new(CustomError::new(&format!("Received HTTP status code {} while accessing mod portal API", response.status().as_str())))),
+        _ => return Err(ModError::BadStatusCode(response.status().to_string())),
     };
     let mod_info = response.json::<Mod>().await?;
     let thumbnail_url = format!("https://assets-mod.factorio.com{}", mod_info.thumbnail.unwrap_or_else(|| "/assets/.thumb.png".to_owned()));
@@ -296,12 +295,12 @@ struct ModChangelogCategory {
     entries: Vec<String>,
 }
 
-pub async fn get_mod_info(name: &str) -> Result<FullMod, Error> {
+pub async fn get_mod_info(name: &str) -> Result<FullMod, ModError> {
     let url = format!("https://mods.factorio.com/api/mods/{name}/full");
     let response = reqwest::get(url).await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
-        _ => return Err(Box::new(CustomError::new(&format!("Received HTTP status code {} while accessing mod portal API", response.status().as_str())))),
+        _ => return Err(ModError::BadStatusCode(response.status().to_string())),
     };
     Ok(response.json::<FullMod>().await?)
 }
@@ -394,12 +393,12 @@ pub struct SubCacheEntry{
 pub async fn update_mod_cache(
     cache: Arc<RwLock<Vec<ModCacheEntry>>>, 
     db: &Pool<Sqlite>
-) -> Result<(), Error> {
+) -> Result<(), ModError> {
     let records= database::create_mods_cache(db).await?;
     match cache.write() {
         Ok(mut c) => *c = records,
         Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            return Err(ModError::CacheError(e.to_string()))
         },
     };
     Ok(())
@@ -408,13 +407,13 @@ pub async fn update_mod_cache(
 pub async fn update_sub_cache(
     cache: Arc<RwLock<Vec<SubCacheEntry>>>,
     db: &Pool<Sqlite>
-) -> Result<(), Error> {
+) -> Result<(), ModError> {
     let mod_records = database::create_subscriptions_cache(db).await?;
 
     match cache.write() {
         Ok(mut c) => *c = mod_records,
         Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            return Err(ModError::CacheError(e.to_string()))
         },
     };
 
@@ -424,13 +423,13 @@ pub async fn update_sub_cache(
 pub async fn update_author_cache(
     cache: Arc<RwLock<Vec<String>>>,
     db: &Pool<Sqlite>
-) -> Result<(), Error> {
+) -> Result<(), ModError> {
     let author_records = database::create_mod_author_cache(db).await?;
     
     match cache.write() {
         Ok(mut c) => *c = author_records,
         Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            return Err(ModError::CacheError(e.to_string()))
         },
     };
     Ok(())

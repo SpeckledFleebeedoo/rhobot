@@ -1,5 +1,6 @@
-use log::info;
+use log::{info, error};
 use poise::serenity_prelude as serenity;
+use poise::CreateReply;
 use regex::Regex;
 use sqlx::{Pool, Sqlite};
 
@@ -7,9 +8,39 @@ use crate::{
     wiki_commands,
     mods::commands,
     database,
+    Context,
     Error,
     Data,
 };
+
+pub async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
+    match error {
+        poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {error}"),
+        poise::FrameworkError::Command { error, ctx, .. } => {
+            error!("Error in command `{}`: {}", ctx.command().name, error,);
+            let _ = send_custom_error_message(ctx, &format!("{error}")).await;
+        }
+        poise::FrameworkError::CommandCheckFailed { ctx, .. } => {
+            let _ = send_custom_error_message(ctx, "invalid permissions").await;
+        }
+        error => {
+            if let Err(e) = poise::builtins::on_error(error).await {
+                error!("Error while handling error: {e}");
+            }
+        }
+    }
+}
+
+async fn send_custom_error_message(ctx: Context<'_>, msg: &str) -> Result<(), Error> {
+    let embed = serenity::CreateEmbed::new()
+        .title(format!("Error while executing command {}:", ctx.command().name))
+        .description(msg)
+        .color(serenity::Colour::RED);
+    let builder = CreateReply::default()
+        .embed(embed);
+    ctx.send(builder).await?;
+    Ok(())
+}
 
 #[allow(clippy::unnecessary_unwrap)]
 pub async fn on_message(ctx: serenity::Context, msg: &serenity::Message, data: &Data) -> Result<(), Error> {

@@ -2,12 +2,13 @@ use std::time::Duration;
 use poise::ReplyHandle;
 use sqlx::{Pool, Sqlite};
 use std::sync::{Arc, RwLock};
+use std::{fmt, error};
 use poise::serenity_prelude as serenity;
 use poise::CreateReply;
 use log::error;
 
+use crate::management::checks;
 use crate::{
-    custom_errors::CustomError, 
     Context, 
     database,
     database::DBFaqEntry,
@@ -16,6 +17,60 @@ use crate::{
     SEPARATOR, 
     formatting_tools::DiscordFormat, 
 };
+
+#[derive(Debug)]
+enum FaqError{
+    CacheError(String),
+    DatabaseError(database::DatabaseError),
+    SerenityError(serenity::Error),
+    NotFound(String),
+    NotInDatabase(String),
+    ServerNotFound,
+    TitleTooLong,
+    BodyTooLong,
+    EmbedNotFound,
+    EmbedContainsNoImage,
+    AlreadyExists(String),
+    NotOwner,
+}
+
+impl fmt::Display for FaqError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::CacheError(error) => f.write_str(&format!("Error acquiring cache: {error}")),
+            Self::DatabaseError(error) => f.write_str(&format!("FAQ database error: {error}")),
+            Self::SerenityError(error) => f.write_str(&format!("Serenity error: {error}")),
+            Self::NotFound(name) => {
+                        let errmsg = format!(
+                            "Could not find {} or any similarly tags in FAQ tags. 
+                    Would you like to search [the wiki](https://wiki.factorio.com/index.php?search={})?", name.to_owned().escape_formatting(), name.replace(' ', "%20"));
+                        f.write_str(&format!("Error acquiring cache: {errmsg}"))
+                    },
+            Self::NotInDatabase(name) => f.write_str(&format!("Could not get FAQ entry {name} from database")),
+            Self::ServerNotFound => f.write_str("Could not retrieve server data."),
+            Self::TitleTooLong => f.write_str("FAQ title too long (must be 256 characters or shorter)"),
+            Self::BodyTooLong => f.write_str("FAQ body too long (must be 4096 characters or shorter)"),
+            Self::EmbedNotFound => f.write_str("Could not create FAQ entry: embed not found"),
+            Self::EmbedContainsNoImage => f.write_str("Could not create FAQ entry: image not found in embed"),
+            Self::AlreadyExists(name) => f.write_str(&format!("Error: An faq entry with title {name} already exists")),
+            Self::NotOwner => f.write_str("This command can only be used by the bot owner"),
+        }
+    }
+}
+
+impl error::Error for FaqError {}
+
+impl From<database::DatabaseError> for FaqError {
+    fn from(value: database::DatabaseError) -> Self {
+        Self::DatabaseError(value)
+    }
+}
+
+impl From<serenity::Error> for FaqError {
+    fn from(value: serenity::Error) -> Self {
+        Self::SerenityError(value)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct FaqCacheEntry {
@@ -40,7 +95,7 @@ pub async fn update_faq_cache(
     match cache.write() {
         Ok(mut c) => {*c = records},
         Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            return Err(FaqError::CacheError(e.to_string()))?
         },
     };
     Ok(())
@@ -149,7 +204,7 @@ fn create_faq_embed(name: &str, faq_entry: BasicFaqEntry, close_match: bool) -> 
     CreateReply::default().embed(embed)
 }
 
-async fn resolve_faq_name(db: &Pool<Sqlite>, ctx: Context<'_>, server_id: i64, name: &str) -> Result<(BasicFaqEntry, bool), Error> {
+async fn resolve_faq_name(db: &Pool<Sqlite>, ctx: Context<'_>, server_id: i64, name: &str) -> Result<(BasicFaqEntry, bool), FaqError> {
     // Find entry matching given `name`
     let entry_option = database::find_faq_entry_opt(db, server_id, name).await?;
 
@@ -163,10 +218,7 @@ async fn resolve_faq_name(db: &Pool<Sqlite>, ctx: Context<'_>, server_id: i64, n
             (get_faq_entry(db, server_id, &match_name).await?, true)
         } else {
             // If no near matches, return no results message
-            let errmsg = format!(
-                "Could not find {} or any similarly tags in FAQ tags. 
-                Would you like to search [the wiki](https://wiki.factorio.com/index.php?search={})?", name.to_owned().escape_formatting(), name.replace(' ', "%20"));
-            return Err(Box::new(CustomError::new(&errmsg)));
+            return Err(FaqError::NotFound(name.to_string()));
         }
     };
 
@@ -180,19 +232,19 @@ async fn resolve_faq_name(db: &Pool<Sqlite>, ctx: Context<'_>, server_id: i64, n
     Ok((entry_final, close_match))
 }
 
-async fn get_faq_entry(db: &Pool<Sqlite>, server_id: i64, name: &str) -> Result<BasicFaqEntry, Error> {
-    Ok(database::find_faq_entry_opt(db, server_id, name)
+async fn get_faq_entry(db: &Pool<Sqlite>, server_id: i64, name: &str) -> Result<BasicFaqEntry, FaqError> {
+    database::find_faq_entry_opt(db, server_id, name)
         .await?
-        .map_or_else(|| Err(Box::new(CustomError::new(&format!("Could not get FAQ entry {name} from database")))), Ok)?
-    )
+        .map_or_else(|| Err(FaqError::NotInDatabase(name.to_string())), Ok)
+    
 }
 
-fn find_closest_faq(ctx: Context<'_>, name: &str, server_id: i64) -> Result<Option<String>, Error> {
+fn find_closest_faq(ctx: Context<'_>, name: &str, server_id: i64) -> Result<Option<String>, FaqError> {
     let cache = ctx.data().faq_cache.clone();
     let faq_cache = match cache.read() {
         Ok(c) => c,
         Err(e) => {
-            return Err(Box::new(CustomError::new(&format!("Error acquiring cache: {e}"))));
+            return Err(FaqError::CacheError(e.to_string()));
         },
     }.clone();
     let server_faqs = faq_cache.iter().filter(|f| f.server_id == server_id).map(|f| f.title.as_str()).collect::<Vec<&str>>();
@@ -251,17 +303,15 @@ pub async fn new(
     content: Option<String>,
 ) -> Result<(), Error> {
     if name.len() > 256 {
-        return Err(Box::new(CustomError::new("FAQ title too long (must be 256 characters or shorter)")));
+        return Err(FaqError::TitleTooLong)?;
     };
     if let Some(c) = &content {
         if c.len() > 4096 {
-            return Err(Box::new(CustomError::new("FAQ body too long (must be 4096 characters or shorter)")));
+            return Err(FaqError::BodyTooLong)?;
         };
     };
     let name_lc = name.capitalize();
-    let Some(server) = ctx.guild_id() else {
-        return Err(Box::new(CustomError::new("Could not get server ID")))
-    };
+    let server = ctx.guild_id().ok_or_else(|| FaqError::ServerNotFound)?;
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
 
@@ -310,7 +360,7 @@ pub async fn new(
     Ok(())
 }
 
-async fn get_attachment_url<'a>(attachment: Option<serenity::Attachment>, ctx: Context<'a>, name: &str) -> Result<(Option<String>, Option<ReplyHandle<'a>>), Error> {
+async fn get_attachment_url<'a>(attachment: Option<serenity::Attachment>, ctx: Context<'a>, name: &str) -> Result<(Option<String>, Option<ReplyHandle<'a>>), FaqError> {
     // If image attached, re-upload image to generate a non-ephemeral link for storage
     let Some(image) = attachment else {return Ok((None, None))};
 
@@ -329,10 +379,10 @@ async fn get_attachment_url<'a>(attachment: Option<serenity::Attachment>, ctx: C
     let message = reply.message().await?;
     
     let Some(message_embed) = message.embeds.first() else {
-        return Err(Box::new(CustomError::new("Could not create FAQ entry: embed not found")))
+        return Err(FaqError::EmbedNotFound)?
     };
     let Some(ref embed_image) = message_embed.image else {
-        return Err(Box::new(CustomError::new("Could not create FAQ entry: image not found in embed")))
+        return Err(FaqError::EmbedContainsNoImage)?
     };
     Ok((Some(embed_image.url.clone()), Some(reply.clone())))
 }
@@ -347,9 +397,7 @@ pub async fn remove(
     name: String
 ) -> Result<(), Error> {
     let name_lc = name.capitalize();
-    let Some(server) = ctx.guild_id() else {
-        return Err(Box::new(CustomError::new("Could not get server ID")))
-    };
+    let server = ctx.guild_id().ok_or_else(|| FaqError::ServerNotFound)?;
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
     match database::delete_faq_entry(db, server_id, &name_lc).await? {
@@ -376,9 +424,7 @@ pub async fn link(
 ) -> Result<(), Error> {
     let name_lc = name.capitalize();
     let link_to_lc = link_to.capitalize();
-    let Some(server) = ctx.guild_id() else {
-        return Err(Box::new(CustomError::new("Could not get server ID")))
-    };
+    let server = ctx.guild_id().ok_or_else(|| FaqError::ServerNotFound)?;
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
 
@@ -387,7 +433,7 @@ pub async fn link(
         .await?
         .is_some() 
     {
-        return Err(Box::new(CustomError::new(&format!("Error: An faq entry with title {name_lc} already exists"))));
+        return Err(FaqError::AlreadyExists(name_lc))?;
     };
     
     let timestamp = ctx.created_at().timestamp();
@@ -442,10 +488,8 @@ pub async fn drop_faqs(
         return Ok(());
     };
 
-    let Some(owner) = ctx.http().get_current_application_info().await?.owner else {
-        return Err(Box::new(CustomError::new("Failed to verify if user is owner")))
-    };
-    if response.user == owner {
+
+    if checks::is_owner(ctx, response.user).await? {
         if response.data.custom_id == "Yes" {
             let faq_str = create_faq_dump(server_id, db).await?;
             let faq_file = serenity::CreateAttachment::bytes(faq_str, format!("FAQ_dump_{}_{}.json", server_id, ctx.created_at().timestamp()));
@@ -466,7 +510,7 @@ pub async fn drop_faqs(
             confirmation.edit(ctx, new_message).await?;
         }
     } else {
-        return Err(Box::new(CustomError::new("This command can only be used by the bot owner")))
+        return Err(FaqError::NotOwner)?
     }
     
     Ok(())
@@ -511,7 +555,6 @@ pub async fn import_faqs(
     faq_json: serenity::Attachment,
 ) -> Result<(), Error> {
     let server_id = management::get_server_id(ctx)?;
-    // let timestamp = ctx.created_at().timestamp();
     let content = faq_json.download().await?;
     let file_str = std::str::from_utf8(&content)?;
     let faqs: Vec<BasicFaqEntry> = serde_json::from_str(file_str)?;

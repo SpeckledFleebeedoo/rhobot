@@ -1,12 +1,31 @@
 use sqlx::{Pool, Sqlite};
 use std::collections::HashMap;
+use std::{error, fmt};
 
-use crate::Error;
 use crate::faq_commands::{BasicFaqEntry, FaqCacheEntry};
 use crate::mods::update_notifications::{ModCacheEntry, SubCacheEntry, SubscriptionType};
 
+#[allow(clippy::module_name_repetitions)]
+#[derive(Debug)]
+pub struct DatabaseError{
+    pub err: sqlx::Error,
+}
 
-pub async fn clear_server_data(server_id: i64, db: &Pool<Sqlite>) -> Result<(), Error> {
+impl fmt::Display for DatabaseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Database error: {}", self.err)
+    }
+}
+
+impl error::Error for DatabaseError {}
+
+impl From<sqlx::Error> for DatabaseError {
+    fn from (e: sqlx::Error) -> Self {
+        Self{err: e}
+    }
+}
+
+pub async fn clear_server_data(server_id: i64, db: &Pool<Sqlite>) -> Result<(), DatabaseError> {
     sqlx::query!(r#"DELETE FROM servers WHERE server_id = $1"#, server_id)
         .execute(db)
         .await?;
@@ -22,7 +41,7 @@ pub async fn clear_server_data(server_id: i64, db: &Pool<Sqlite>) -> Result<(), 
     Ok(())
 }
 
-pub async fn get_server_faqs(server_id: i64, db: &Pool<Sqlite>) -> Result<HashMap<String, Vec<String>>, Error> {
+pub async fn get_server_faqs(server_id: i64, db: &Pool<Sqlite>) -> Result<HashMap<String, Vec<String>>, DatabaseError> {
     let db_entries = sqlx::query!(r#"SELECT title, link FROM faq WHERE server_id = $1"#, server_id)
         .fetch_all(db)
         .await?;
@@ -46,28 +65,28 @@ pub async fn get_server_faqs(server_id: i64, db: &Pool<Sqlite>) -> Result<HashMa
     Ok(faq_map)
 }
 
-pub async fn get_faq_titles(db: &Pool<Sqlite>,) -> Result<Vec<FaqCacheEntry>, Error> {
+pub async fn get_faq_titles(db: &Pool<Sqlite>,) -> Result<Vec<FaqCacheEntry>, DatabaseError> {
     let records = sqlx::query_as!(FaqCacheEntry, r#"SELECT server_id, title FROM faq"#)
         .fetch_all(db)
         .await?;
     Ok(records)
 }
 
-pub async fn get_server_faq_dump(db: &Pool<Sqlite>, server_id: i64) -> Result<Vec<BasicFaqEntry>, Error> {
+pub async fn get_server_faq_dump(db: &Pool<Sqlite>, server_id: i64) -> Result<Vec<BasicFaqEntry>, DatabaseError> {
     let server_faqs = sqlx::query_as!(BasicFaqEntry, r#"SELECT title, contents, image, link FROM faq WHERE server_id = $1"#, server_id)
         .fetch_all(db)
         .await?;
     Ok(server_faqs)
 }
 
-pub async fn delete_faq_entry(db: &Pool<Sqlite>, server_id: i64, name: &str) -> Result<u64, Error> {
+pub async fn delete_faq_entry(db: &Pool<Sqlite>, server_id: i64, name: &str) -> Result<u64, DatabaseError> {
     Ok(sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1 AND title = $2"#, server_id, name)
         .execute(db)
         .await?
         .rows_affected())
 }
 
-pub async fn clear_server_faq(db: &Pool<Sqlite>, server_id: i64) -> Result<(), Error> {
+pub async fn clear_server_faq(db: &Pool<Sqlite>, server_id: i64) -> Result<(), DatabaseError> {
     sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1"#, server_id)
         .execute(db)
         .await?;
@@ -87,7 +106,7 @@ pub struct DBFaqEntry<'a> {
 pub async fn add_faq_entry<'a>(
     db: &Pool<Sqlite>, 
     faq_entry: DBFaqEntry<'a>,
-) -> Result<(), Error> {
+) -> Result<(), DatabaseError> {
     sqlx::query!(
         r#"INSERT INTO faq (server_id, title, contents, image, edit_time, author, link)
         VALUES (?, ?, ?, ?, ?, ?, ?)"#,
@@ -104,14 +123,14 @@ pub async fn add_faq_entry<'a>(
     Ok(())
 }
 
-pub async fn find_faq_entry_opt(db: &Pool<Sqlite>, server_id: i64, name: &str) -> Result<Option<BasicFaqEntry>, Error> {
+pub async fn find_faq_entry_opt(db: &Pool<Sqlite>, server_id: i64, name: &str) -> Result<Option<BasicFaqEntry>, DatabaseError> {
     Ok(sqlx::query_as!(BasicFaqEntry, 
         r#"SELECT title, contents, image, link FROM faq WHERE server_id = $1 AND title = $2"#, server_id, name)
         .fetch_optional(db)
         .await?)
 }
 
-pub async fn get_modrole(db: &Pool<Sqlite>, server_id: i64) -> Result<Option<i64>, Error> {
+pub async fn get_modrole(db: &Pool<Sqlite>, server_id: i64) -> Result<Option<i64>, DatabaseError> {
     let role = sqlx::query!(r#"SELECT modrole FROM servers WHERE server_id = $1"#, server_id)
         .fetch_one(db)
         .await?
@@ -126,21 +145,21 @@ pub struct DBServerInfo {
     pub show_changelog: Option<bool>,
 }
 
-pub async fn get_server_info(db: &Pool<Sqlite>, server_id: i64) -> Result<Option<DBServerInfo>, Error> {
+pub async fn get_server_info(db: &Pool<Sqlite>, server_id: i64) -> Result<Option<DBServerInfo>, DatabaseError> {
     let serverdata = sqlx::query_as!(DBServerInfo, r#"SELECT * FROM servers WHERE server_id = $1"#, server_id)
         .fetch_optional(db)
         .await?;
     Ok(serverdata)
 }
 
-pub async fn get_all_servers(db: &Pool<Sqlite>) -> Result<Vec<DBServerInfo>, Error> {
+pub async fn get_all_servers(db: &Pool<Sqlite>) -> Result<Vec<DBServerInfo>, DatabaseError> {
     let server_data = sqlx::query_as!(DBServerInfo, r#"SELECT * FROM servers"#)
         .fetch_all(db)
         .await?;
     Ok(server_data)
 }
 
-pub async fn get_subscribed_mods(db: &Pool<Sqlite>, server_id: i64) -> Result<Vec<String>, Error> {
+pub async fn get_subscribed_mods(db: &Pool<Sqlite>, server_id: i64) -> Result<Vec<String>, DatabaseError> {
     let subscribed_mods = sqlx::query!(r#"SELECT mod_name FROM subscribed_mods WHERE server_id = $1"#, server_id)
         .fetch_all(db)
         .await?
@@ -150,7 +169,7 @@ pub async fn get_subscribed_mods(db: &Pool<Sqlite>, server_id: i64) -> Result<Ve
     Ok(subscribed_mods)
 }
 
-pub async fn get_subscribed_authors(db: &Pool<Sqlite>, server_id: i64) -> Result<Vec<String>, Error> {
+pub async fn get_subscribed_authors(db: &Pool<Sqlite>, server_id: i64) -> Result<Vec<String>, DatabaseError> {
     let subscribed_authors = sqlx::query!(r#"SELECT author_name FROM subscribed_authors WHERE server_id = $1"#, server_id)
         .fetch_all(db)
         .await?
@@ -160,7 +179,7 @@ pub async fn get_subscribed_authors(db: &Pool<Sqlite>, server_id: i64) -> Result
     Ok(subscribed_authors)
 }
 
-pub async fn store_updates_channel(db: &Pool<Sqlite>, server_id: i64, channel_id: i64) -> Result<(), Error> {
+pub async fn store_updates_channel(db: &Pool<Sqlite>, server_id: i64, channel_id: i64) -> Result<(), DatabaseError> {
     if (sqlx::query!(r#"SELECT * FROM servers WHERE server_id = $1"#, server_id)
         .fetch_optional(db)
         .await?).is_some() {
@@ -179,7 +198,7 @@ pub async fn store_updates_channel(db: &Pool<Sqlite>, server_id: i64, channel_id
     Ok(())
 }
 
-pub async fn store_modrole(db: &Pool<Sqlite>, server_id: i64, role_id: i64) -> Result<(), Error> {
+pub async fn store_modrole(db: &Pool<Sqlite>, server_id: i64, role_id: i64) -> Result<(), DatabaseError> {
     if (sqlx::query!(r#"SELECT * FROM servers WHERE server_id = $1"#, server_id)
         .fetch_optional(db)
         .await?).is_some() {
@@ -198,7 +217,7 @@ pub async fn store_modrole(db: &Pool<Sqlite>, server_id: i64, role_id: i64) -> R
     Ok(())
 }
 
-pub async fn store_changelog_setting(db: &Pool<Sqlite>, server_id: i64, show_changelogs: bool) -> Result<(), Error> {
+pub async fn store_changelog_setting(db: &Pool<Sqlite>, server_id: i64, show_changelogs: bool) -> Result<(), DatabaseError> {
     match sqlx::query!(r#"SELECT server_id FROM servers WHERE server_id = $1"#, server_id)
             .fetch_optional(db)
             .await? {
@@ -220,73 +239,35 @@ pub async fn store_changelog_setting(db: &Pool<Sqlite>, server_id: i64, show_cha
     Ok(())
 }
 
-pub async fn add_mod_subscription(db: &Pool<Sqlite>, server_id: i64, modname: &str) -> Result<(), Error> {
+pub async fn add_mod_subscription(db: &Pool<Sqlite>, server_id: i64, modname: &str) -> Result<(), DatabaseError> {
     sqlx::query!(r#"INSERT OR REPLACE INTO subscribed_mods (server_id, mod_name) VALUES ($1, $2)"#, server_id, modname)
         .execute(db)
         .await?;
     Ok(())
 }
 
-pub async fn remove_mod_subscription(db: &Pool<Sqlite>, server_id: i64, modname: &str) -> Result<(), Error> {
+pub async fn remove_mod_subscription(db: &Pool<Sqlite>, server_id: i64, modname: &str) -> Result<(), DatabaseError> {
     sqlx::query!(r#"DELETE FROM subscribed_mods WHERE server_id = $1 AND mod_name = $2"#, server_id, modname)
         .execute(db)
         .await?;
     Ok(())
 }
 
-pub async fn add_author_subscription(db: &Pool<Sqlite>, server_id: i64, author: &str) -> Result<(), Error> {
+pub async fn add_author_subscription(db: &Pool<Sqlite>, server_id: i64, author: &str) -> Result<(), DatabaseError> {
     sqlx::query!(r#"INSERT OR REPLACE INTO subscribed_authors (server_id, author_name) VALUES ($1, $2)"#, server_id, author)
         .execute(db)
         .await?;
     Ok(())
 }
 
-pub async fn remove_author_subscription(db: &Pool<Sqlite>, server_id: i64, author: &str) -> Result<(), Error> {
+pub async fn remove_author_subscription(db: &Pool<Sqlite>, server_id: i64, author: &str) -> Result<(), DatabaseError> {
     sqlx::query!(r#"DELETE FROM subscribed_authors WHERE server_id = $1 AND author_name = $2"#, server_id, author)
         .execute(db)
         .await?;
     Ok(())
 }
 
-// pub async fn get_mod_data(db: &Pool<Sqlite>, modname: &str) -> Result<search_api::FoundMod, Error> {
-//     let Ok(mod_data) = sqlx::query!(r#"SELECT * FROM mods WHERE name = $1"#, modname)
-//         .fetch_one(db)
-//         .await else {
-//                 return Err(Box::new(CustomError::new( &format!("Failed to find mod {modname} in database"))));
-//     };
-
-//     let r = search_api::FoundMod{
-//         downloads_count: mod_data.downloads_count,
-//         name: mod_data.name.clone(),
-//         owner: mod_data.owner,
-//         summary: mod_data.summary.unwrap_or_default(),
-//         thumbnail: update_notifications::get_mod_thumbnail(&mod_data.name).await.unwrap_or_else(|_| "https://assets-mod.factorio.com/assets/.thumb.png".to_owned()),
-//         title: mod_data.title.unwrap_or_else(|| mod_data.name.clone()),
-//         factorio_version: mod_data.factorio_version.unwrap_or_default(),
-//     };
-//     Ok(r)
-// }
-
-// pub async fn update_download_count(db: &Pool<Sqlite>, found_mod: &search_api::FoundMod, up_to_date: bool) -> Result<(), Error> {
-//     let Ok(db_data) = sqlx::query!(r#"SELECT last_data_update FROM mods WHERE name = $1"#, found_mod.name)
-//         .fetch_one(db)
-//         .await else {
-//             return Err(Box::new(CustomError::new( &format!("Failed to find mod {} in database", found_mod.name))));
-//     };
-//     if !up_to_date {
-//         //call API to get current download count
-//     }
-
-//     let now = chrono::Utc::now().timestamp();
-//     if now - db_data.last_data_update > 432_000 { // 5 days
-//         sqlx::query!(r#"UPDATE mods SET downloads_count = $1, last_data_update = $2  WHERE name = $3"#, found_mod.downloads_count, now, found_mod.name)
-//         .execute(db)
-//         .await?;
-//     };
-//     Ok(())
-// }
-
-pub async fn get_last_mod_update_time(db: &Pool<Sqlite>, modname: &str) -> Result<Option<i64>, Error> {
+pub async fn get_last_mod_update_time(db: &Pool<Sqlite>, modname: &str) -> Result<Option<i64>, DatabaseError> {
     let record = sqlx::query!(r#"SELECT released_at FROM mods WHERE name = $1"#, modname)
         .fetch_optional(db)
         .await?;
@@ -305,7 +286,7 @@ pub struct DBModEntry<'a> {
     pub released_at: i64,
 }
 
-pub async fn store_mod_data<'a>(db: &Pool<Sqlite>, mod_details: DBModEntry<'a>) -> Result<(), Error> {
+pub async fn store_mod_data<'a>(db: &Pool<Sqlite>, mod_details: DBModEntry<'a>) -> Result<(), DatabaseError> {
     sqlx::query!(r#"INSERT OR REPLACE INTO mods 
         (name, title, owner, summary, category, downloads_count, factorio_version, version, released_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"#, 
@@ -325,14 +306,14 @@ pub async fn store_mod_data<'a>(db: &Pool<Sqlite>, mod_details: DBModEntry<'a>) 
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-pub async fn get_mod_count(db: &Pool<Sqlite>) -> Result<i32, Error> {
+pub async fn get_mod_count(db: &Pool<Sqlite>) -> Result<i32, DatabaseError> {
     let record = sqlx::query!(r#"SELECT name FROM mods"#)
         .fetch_all(db)
         .await?;
     Ok(record.len() as i32)
 }
 
-pub async fn create_mods_cache(db: &Pool<Sqlite>) -> Result<Vec<ModCacheEntry>, Error> {
+pub async fn create_mods_cache(db: &Pool<Sqlite>) -> Result<Vec<ModCacheEntry>, DatabaseError> {
     let mod_cache = sqlx::query!(r#"
         SELECT name, title, owner, downloads_count, factorio_version 
         FROM mods 
@@ -355,7 +336,7 @@ pub async fn create_mods_cache(db: &Pool<Sqlite>) -> Result<Vec<ModCacheEntry>, 
     Ok(mod_cache)
 }
 
-pub async fn create_subscriptions_cache(db: &Pool<Sqlite>) -> Result<Vec<SubCacheEntry>, Error> {
+pub async fn create_subscriptions_cache(db: &Pool<Sqlite>) -> Result<Vec<SubCacheEntry>, DatabaseError> {
     let mod_records = sqlx::query!(r#"SELECT * FROM subscribed_mods"#)
         .fetch_all(db)
         .await?
@@ -382,7 +363,7 @@ pub async fn create_subscriptions_cache(db: &Pool<Sqlite>) -> Result<Vec<SubCach
     Ok(mod_records)
 }
 
-pub async fn create_mod_author_cache(db: &Pool<Sqlite>) -> Result<Vec<String>, Error> {
+pub async fn create_mod_author_cache(db: &Pool<Sqlite>) -> Result<Vec<String>, DatabaseError> {
     let mut author_records = sqlx::query!(r#"SELECT owner FROM mods"#)
         .fetch_all(db)
         .await?

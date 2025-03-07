@@ -400,13 +400,13 @@ pub async fn update_api_cache(
 }
 
 pub async fn get_runtime_api() -> Result<ApiResponse, Error> {
-    let response = reqwest::get("https://lua-api.factorio.com/latest/runtime-api.json").await?;
+    let response = reqwest::get("https://lua-api.factorio.com/latest/runtime-api.json").await.map_err(ApiError::from)?;
 
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(ApiError::BadStatusCode(response.status().to_string()))?
     };
-    Ok(response.json::<ApiResponse>().await?)
+    Ok(response.json::<ApiResponse>().await.map_err(ApiError::from)?)
 }
 
 /// Link a runtime modding API class.

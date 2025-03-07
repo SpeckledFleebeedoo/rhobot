@@ -22,7 +22,7 @@ struct SearchApiResponse {
 }
 
 #[allow(dead_code)]
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, Default)]
 pub struct FoundMod {
     pub downloads_count: i64,
     pub name: String,
@@ -81,7 +81,6 @@ pub async fn find_mod(name: &str, credentials: &ModPortalCredentials) -> Result<
         reqwest::StatusCode::OK => (),
         _ => return Err(ModError::BadStatusCode(response.status().to_string())),
     };
-    
     let found_mod_details = response.json::<SearchApiResponse>().await?;
 
     let mut mod_entry = found_mod_details.results.first()

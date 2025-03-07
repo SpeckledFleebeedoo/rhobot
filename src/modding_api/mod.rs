@@ -1,7 +1,7 @@
 pub mod data;
 pub mod runtime;
 pub mod lua;
-mod error;
+pub mod error;
 mod lua_constants;
 
 use data::{api_prototype, api_type};
@@ -54,6 +54,8 @@ enum ApiPage{
     NoiseExpressions,
     #[name = "Instrument Mode"]
     InstrumentMode,
+    #[name = "Item Weight"]
+    ItemWeight,
 }
 
 /// Link a page in the auxillary API docs
@@ -80,6 +82,7 @@ pub async fn api_page (
         ApiPage::PrototypeTree => ("Prototype Inheritance Tree", "https://lua-api.factorio.com/latest/tree.html"),
         ApiPage::NoiseExpressions => ("Noise Expressions", "https://lua-api.factorio.com/latest/auxiliary/noise-expressions.html"),
         ApiPage::InstrumentMode => ("Instrument Mode", "https://lua-api.factorio.com/latest/auxiliary/instrument.html"),
+        ApiPage::ItemWeight => ("Item Weight", "https://lua-api.factorio.com/latest/auxiliary/item-weight.html"),
     };
     
     let embed = serenity::CreateEmbed::new()

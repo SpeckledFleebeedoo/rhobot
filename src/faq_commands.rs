@@ -19,10 +19,13 @@ use crate::{
 };
 
 #[derive(Debug)]
-enum FaqError{
+pub enum FaqError{
     CacheError(String),
     DatabaseError(database::DatabaseError),
+    ManagementError(management::ManagementError),
     SerenityError(serenity::Error),
+    SerdeError(serde_json::Error),
+    UTF8Error(std::str::Utf8Error),
     NotFound(String),
     NotInDatabase(String),
     ServerNotFound,
@@ -39,12 +42,12 @@ impl fmt::Display for FaqError {
         match self {
             Self::CacheError(error) => f.write_str(&format!("Error acquiring cache: {error}")),
             Self::DatabaseError(error) => f.write_str(&format!("FAQ database error: {error}")),
+            Self::ManagementError(error) => f.write_str(&format!("Management error: {error}")),
             Self::SerenityError(error) => f.write_str(&format!("Serenity error: {error}")),
             Self::NotFound(name) => {
-                        let errmsg = format!(
+                        f.write_str(&format!(
                             "Could not find {} or any similarly tags in FAQ tags. 
-                    Would you like to search [the wiki](https://wiki.factorio.com/index.php?search={})?", name.to_owned().escape_formatting(), name.replace(' ', "%20"));
-                        f.write_str(&format!("Error acquiring cache: {errmsg}"))
+                    Would you like to search [the wiki](https://wiki.factorio.com/index.php?search={})?", name.to_owned().escape_formatting(), name.replace(' ', "%20")))
                     },
             Self::NotInDatabase(name) => f.write_str(&format!("Could not get FAQ entry {name} from database")),
             Self::ServerNotFound => f.write_str("Could not retrieve server data."),
@@ -54,6 +57,8 @@ impl fmt::Display for FaqError {
             Self::EmbedContainsNoImage => f.write_str("Could not create FAQ entry: image not found in embed"),
             Self::AlreadyExists(name) => f.write_str(&format!("Error: An faq entry with title {name} already exists")),
             Self::NotOwner => f.write_str("This command can only be used by the bot owner"),
+            Self::SerdeError(error) => f.write_str(&format!("Error serializing or deserialziing: {error}")),
+            Self::UTF8Error(error) => f.write_str(&format!("Error converting UTF8 string: {error}")),
         }
     }
 }
@@ -66,9 +71,27 @@ impl From<database::DatabaseError> for FaqError {
     }
 }
 
+impl From<management::ManagementError> for FaqError {
+    fn from(value: management::ManagementError) -> Self {
+        Self::ManagementError(value)
+    }
+}
+
 impl From<serenity::Error> for FaqError {
     fn from(value: serenity::Error) -> Self {
         Self::SerenityError(value)
+    }
+}
+
+impl From<serde_json::Error> for FaqError {
+    fn from(value: serde_json::Error) -> Self {
+        Self::SerdeError(value)
+    }
+}
+
+impl From<std::str::Utf8Error> for FaqError {
+    fn from(value: std::str::Utf8Error) -> Self {
+        Self::UTF8Error(value)
     }
 }
 
@@ -90,7 +113,7 @@ pub async fn update_faq_cache(
     cache: Arc<RwLock<Vec<FaqCacheEntry>>>,
     db: &Pool<Sqlite>
 ) -> Result<(), Error> {
-    let records = database::get_faq_titles(db).await?;
+    let records = database::get_faq_titles(db).await.map_err(FaqError::from)?;
 
     match cache.write() {
         Ok(mut c) => {*c = records},
@@ -101,7 +124,7 @@ pub async fn update_faq_cache(
     Ok(())
 }
 
-pub fn faq() -> poise::Command<crate::Data, Box<dyn std::error::Error + Send + Sync>> {
+pub fn faq() -> poise::Command<crate::Data, Error> {
     poise::Command {
         slash_action: faq_slash().slash_action,
         parameters: faq_slash().parameters,
@@ -143,8 +166,8 @@ async fn list_faqs(
     ctx: Context<'_>,
 ) -> Result<(), Error> {
     let db = &ctx.data().database;
-    let server_id = management::get_server_id(ctx)?;
-    let faq_map = database::get_server_faqs(server_id, db).await?;
+    let server_id = management::get_server_id(ctx).map_err(FaqError::from)?;
+    let faq_map = database::get_server_faqs(server_id, db).await.map_err(FaqError::from)?;
 
     let mut faq_names: Vec<String> = Vec::new();
     for (key, links) in faq_map {
@@ -162,7 +185,7 @@ async fn list_faqs(
         .description(faq_names.join(", "))
         .color(color);
     let builder = CreateReply::default().embed(embed);
-    ctx.send(builder).await?;
+    ctx.send(builder).await.map_err(FaqError::from)?;
     Ok(())
 }
 
@@ -173,12 +196,12 @@ async fn faq_core(
     let command = name.split(SEPARATOR).next().unwrap_or(&name).trim();
     let name_lc = command.capitalize();
     let db = &ctx.data().database;
-    let server_id = management::get_server_id(ctx)?;
+    let server_id = management::get_server_id(ctx).map_err(FaqError::from)?;
 
     let (entry_final, close_match) = resolve_faq_name(db, ctx, server_id, &name_lc).await?;
 
     let embed = create_faq_embed(&name_lc, entry_final, close_match);
-    ctx.send(embed).await?;
+    ctx.send(embed).await.map_err(FaqError::from)?;
     Ok(())
 }
 
@@ -316,7 +339,7 @@ pub async fn new(
     let db = &ctx.data().database;
 
     // Check if name already exists
-    let pre_existing = database::find_faq_entry_opt(db, server_id, &name_lc).await?.is_some();
+    let pre_existing = database::find_faq_entry_opt(db, server_id, &name_lc).await.map_err(FaqError::from)?.is_some();
 
     // If image attached, re-upload image to generate a non-ephemeral link for storage
     let (attachment_url, reply_handle) = get_attachment_url(image, ctx, &name_lc).await?;
@@ -326,7 +349,7 @@ pub async fn new(
 
     // Delete previous entry to prevent duplication
     if pre_existing {
-        database::delete_faq_entry(db, server_id, &name_lc).await?;
+        database::delete_faq_entry(db, server_id, &name_lc).await.map_err(FaqError::from)?;
     };
     let faq_entry = DBFaqEntry {
         server_id,
@@ -337,7 +360,7 @@ pub async fn new(
         author_id,
         link: None,
     };
-    database::add_faq_entry(db, faq_entry).await?;
+    database::add_faq_entry(db, faq_entry).await.map_err(FaqError::from)?;
 
     let title = if pre_existing {format!(r#"Successfully edited "{name_lc}""#)}
         else {format!(r#"Successfully added "{name_lc}" to database"#)};
@@ -353,9 +376,9 @@ pub async fn new(
     }
     let builder = CreateReply::default().embed(embed);
     if let Some(r) = reply_handle {
-        r.edit(ctx, builder).await?;
+        r.edit(ctx, builder).await.map_err(FaqError::from)?;
     } else {
-        ctx.send(builder).await?;
+        ctx.send(builder).await.map_err(FaqError::from)?;
     }
     Ok(())
 }
@@ -400,12 +423,12 @@ pub async fn remove(
     let server = ctx.guild_id().ok_or_else(|| FaqError::ServerNotFound)?;
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
-    match database::delete_faq_entry(db, server_id, &name_lc).await? {
+    match database::delete_faq_entry(db, server_id, &name_lc).await.map_err(FaqError::from)? {
         0 => {
-            ctx.say(format!("FAQ entry {name_lc} does not exist in database")).await?;
+            ctx.say(format!("FAQ entry {name_lc} does not exist in database")).await.map_err(FaqError::from)?;
         },
         _ => {
-            ctx.say(format!("FAQ entry {name_lc} removed from database")).await?;
+            ctx.say(format!("FAQ entry {name_lc} removed from database")).await.map_err(FaqError::from)?;
         },
     };
     Ok(())
@@ -430,7 +453,7 @@ pub async fn link(
 
     // Check if name already exists
     if database::find_faq_entry_opt(db, server_id, &name_lc)
-        .await?
+        .await.map_err(FaqError::from)?
         .is_some() 
     {
         return Err(FaqError::AlreadyExists(name_lc))?;
@@ -451,8 +474,8 @@ pub async fn link(
         author_id,
         link: Some(&link_no_chain),
     };
-    database::add_faq_entry(db, faq_entry).await?;
-    ctx.say(format!("FAQ link {name_lc} added to database, linking to {link_no_chain}")).await?;
+    database::add_faq_entry(db, faq_entry).await.map_err(FaqError::from)?;
+    ctx.say(format!("FAQ link {name_lc} added to database, linking to {link_no_chain}")).await.map_err(FaqError::from)?;
     Ok(())
 }
 
@@ -463,7 +486,7 @@ pub async fn drop_faqs(
     ctx: Context<'_>,
 ) -> Result<(), Error> {
     let db = &ctx.data().database;
-    let server_id = management::get_server_id(ctx)?;
+    let server_id = management::get_server_id(ctx).map_err(FaqError::from)?;
     let button_yes = serenity::CreateButton::new("Yes").label("Yes").style(serenity::ButtonStyle::Danger);
     let button_no = serenity::CreateButton::new("No").label("No").style(serenity::ButtonStyle::Primary);
     let components = vec![serenity::CreateActionRow::Buttons(vec![button_yes, button_no])];
@@ -471,10 +494,10 @@ pub async fn drop_faqs(
         CreateReply::default()
             .content("Are you sure you want to drop the FAQ database for this server? \n**THIS ACTION CANNOT BE REVERTED**")
             .components(components)
-        ).await?;
+        ).await.map_err(FaqError::from)?;
     let confirmation_message = confirmation
         .message()
-        .await?;
+        .await.map_err(FaqError::from)?;
 
     let Some(response) = confirmation_message
         .await_component_interaction(ctx)
@@ -484,30 +507,30 @@ pub async fn drop_faqs(
         let new_message = CreateReply::default()
             .content("Timed out")
             .components(Vec::default());
-        confirmation.edit(ctx, new_message).await?;
+        confirmation.edit(ctx, new_message).await.map_err(FaqError::from)?;
         return Ok(());
     };
 
 
-    if checks::is_owner(ctx, response.user).await? {
+    if checks::is_owner(ctx, response.user).await.map_err(FaqError::from)? {
         if response.data.custom_id == "Yes" {
             let faq_str = create_faq_dump(server_id, db).await?;
             let faq_file = serenity::CreateAttachment::bytes(faq_str, format!("FAQ_dump_{}_{}.json", server_id, ctx.created_at().timestamp()));
             let builder = CreateReply::default()
                 .content("Created dump of FAQ contents:")
                 .attachment(faq_file);
-            ctx.send(builder).await?;
-            database::clear_server_faq(db, server_id).await?;
+            ctx.send(builder).await.map_err(FaqError::from)?;
+            database::clear_server_faq(db, server_id).await.map_err(FaqError::from)?;
             let new_message = CreateReply::default()
                 .content("All FAQ entries for this server deleted")
                 .components(Vec::default());
-            confirmation.edit(ctx, new_message).await?;
+            confirmation.edit(ctx, new_message).await.map_err(FaqError::from)?;
         }
         else {
             let new_message = CreateReply::default()
                 .content("No changes made")
                 .components(Vec::default());
-            confirmation.edit(ctx, new_message).await?;
+            confirmation.edit(ctx, new_message).await.map_err(FaqError::from)?;
         }
     } else {
         return Err(FaqError::NotOwner)?
@@ -517,9 +540,9 @@ pub async fn drop_faqs(
 }
 
 async fn create_faq_dump(server_id: i64, db: &Pool<Sqlite>) -> Result<String, Error> {
-    let server_faqs = database::get_server_faq_dump(db, server_id).await?;
+    let server_faqs = database::get_server_faq_dump(db, server_id).await.map_err(FaqError::from)?;
 
-    let faq_json = serde_json::to_string(&server_faqs)?;
+    let faq_json = serde_json::to_string(&server_faqs).map_err(FaqError::from)?;
 
     Ok(faq_json)
 }
@@ -530,7 +553,7 @@ pub async fn export_faqs(
     ctx: Context<'_>,
 ) -> Result<(), Error> {
     let db = &ctx.data().database;
-    let server_id = management::get_server_id(ctx)?;
+    let server_id = management::get_server_id(ctx).map_err(FaqError::from)?;
     let faq_str = create_faq_dump(server_id, db).await?;
     let faq_file = serenity::CreateAttachment::bytes(
         faq_str, format!(
@@ -542,7 +565,7 @@ pub async fn export_faqs(
     let builder = CreateReply::default()
         .content("Created dump of FAQ contents:")
         .attachment(faq_file);
-    ctx.send(builder).await?;
+    ctx.send(builder).await.map_err(FaqError::from)?;
     Ok(())
 }
 
@@ -554,10 +577,10 @@ pub async fn import_faqs(
     ctx: Context<'_>,
     faq_json: serenity::Attachment,
 ) -> Result<(), Error> {
-    let server_id = management::get_server_id(ctx)?;
-    let content = faq_json.download().await?;
-    let file_str = std::str::from_utf8(&content)?;
-    let faqs: Vec<BasicFaqEntry> = serde_json::from_str(file_str)?;
+    let server_id = management::get_server_id(ctx).map_err(FaqError::from)?;
+    let content = faq_json.download().await.map_err(FaqError::from)?;
+    let file_str = std::str::from_utf8(&content).map_err(FaqError::from)?;
+    let faqs: Vec<BasicFaqEntry> = serde_json::from_str(file_str).map_err(FaqError::from)?;
     let db = &ctx.data().database;
     let timestamp = ctx.created_at().timestamp();
     let author = ctx.author().id.get() as i64;
@@ -571,8 +594,8 @@ pub async fn import_faqs(
             author_id: author,
             link: faq.link.as_deref(),
         };
-        database::add_faq_entry(db, db_faq_entry).await?;
+        database::add_faq_entry(db, db_faq_entry).await.map_err(FaqError::from)?;
     }
-    ctx.say("Successfully imported all FAQ entries").await?;
+    ctx.say("Successfully imported all FAQ entries").await.map_err(FaqError::from)?;
     Ok(())
 }

@@ -80,7 +80,7 @@ pub async fn get_server_faq_dump(db: &Pool<Sqlite>, server_id: i64) -> Result<Ve
 }
 
 pub async fn delete_faq_entry(db: &Pool<Sqlite>, server_id: i64, name: &str) -> Result<u64, DatabaseError> {
-    Ok(sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1 AND title = $2"#, server_id, name)
+    Ok(sqlx::query!(r#"DELETE FROM faq WHERE server_id = $1 AND (title = $2 OR link = $2)"#, server_id, name)
         .execute(db)
         .await?
         .rows_affected())

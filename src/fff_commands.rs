@@ -29,7 +29,7 @@ impl FFFData {
 }
 
 #[derive(Debug)]
-enum FFFError{
+pub enum FFFError{
     SendMessageFailed(serenity::Error),
     ReqwestError(reqwest::Error),
     PageNotFound(i32),

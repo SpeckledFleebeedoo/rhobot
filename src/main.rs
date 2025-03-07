@@ -9,6 +9,7 @@ mod modding_api;
 mod wiki_commands;
 mod formatting_tools;
 mod database;
+mod error;
 
 use dashmap::DashMap;
 use tokio::time;
@@ -16,12 +17,11 @@ use log::{error, info};
 use dotenv::dotenv;
 use poise::serenity_prelude as serenity;
 use std::{
-    env::var,
-    sync::{Arc, RwLock},
-    time::Duration,
+    env::var, sync::{Arc, RwLock}, time::Duration
 };
 
 use crate::{
+    error::RhobotError,
     faq_commands::{update_faq_cache, FaqCacheEntry}, 
     mods::{
         update_notifications::{
@@ -36,7 +36,7 @@ use crate::{
 };
 
 // Types used by all command functions
-type Error = Box<dyn std::error::Error + Send + Sync>;
+type Error = RhobotError;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
 // Command separator for adding comments

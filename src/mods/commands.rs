@@ -35,7 +35,7 @@ enum AutocompleteType{
 
 /// Set the channel to send mod update messages to. Bot will not work without one.
 #[allow(clippy::cast_possible_wrap)]
-#[poise::command(prefix_command, slash_command, guild_only, check="is_mod", category="Settings")]
+#[poise::command(prefix_command, slash_command, guild_only, check="is_mod", category="Settings", rename="set_updates_channel")]
 pub async fn set_updates_channel(
     ctx: Context<'_>,
     channel: poise::serenity_prelude::GuildChannel,

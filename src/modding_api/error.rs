@@ -18,7 +18,7 @@ pub enum ApiError{
     EventNotFound(String),
     DefineNotFound(String),
     ConceptNotFound(String),
-
+    ReqwestError(reqwest::Error),
 
 }
 
@@ -39,6 +39,7 @@ impl fmt::Display for ApiError {
             Self::EventNotFound(name) => f.write_str(&format!("Could not find event `{name}` in runtime API documentation")),
             Self::DefineNotFound(name) => f.write_str(&format!("Could not find define `{name}` in runtime API documentation")),
             Self::ConceptNotFound(name) => f.write_str(&format!("Could not find concept `{name}` in runtime API documentation")),
+            Self::ReqwestError(error) => f.write_str(&format!("Request error: {error}")),
         }
     }
 }
@@ -54,5 +55,11 @@ impl From<database::DatabaseError> for ApiError {
 impl From<serenity::Error> for ApiError {
     fn from(value: serenity::Error) -> Self {
         Self::SerenityError(value)
+    }
+}
+
+impl From<reqwest::Error> for ApiError {
+    fn from(value: reqwest::Error) -> Self {
+        Self::ReqwestError(value)
     }
 }

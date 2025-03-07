@@ -351,9 +351,9 @@ pub async fn get_wiki_page(search_result: &str) -> Result<CreateEmbed, WikiError
     Ok(embed)
 }
 
-async fn autocomplete_wiki<'a>(
+async fn autocomplete_wiki(
     _ctx: Context<'_>,
-    partial: &'a str,
+    partial: &str,
 ) -> Vec<String> {
     if partial.is_empty() {
         return vec!["Main Page".to_owned()]

@@ -223,14 +223,14 @@ impl Method {
                 format!("{}{}=...", par.name, optional)
             })
             .collect::<Vec<String>>().join(", ");
-            format!(r#"{{{parameters}}}"#)
+            format!(r"{{{parameters}}}")
         } else {
             let parameters = sorted_params.into_iter().map(|par| {
                 let optional = if par.optional { "?" } else { "" };
                 format!("{}{}", par.name, optional)
             })
             .collect::<Vec<String>>().join(", ");
-            format!(r#"({parameters})"#)
+            format!(r"({parameters})")
         };
     
         let return_values = self.return_values
@@ -469,9 +469,9 @@ pub async fn api_class (
 
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_class<'a>(
+async fn autocomplete_class(
     ctx: Context<'_>,
-    partial: &'a str,
+    partial: &str,
 ) -> Vec<String>{
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read(){
@@ -488,9 +488,9 @@ async fn autocomplete_class<'a>(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_class_property<'a>(
+async fn autocomplete_class_property(
     ctx: Context<'_>,
-    partial: &'a str,
+    partial: &str,
 ) -> Vec<String>{
     let poise::Context::Application(appcontext) = ctx else {return vec![]};
     let serenity::ResolvedValue::String(classname) = appcontext.args[0].value else {return vec![]};
@@ -557,9 +557,9 @@ pub async fn api_event (
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_event<'a>(
+async fn autocomplete_event(
     ctx: Context<'_>,
-    partial: &'a str,
+    partial: &str,
 ) -> Vec<String>{
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read(){
@@ -611,9 +611,9 @@ pub async fn api_define (
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_define<'a>(
+async fn autocomplete_define(
     ctx: Context<'_>,
-    partial: &'a str,
+    partial: &str,
 ) -> Vec<String>{
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read(){
@@ -666,9 +666,9 @@ pub async fn api_concept (
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_concept<'a>(
+async fn autocomplete_concept(
     ctx: Context<'_>,
-    partial: &'a str,
+    partial: &str,
 ) -> Vec<String>{
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read(){

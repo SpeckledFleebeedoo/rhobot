@@ -293,9 +293,9 @@ pub async fn api_prototype (
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_prototype<'a>(
+async fn autocomplete_prototype(
     ctx: Context<'_>,
-    partial: &'a str,
+    partial: &str,
 ) -> Vec<String>{
     let cache = ctx.data().data_api_cache.clone();
     let api = match cache.read(){
@@ -312,9 +312,9 @@ async fn autocomplete_prototype<'a>(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_prototype_property<'a>(
+async fn autocomplete_prototype_property(
     ctx: Context<'_>,
-    partial: &'a str,
+    partial: &str,
 ) -> Vec<String>{
     let poise::Context::Application(appcontext) = ctx else {return vec![]};
     let serenity::ResolvedValue::String(prototype_name) = appcontext.args[0].value else {return vec![]};
@@ -406,9 +406,9 @@ fn make_property_embed(search_result: &TypeOrPrototype, property_name: &str, ctx
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_type<'a>(
+async fn autocomplete_type(
     ctx: Context<'_>,
-    partial: &'a str,
+    partial: &str,
 ) -> Vec<String>{
     let cache = ctx.data().data_api_cache.clone();
     let api = match cache.read(){
@@ -425,9 +425,9 @@ async fn autocomplete_type<'a>(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_type_property<'a>(
+async fn autocomplete_type_property(
     ctx: Context<'_>,
-    partial: &'a str,
+    partial: &str,
 ) -> Vec<String>{
     let poise::Context::Application(appcontext) = ctx else {return vec![]};
     let serenity::ResolvedValue::String(type_name) = appcontext.args[0].value else {return vec![]};

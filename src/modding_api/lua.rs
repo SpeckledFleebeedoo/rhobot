@@ -50,9 +50,9 @@ pub async fn chapter (
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_chapter<'a>(
+async fn autocomplete_chapter(
     _ctx: Context<'_>,
-    partial: &'a str,
+    partial: &str,
 ) -> Vec<String>{
     CHAPTERS.iter()
         .filter(|ch| {
@@ -94,9 +94,9 @@ pub async fn function (
 
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_function<'a>(
+async fn autocomplete_function(
     _ctx: Context<'_>,
-    partial: &'a str,
+    partial: &str,
 ) -> Vec<String>{
     FUNCTIONS.iter()
         .filter(|f| {

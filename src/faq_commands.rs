@@ -280,9 +280,9 @@ fn find_closest_faq(ctx: Context<'_>, name: &str, server_id: i64) -> Result<Opti
 }
 
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
-async fn autocomplete_faq<'a>(
+async fn autocomplete_faq(
     ctx: Context<'_>,
-    partial: &'a str,
+    partial: &str,
 ) -> Vec<String>{
     let Some(server) = ctx.guild_id() else {
         error!("Could not get server ID while autocompleting faq name"); 

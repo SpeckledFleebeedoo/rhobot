@@ -103,9 +103,9 @@ pub struct DBFaqEntry<'a> {
     pub link: Option<&'a str>,
 }
 
-pub async fn add_faq_entry<'a>(
+pub async fn add_faq_entry(
     db: &Pool<Sqlite>, 
-    faq_entry: DBFaqEntry<'a>,
+    faq_entry: DBFaqEntry<'_>,
 ) -> Result<(), DatabaseError> {
     sqlx::query!(
         r#"INSERT INTO faq (server_id, title, contents, image, edit_time, author, link)
@@ -286,7 +286,7 @@ pub struct DBModEntry<'a> {
     pub released_at: i64,
 }
 
-pub async fn store_mod_data<'a>(db: &Pool<Sqlite>, mod_details: DBModEntry<'a>) -> Result<(), DatabaseError> {
+pub async fn store_mod_data(db: &Pool<Sqlite>, mod_details: DBModEntry<'_>) -> Result<(), DatabaseError> {
     sqlx::query!(r#"INSERT OR REPLACE INTO mods 
         (name, title, owner, summary, category, downloads_count, factorio_version, version, released_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"#, 

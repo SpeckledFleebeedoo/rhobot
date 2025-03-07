@@ -375,9 +375,9 @@ pub async fn mod_search(modname: &str, imprecise_search: bool, data: &Data) -> R
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_modname<'a>(
+async fn autocomplete_modname(
     ctx: Context<'_>,
-    partial: &'a str,
+    partial: &str,
 ) -> Vec<AutocompleteChoice> {
     let mut listed_names: Vec<String> = Vec::new();
 

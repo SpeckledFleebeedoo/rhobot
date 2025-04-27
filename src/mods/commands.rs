@@ -293,7 +293,7 @@ pub async fn show_subscriptions(
     let subscribed_mods_vec = database::get_subscribed_mods(db, server_id)
         .await?;
     let subscribed_mods = if subscribed_mods_vec.is_empty() {
-        String::from("_None_")
+        String::from("_All_")
     } else {
         subscribed_mods_vec.join("\n")
     };
@@ -301,7 +301,7 @@ pub async fn show_subscriptions(
     let subscribed_authors_vec = database::get_subscribed_authors(db, server_id)
         .await?;
     let subscribed_authors = if subscribed_authors_vec.is_empty() {
-        String::from("_None_")
+        String::from("_All_")
     } else {
         subscribed_authors_vec.join("\n")
     };

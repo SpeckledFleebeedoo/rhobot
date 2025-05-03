@@ -16,7 +16,7 @@ pub enum ModError{
 impl fmt::Display for ModError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::ReqwestError(error) => f.write_str(&format!("Error retrieving FFF: {error}.")),
+            Self::ReqwestError(error) => f.write_str(&format!("Reqwest error: {error}.")),
             Self::ServerNotFound => f.write_str("Could not retrieve server data."),
             Self::CacheError(error) => f.write_str(&format!("Error acquiring cache: {error}")),
             Self::ModNotFound(modname) => f.write_str(&format!("Did not find any mods named {modname}")),

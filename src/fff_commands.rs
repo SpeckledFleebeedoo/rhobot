@@ -1,13 +1,9 @@
-use poise::serenity_prelude::{CreateEmbed, Colour};
 use poise::CreateReply;
+use poise::serenity_prelude::{Colour, CreateEmbed};
 use scraper::{Html, Selector};
-use std::{fmt, error};
+use std::{error, fmt};
 
-use crate::{
-    Context, 
-    Error, 
-    formatting_tools::DiscordFormat
-};
+use crate::{Context, Error, formatting_tools::DiscordFormat};
 
 #[derive(Debug)]
 struct FFFData {
@@ -29,7 +25,7 @@ impl FFFData {
 }
 
 #[derive(Debug)]
-pub enum FFFError{
+pub enum FFFError {
     SendMessageFailed(serenity::Error),
     ReqwestError(reqwest::Error),
     PageNotFound(i32),
@@ -42,7 +38,6 @@ pub enum FFFError{
     ThumbnailInvalid,
     BodyNotFound,
     BodyInvalid,
-
 }
 
 impl fmt::Display for FFFError {
@@ -50,16 +45,24 @@ impl fmt::Display for FFFError {
         match self {
             Self::ReqwestError(error) => f.write_str(&format!("Error retrieving FFF: {error}.")),
             Self::PageNotFound(number) => f.write_str(&format!("Page for FFF {number} not found.")),
-            Self::BadStatusCode(status) => f.write_str(&format!("Received HTTP status code {status} while accessing FFF website.")),
+            Self::BadStatusCode(status) => f.write_str(&format!(
+                "Received HTTP status code {status} while accessing FFF website."
+            )),
             Self::HeadNotFound => f.write_str("Failed to read FFF page: html `head` not found"),
             Self::HeadInvalid => f.write_str("Failed to read FFF page: invalid html `head`"),
             Self::TitleNotFound => f.write_str("Failed to read FFF page: could not find title"),
             Self::TitleInvalid => f.write_str("Failed to read FFF page: failed to read title"),
-            Self::ThumbnailNotFound => f.write_str("Failed to read FFF page: could not find thumbnail"),
-            Self::ThumbnailInvalid => f.write_str("Failed to read FFF page: failed to parse thumbnail url"),
+            Self::ThumbnailNotFound => {
+                f.write_str("Failed to read FFF page: could not find thumbnail")
+            }
+            Self::ThumbnailInvalid => {
+                f.write_str("Failed to read FFF page: failed to parse thumbnail url")
+            }
             Self::BodyNotFound => f.write_str("Failed to read FFF page: could not find body text"),
             Self::BodyInvalid => f.write_str("Failed to read FFF page: failed to parse body text"),
-            Self::SendMessageFailed(error) => f.write_str(&format!("Failed to send message: {error}")),
+            Self::SendMessageFailed(error) => {
+                f.write_str(&format!("Failed to send message: {error}"))
+            }
         }
     }
 }
@@ -83,7 +86,7 @@ async fn get_fff_data(number: i32) -> Result<FFFData, FFFError> {
     let response = reqwest::get(&url).await.map_err(FFFError::from)?;
     match response.status() {
         reqwest::StatusCode::OK => (),
-        reqwest::StatusCode::NOT_FOUND => {return Err(FFFError::PageNotFound(number))},
+        reqwest::StatusCode::NOT_FOUND => return Err(FFFError::PageNotFound(number)),
         _ => return Err(FFFError::BadStatusCode(response.status().to_string())),
     };
     let mut fff = FFFData::new(url);
@@ -91,23 +94,44 @@ async fn get_fff_data(number: i32) -> Result<FFFData, FFFError> {
     let document = Html::parse_document(&text);
 
     let head_selector = Selector::parse("head").map_err(|_| FFFError::HeadNotFound)?;
-    let head = document.select(&head_selector).next().ok_or_else(|| FFFError::HeadInvalid)?;
+    let head = document
+        .select(&head_selector)
+        .next()
+        .ok_or_else(|| FFFError::HeadInvalid)?;
 
-    let title_selector = Selector::parse(r#"meta[property="og:title"]"#).map_err(|_| FFFError::TitleNotFound)?;
-    let title_element = head.select(&title_selector).next().ok_or_else(|| FFFError::TitleInvalid)?;
+    let title_selector =
+        Selector::parse(r#"meta[property="og:title"]"#).map_err(|_| FFFError::TitleNotFound)?;
+    let title_element = head
+        .select(&title_selector)
+        .next()
+        .ok_or_else(|| FFFError::TitleInvalid)?;
     fff.title = title_element.value().attr("content").map(|f| {
-        f.trim_end_matches("| Factorio").to_owned().truncate_for_embed(256)
+        f.trim_end_matches("| Factorio")
+            .to_owned()
+            .truncate_for_embed(256)
     });
 
-    let image_selector = Selector::parse(r#"meta[property="og:image"#).map_err(|_| FFFError::ThumbnailNotFound)?;
-    let image_element = head.select(&image_selector).next().ok_or_else(|| FFFError::ThumbnailInvalid)?;
-    fff.image = image_element.value().attr("content").map(std::borrow::ToOwned::to_owned);
+    let image_selector =
+        Selector::parse(r#"meta[property="og:image"#).map_err(|_| FFFError::ThumbnailNotFound)?;
+    let image_element = head
+        .select(&image_selector)
+        .next()
+        .ok_or_else(|| FFFError::ThumbnailInvalid)?;
+    fff.image = image_element
+        .value()
+        .attr("content")
+        .map(std::borrow::ToOwned::to_owned);
 
-    let description_selector = Selector::parse(r#"meta[property="og:description"#).map_err(|_| FFFError::BodyNotFound)?;
-    let description_element = head.select(&description_selector).next().ok_or_else(|| FFFError::BodyInvalid)?;
-    fff.description = description_element.value().attr("content").map(|f| {
-        f.to_owned().truncate_for_embed(1000)
-    });
+    let description_selector =
+        Selector::parse(r#"meta[property="og:description"#).map_err(|_| FFFError::BodyNotFound)?;
+    let description_element = head
+        .select(&description_selector)
+        .next()
+        .ok_or_else(|| FFFError::BodyInvalid)?;
+    fff.description = description_element
+        .value()
+        .attr("content")
+        .map(|f| f.to_owned().truncate_for_embed(1000));
     Ok(fff)
 }
 
@@ -122,11 +146,14 @@ pub fn fff() -> poise::Command<crate::Data, Error> {
 }
 
 /// Link an FFF
-#[poise::command(slash_command, install_context = "Guild|User", interaction_context = "Guild|BotDm|PrivateChannel")]
+#[poise::command(
+    slash_command,
+    install_context = "Guild|User",
+    interaction_context = "Guild|BotDm|PrivateChannel"
+)]
 pub async fn fff_slash(
     ctx: Context<'_>,
-    #[description = "Number of the FFF"]
-    number: i32,
+    #[description = "Number of the FFF"] number: i32,
 ) -> Result<(), Error> {
     fff_core(ctx, number).await?;
     Ok(())
@@ -136,10 +163,8 @@ pub async fn fff_slash(
 #[poise::command(prefix_command, hide_in_help, track_edits, rename = "fff")]
 pub async fn fff_prefix(
     ctx: Context<'_>,
-    #[description = "Number of the FFF"]
-    number: Option<i32>,
-    #[rest]
-    _rest: Option<String>,
+    #[description = "Number of the FFF"] number: Option<i32>,
+    #[rest] _rest: Option<String>,
 ) -> Result<(), Error> {
     if let Some(n) = number {
         fff_core(ctx, n).await?;
@@ -149,10 +174,7 @@ pub async fn fff_prefix(
     Ok(())
 }
 
-async fn fff_core(
-    ctx: Context<'_>,
-    number: i32,
-) -> Result<(), FFFError> {
+async fn fff_core(ctx: Context<'_>, number: i32) -> Result<(), FFFError> {
     let fff_data = get_fff_data(number).await?;
     let embed = CreateEmbed::new()
         .title(fff_data.title.unwrap_or_default())
@@ -165,9 +187,7 @@ async fn fff_core(
     Ok(())
 }
 
-async fn fff_default(
-    ctx: Context<'_>,
-) -> Result<(), FFFError> {
+async fn fff_default(ctx: Context<'_>) -> Result<(), FFFError> {
     let embed = CreateEmbed::new()
         .title("Factorio Friday Facts")
         .url("https://www.factorio.com/blog")

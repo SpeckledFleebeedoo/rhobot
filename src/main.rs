@@ -1,37 +1,36 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-mod mods;
+mod database;
+mod error;
 mod events;
 mod faq_commands;
 mod fff_commands;
+mod formatting_tools;
 mod management;
 mod modding_api;
+mod mods;
 mod wiki_commands;
-mod formatting_tools;
-mod database;
-mod error;
 
 use dashmap::DashMap;
-use tokio::time;
-use log::{error, info};
 use dotenv::dotenv;
+use log::{error, info};
 use poise::serenity_prelude as serenity;
 use std::{
-    env::var, sync::{Arc, RwLock}, time::Duration
+    env::var,
+    sync::{Arc, RwLock},
+    time::Duration,
 };
+use tokio::time;
 
 use crate::{
     error::RhobotError,
-    faq_commands::{update_faq_cache, FaqCacheEntry}, 
+    faq_commands::{FaqCacheEntry, update_faq_cache},
     mods::{
+        search_api::ModPortalCredentials,
         update_notifications::{
-            update_database, 
-            update_mod_cache, 
-            update_sub_cache, 
-            update_author_cache, 
-            ModCacheEntry, 
-            SubCacheEntry},
-        search_api::ModPortalCredentials
+            ModCacheEntry, SubCacheEntry, update_author_cache, update_database, update_mod_cache,
+            update_sub_cache,
+        },
     },
 };
 
@@ -52,26 +51,27 @@ pub struct Data {
     runtime_api_cache: Arc<RwLock<modding_api::runtime::ApiResponse>>,
     data_api_cache: Arc<RwLock<modding_api::data::ApiResponse>>,
     mod_portal_credentials: Arc<ModPortalCredentials>,
-    inline_command_log: Arc<DashMap<serenity::MessageId, (serenity::ChannelId, serenity::MessageId, time::Instant)>>,
+    inline_command_log: Arc<
+        DashMap<serenity::MessageId, (serenity::ChannelId, serenity::MessageId, time::Instant)>,
+    >,
 }
-
-
 
 #[allow(clippy::too_many_lines, clippy::unreadable_literal)]
 #[tokio::main]
 async fn main() {
-
     env_logger::init();
     dotenv().ok();
 
     // Initialize sqlx database
     let db = sqlx::SqlitePool::connect(
-            &var("DATABASE_URL")
-            .expect("Database URL not found in environment variables")
-        )
+        &var("DATABASE_URL").expect("Database URL not found in environment variables"),
+    )
+    .await
+    .expect("Couldn't connect to database");
+    sqlx::migrate!("./migrations")
+        .run(&db)
         .await
-        .expect("Couldn't connect to database");
-    sqlx::migrate!("./migrations").run(&db).await.expect("Couldn't run database migrations");
+        .expect("Couldn't run database migrations");
 
     let db_clone = db.clone();
 
@@ -86,29 +86,32 @@ async fn main() {
 
     let authorname_cache = Arc::new(RwLock::new(Vec::new()));
     let authorname_cache_clone = authorname_cache.clone();
-    
-    let runtime_api: modding_api::runtime::ApiResponse = match modding_api::runtime::get_runtime_api().await {
-        Ok(a) => a,
-        Err(e) => {
-            error!("Failed to get modding runtime api: {e}");
-            return
-        },
-    };
+
+    let runtime_api: modding_api::runtime::ApiResponse =
+        match modding_api::runtime::get_runtime_api().await {
+            Ok(a) => a,
+            Err(e) => {
+                error!("Failed to get modding runtime api: {e}");
+                return;
+            }
+        };
     let runtime_api_cache = Arc::new(RwLock::new(runtime_api));
     let runtime_api_cache_clone = runtime_api_cache.clone();
 
-    let datastage_api: modding_api::data::ApiResponse = match modding_api::data::get_data_api().await {
-        Ok(a) => a,
-        Err(e) => {
-            error!("Failed to get modding data api: {e}");
-            return
-        },
-    };
+    let datastage_api: modding_api::data::ApiResponse =
+        match modding_api::data::get_data_api().await {
+            Ok(a) => a,
+            Err(e) => {
+                error!("Failed to get modding data api: {e}");
+                return;
+            }
+        };
     let data_api_cache = Arc::new(RwLock::new(datastage_api));
     let data_api_cache_clone = data_api_cache.clone();
 
     let mod_portal_credentials = {
-        let username = var("MOD_PORTAL_USERNAME").expect("Could not find mod portal username in .env file");
+        let username =
+            var("MOD_PORTAL_USERNAME").expect("Could not find mod portal username in .env file");
         let token = var("MOD_PORTAL_TOKEN").expect("Could not find mod portal token in .env file");
         Arc::new(ModPortalCredentials::new(username, token))
     };
@@ -153,7 +156,8 @@ async fn main() {
         // Every command invocation must pass this check to continue execution
         command_check: Some(|ctx| {
             Box::pin(async move {
-                if ctx.author().id == 896387132648730684 { // Bot ID
+                if ctx.author().id == 896387132648730684 {
+                    // Bot ID
                     return Ok(false);
                 }
                 Ok(true)
@@ -164,7 +168,11 @@ async fn main() {
         skip_checks_for_owners: false,
         event_handler: |ctx, event, _framework, data| {
             Box::pin(async move {
-                if let serenity::FullEvent::GuildDelete { incomplete, full: _} = event {
+                if let serenity::FullEvent::GuildDelete {
+                    incomplete,
+                    full: _,
+                } = event
+                {
                     if !incomplete.unavailable {
                         events::on_guild_leave(incomplete.id, &data.database).await?;
                     }
@@ -220,26 +228,26 @@ async fn main() {
         println!("Start initializing mod database");
         let result = update_database(&db, &http_clone, true).await;
         match result {
-            Ok(()) => info!{"Initialized mod database"},
-            Err(error) => error!("Error while initializing mod database: {error}")
+            Ok(()) => info! {"Initialized mod database"},
+            Err(error) => error!("Error while initializing mod database: {error}"),
         }
     }
-    
+
     let db_clone_2 = db.clone();
-    let mut mod_update_interval = time::interval(time::Duration::from_secs(60));    // Update every minute
+    let mut mod_update_interval = time::interval(time::Duration::from_secs(60)); // Update every minute
     tokio::spawn(async move {
         loop {
             mod_update_interval.tick().await;
             let result = update_database(&db_clone_2, &http_clone, false).await;
             match result {
-                Ok(()) => info!{"Updated mod database"},
-                Err(error) => error!("Error while updating mod database: {error}")
+                Ok(()) => info! {"Updated mod database"},
+                Err(error) => error!("Error while updating mod database: {error}"),
             }
             events::clean_inline_command_log(&inline_command_log_clone);
         }
     });
 
-    let mut cache_update_interval = time::interval(time::Duration::from_secs(5*60));    // Update every 5 minutes
+    let mut cache_update_interval = time::interval(time::Duration::from_secs(5 * 60)); // Update every 5 minutes
     tokio::spawn(async move {
         loop {
             cache_update_interval.tick().await;
@@ -260,11 +268,11 @@ async fn main() {
                 Err(error) => error!("Error while updating author name cache: {error}"),
             };
             info!("Caches updated");
-        };
+        }
     });
 
-    let mut api_update_interval = time::interval(time::Duration::from_secs(60*60*24));  // Update once per day
-    api_update_interval.tick().await;   // First tick happens instantly
+    let mut api_update_interval = time::interval(time::Duration::from_secs(60 * 60 * 24)); // Update once per day
+    api_update_interval.tick().await; // First tick happens instantly
     tokio::spawn(async move {
         loop {
             api_update_interval.tick().await;
@@ -274,9 +282,9 @@ async fn main() {
             };
             match modding_api::data::update_api_cache(data_api_cache.clone()).await {
                 Ok(()) => info!("Updated API cache"),
-                Err(error) => error!("Error whille updating data api cache: {error}")
+                Err(error) => error!("Error whille updating data api cache: {error}"),
             }
-        };
+        }
     });
 
     client.unwrap().start().await.unwrap();

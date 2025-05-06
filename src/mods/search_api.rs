@@ -1,9 +1,6 @@
-use std::collections::HashMap;
+use crate::{formatting_tools::DiscordFormat, mods::error::ModError};
 use serde::Deserialize;
-use crate::{
-    formatting_tools::DiscordFormat,
-    mods::error::ModError,
-};
+use std::collections::HashMap;
 
 pub struct ModPortalCredentials {
     username: String,
@@ -12,13 +9,13 @@ pub struct ModPortalCredentials {
 
 impl ModPortalCredentials {
     pub const fn new(username: String, token: String) -> Self {
-        Self {username, token}
+        Self { username, token }
     }
 }
 
 #[derive(Deserialize, Debug, Clone)]
 struct SearchApiResponse {
-    results: Vec<FoundMod>
+    results: Vec<FoundMod>,
 }
 
 #[allow(dead_code)]
@@ -40,22 +37,28 @@ fn default_version() -> String {
 
 impl FoundMod {
     pub fn sanitize_for_embed(&mut self) {
-        self.title = self.title
+        self.title = self
+            .title
             .clone()
             .truncate_for_embed(256)
             .escape_formatting();
-        self.summary = self.summary
+        self.summary = self
+            .summary
             .clone()
             .truncate_for_embed(4096)
             .escape_formatting();
-        self.owner = self.owner
+        self.owner = self
+            .owner
             .clone()
             .truncate_for_embed(1024)
             .escape_formatting();
     }
 }
 
-pub async fn find_mod(name: &str, credentials: &ModPortalCredentials) -> Result<FoundMod, ModError> {
+pub async fn find_mod(
+    name: &str,
+    credentials: &ModPortalCredentials,
+) -> Result<FoundMod, ModError> {
     let mut name_truncated = name.to_owned();
     name_truncated.truncate(50);
     let map = HashMap::from([
@@ -69,11 +72,12 @@ pub async fn find_mod(name: &str, credentials: &ModPortalCredentials) -> Result<
         ("page", "1"),
         ("page_size", "1"),
         ("highlight_pre_tag", ""),
-        ("highlight_post_tag", "")
+        ("highlight_post_tag", ""),
     ]);
 
     let client = reqwest::Client::new();
-    let response = client.post("https://mods.factorio.com/api/search")
+    let response = client
+        .post("https://mods.factorio.com/api/search")
         .json(&map)
         .send()
         .await?;
@@ -83,7 +87,9 @@ pub async fn find_mod(name: &str, credentials: &ModPortalCredentials) -> Result<
     };
     let found_mod_details = response.json::<SearchApiResponse>().await?;
 
-    let mut mod_entry = found_mod_details.results.first()
+    let mut mod_entry = found_mod_details
+        .results
+        .first()
         .ok_or_else(|| ModError::ModNotFound(name.to_owned()))?
         .to_owned();
     mod_entry.thumbnail = format!("https://assets-mod.factorio.com{}", mod_entry.thumbnail);

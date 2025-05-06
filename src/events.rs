@@ -1,17 +1,10 @@
-use log::{info, error};
-use poise::serenity_prelude as serenity;
+use log::{error, info};
 use poise::CreateReply;
+use poise::serenity_prelude as serenity;
 use regex::Regex;
 use sqlx::{Pool, Sqlite};
 
-use crate::{
-    wiki_commands,
-    mods::commands,
-    database,
-    Context,
-    Error,
-    Data,
-};
+use crate::{Context, Data, Error, database, mods::commands, wiki_commands};
 
 pub async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
     match error {
@@ -33,49 +26,67 @@ pub async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
 
 async fn send_custom_error_message(ctx: Context<'_>, msg: &str) -> Result<(), Error> {
     let embed = serenity::CreateEmbed::new()
-        .title(format!("Error while executing command {}:", ctx.command().name))
+        .title(format!(
+            "Error while executing command {}:",
+            ctx.command().name
+        ))
         .description(msg)
         .color(serenity::Colour::RED);
-    let builder = CreateReply::default()
-        .embed(embed);
+    let builder = CreateReply::default().embed(embed);
     ctx.send(builder).await?;
     Ok(())
 }
 
 #[allow(clippy::unnecessary_unwrap)]
-pub async fn on_message(ctx: serenity::Context, msg: &serenity::Message, data: &Data) -> Result<(), Error> {
-    if msg.author.bot {return Ok(())};
+pub async fn on_message(
+    ctx: serenity::Context,
+    msg: &serenity::Message,
+    data: &Data,
+) -> Result<(), Error> {
+    if msg.author.bot {
+        return Ok(());
+    };
     if let Some(wikisearch) = message_wiki_search(&msg.content).await? {
-        if let Some(response) = send_wiki_message(&ctx, msg, &wikisearch).await?{
-            data.inline_command_log.insert(msg.id, (msg.channel_id, response, tokio::time::Instant::now()));
+        if let Some(response) = send_wiki_message(&ctx, msg, &wikisearch).await? {
+            data.inline_command_log.insert(
+                msg.id,
+                (msg.channel_id, response, tokio::time::Instant::now()),
+            );
         }
         return Ok(());
     }
     if let Some(modsearch) = message_mod_search(&msg.content) {
         if let Some(response) = send_mod_message(&ctx, msg, data, &modsearch).await? {
-            data.inline_command_log.insert(msg.id, (msg.channel_id, response, tokio::time::Instant::now()));
+            data.inline_command_log.insert(
+                msg.id,
+                (msg.channel_id, response, tokio::time::Instant::now()),
+            );
         }
         return Ok(());
     }
     Ok(())
 }
 
-pub async fn on_message_edit(ctx: serenity::Context, msg: &serenity::MessageUpdateEvent, data: &Data) -> Result<(), Error> {
+pub async fn on_message_edit(
+    ctx: serenity::Context,
+    msg: &serenity::MessageUpdateEvent,
+    data: &Data,
+) -> Result<(), Error> {
     if !data.inline_command_log.contains_key(&msg.id) {
-        return Ok(())
+        return Ok(());
     }
     let (channel_id, message_id, _) = *data.inline_command_log.get(&msg.id).unwrap();
     let Some(message_content) = &msg.content else {
-        return Ok(())
+        return Ok(());
     };
     if let Some(wikisearch) = message_wiki_search(message_content).await? {
         update_wiki_message(&ctx, channel_id, message_id, &wikisearch).await?;
-        return Ok(())
+        return Ok(());
     };
 
     if let Some(modsearch) = message_mod_search(message_content) {
         update_mod_message(&ctx, data, channel_id, message_id, &modsearch).await?;
-        return Ok(())
+        return Ok(());
     };
 
     Ok(())
@@ -94,14 +105,25 @@ fn message_mod_search(message_content: &str) -> Option<String> {
     }
 }
 
-async fn send_mod_message(ctx: &serenity::Context, msg: &serenity::Message, data: &Data, modname: &str) -> Result<Option<serenity::MessageId>, Error> {
+async fn send_mod_message(
+    ctx: &serenity::Context,
+    msg: &serenity::Message,
+    data: &Data,
+    modname: &str,
+) -> Result<Option<serenity::MessageId>, Error> {
     let embed = commands::mod_search(modname, true, data).await?;
     let builder: serenity::CreateMessage = serenity::CreateMessage::new().embed(embed);
     let response = msg.channel_id.send_message(&ctx, builder).await?;
     Ok(Some(response.id))
 }
 
-async fn update_mod_message(ctx: &serenity::Context, data: &Data, channel_id: serenity::ChannelId, message_id: serenity::MessageId, modname: &str) -> Result<(), Error> {
+async fn update_mod_message(
+    ctx: &serenity::Context,
+    data: &Data,
+    channel_id: serenity::ChannelId,
+    message_id: serenity::MessageId,
+    modname: &str,
+) -> Result<(), Error> {
     let embed = commands::mod_search(modname, true, data).await?;
     let builder: serenity::EditMessage = serenity::EditMessage::new().embed(embed);
     channel_id.edit_message(&ctx, message_id, builder).await?;
@@ -113,32 +135,52 @@ async fn message_wiki_search(message_content: &str) -> Result<Option<String>, Er
     let wiki_regex = Regex::new(r"\[\[(.*?)\]\]").unwrap();
     let neg_wiki_regex = Regex::new(r"\`[\S\s]*?\[\[(.*?)\]\][\S\s]*?\`").unwrap();
     if neg_wiki_regex.captures(message_content).is_some() {
-        return Ok(None)
+        return Ok(None);
     }
-    let Some(wiki_captures) = wiki_regex.captures(message_content) else {return Ok(None)};
+    let Some(wiki_captures) = wiki_regex.captures(message_content) else {
+        return Ok(None);
+    };
     let wikiname = wiki_captures[1].to_owned();
     let results = wiki_commands::opensearch_mediawiki(&wikiname).await?;
     let Some(res) = results.first() else {
-        return Ok(None)
+        return Ok(None);
     };
     Ok(Some(res.clone()))
 }
 
-async fn send_wiki_message(ctx: &serenity::Context, msg: &serenity::Message, wikiname: &str) -> Result<Option<serenity::MessageId>, Error> {
+async fn send_wiki_message(
+    ctx: &serenity::Context,
+    msg: &serenity::Message,
+    wikiname: &str,
+) -> Result<Option<serenity::MessageId>, Error> {
     let embed = wiki_commands::get_wiki_page(wikiname).await?;
     let builder: serenity::CreateMessage = serenity::CreateMessage::new().embed(embed);
     let response = msg.channel_id.send_message(&ctx, builder).await?;
     Ok(Some(response.id))
 }
 
-async fn update_wiki_message(ctx: &serenity::Context, channel_id: serenity::ChannelId, message_id: serenity::MessageId, wikiname: &str) -> Result<(), Error> {
+async fn update_wiki_message(
+    ctx: &serenity::Context,
+    channel_id: serenity::ChannelId,
+    message_id: serenity::MessageId,
+    wikiname: &str,
+) -> Result<(), Error> {
     let embed = wiki_commands::get_wiki_page(wikiname).await?;
     let builder: serenity::EditMessage = serenity::EditMessage::new().embed(embed);
     channel_id.edit_message(&ctx, message_id, builder).await?;
     Ok(())
 }
 
-pub fn clean_inline_command_log(command_log: &dashmap::DashMap<serenity::MessageId, (serenity::ChannelId, serenity::MessageId, tokio::time::Instant)>) {
+pub fn clean_inline_command_log(
+    command_log: &dashmap::DashMap<
+        serenity::MessageId,
+        (
+            serenity::ChannelId,
+            serenity::MessageId,
+            tokio::time::Instant,
+        ),
+    >,
+) {
     let cutoff_time = tokio::time::Instant::now() - tokio::time::Duration::from_secs(3600);
     command_log.retain(|_, (_, _, t)| *t >= cutoff_time);
 }

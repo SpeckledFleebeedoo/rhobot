@@ -1,12 +1,9 @@
 pub mod checks;
 pub mod commands;
 
-use std::{fmt, error};
+use std::{error, fmt};
 
-use crate::{
-    Context,
-    database::DatabaseError,
-};
+use crate::{Context, database::DatabaseError};
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug)]
@@ -44,6 +41,8 @@ impl error::Error for ManagementError {}
 
 #[allow(clippy::cast_possible_wrap)]
 pub fn get_server_id(ctx: Context<'_>) -> Result<i64, ManagementError> {
-    let server = ctx.guild_id().ok_or_else(|| ManagementError::ServerNotFound)?;
+    let server = ctx
+        .guild_id()
+        .ok_or_else(|| ManagementError::ServerNotFound)?;
     Ok(server.get() as i64)
 }

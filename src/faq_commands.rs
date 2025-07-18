@@ -13,6 +13,7 @@ use crate::{
     database::DBFaqEntry,
     formatting_tools::DiscordFormat,
     management::{self, checks::is_mod},
+    wiki_commands,
 };
 
 #[derive(Debug)]
@@ -25,6 +26,7 @@ pub enum FaqError {
     UTF8Error(std::str::Utf8Error),
     NotFound(String),
     NotInDatabase(String),
+    WikiError(wiki_commands::WikiError, String),
     ServerNotFound,
     TitleTooLong,
     BodyTooLong,
@@ -47,6 +49,7 @@ impl fmt::Display for FaqError {
                     Would you like to search [the wiki](https://wiki.factorio.com/index.php?search={})?", name.to_owned().escape_formatting(), name.replace(' ', "%20")))
                     },
             Self::NotInDatabase(name) => f.write_str(&format!("Could not get FAQ entry {name} from database")),
+            Self::WikiError(error, pagename) => f.write_str(&format!("Could not find \"{pagename}\" on wiki: {error}")),
             Self::ServerNotFound => f.write_str("Could not retrieve server data."),
             Self::TitleTooLong => f.write_str("FAQ title too long (must be 256 characters or shorter)"),
             Self::BodyTooLong => f.write_str("FAQ body too long (must be 4096 characters or shorter)"),
@@ -89,6 +92,12 @@ impl From<serde_json::Error> for FaqError {
 impl From<std::str::Utf8Error> for FaqError {
     fn from(value: std::str::Utf8Error) -> Self {
         Self::UTF8Error(value)
+    }
+}
+
+impl From<wiki_commands::WikiError> for FaqError {
+    fn from(value: wiki_commands::WikiError) -> Self {
+        Self::WikiError(value, String::new())
     }
 }
 
@@ -195,7 +204,16 @@ async fn faq_core(ctx: Context<'_>, name: String) -> Result<(), Error> {
     let db = &ctx.data().database;
     let server_id = management::get_server_id(ctx).map_err(FaqError::from)?;
 
-    let (entry_final, close_match) = resolve_faq_name(db, ctx, server_id, &name_lc).await?;
+    let (entry_final, close_match) = match resolve_faq_name(db, ctx, server_id, &name_lc).await {
+        Ok(res) => res,
+        Err(FaqError::NotFound(e)) => {
+            faq_not_found(ctx, &e).await?;
+            return Ok(())
+        }
+        Err(e) => {
+            return Err(e.into())
+        }
+    };
 
     let embed = create_faq_embed(&name_lc, entry_final, close_match);
     ctx.send(embed).await.map_err(FaqError::from)?;
@@ -256,6 +274,54 @@ async fn resolve_faq_name(
         Some(entry_link) => get_faq_entry(db, server_id, &entry_link).await?,
     };
     Ok((entry_final, close_match))
+}
+
+async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError> {
+    let error_text = format!(
+        "Could not find {} or any similarly tags in FAQ tags. 
+        Would you like to search [the wiki](https://wiki.factorio.com/index.php?search={})?", faq_name.to_owned().escape_formatting(), faq_name.replace(' ', "%20"));
+    let embed = serenity::CreateEmbed::new()
+        .title("Error while executing command faq:")
+        .description(error_text)
+        .color(serenity::Colour::RED);
+    let wiki_button = serenity::CreateButton::new("wiki_search")
+        .label("Search the wiki")
+        .style(serenity::ButtonStyle::Primary);
+    let components = vec![serenity::CreateActionRow::Buttons(vec![wiki_button])];
+    let builder = CreateReply::default()
+        .embed(embed.clone())
+        .components(components);
+    let error_message_handle = ctx.send(builder).await.map_err(FaqError::from)?;
+    let error_message = error_message_handle
+        .message()
+        .await
+        .map_err(FaqError::from)?;
+    let Some(_response) = error_message
+        .await_component_interaction(ctx)
+        .timeout(Duration::from_secs(120))
+        .await
+    else {
+        let new_builder = CreateReply::default()
+            .embed(embed)
+            .components(Vec::default());
+        error_message_handle
+            .edit(ctx, new_builder)
+            .await
+            .map_err(FaqError::from)?;
+        return Ok(());
+    };
+
+    let wiki_embed = match wiki_commands::get_wiki_page(faq_name).await {
+        Ok(w) => w,
+        Err(e) => {
+            return Err(FaqError::WikiError(e, faq_name.to_string()))
+        }
+    };
+    let wiki_builder = CreateReply::default()
+        .embed(wiki_embed)
+        .components(Vec::default());
+    error_message_handle.edit(ctx, wiki_builder).await?;
+    Ok(())
 }
 
 async fn get_faq_entry(

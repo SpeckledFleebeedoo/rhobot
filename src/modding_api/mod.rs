@@ -44,6 +44,10 @@ enum ApiPage {
     Home,
     Lifecycle,
     Storage,
+    #[name="Mod structure"]
+    Structure,
+    #[name="Changelog Format"]
+    Changelog,
     Migrations,
     #[name = "Libraries and Functions"]
     Libraries,
@@ -61,6 +65,19 @@ enum ApiPage {
     InstrumentMode,
     #[name = "Item Weight"]
     ItemWeight,
+    #[name="Modding Tutorial"]
+    ModdingTutorial,
+    #[name="Scripting Tutorial"]
+    ScriptingTutorial,
+    Localisation,
+    #[name="Scenario System"]
+    ScenarioSystem,
+    #[name="Command Line Parameters"]
+    CommandLine,
+    #[name="Console Commands"]
+    Console,
+    #[name="data.raw"]
+    DataRaw
 }
 
 /// Link a page in the auxillary API docs
@@ -86,6 +103,14 @@ pub async fn api_page(
         ApiPage::Storage => (
             "Storage",
             "https://lua-api.factorio.com/latest/auxiliary/storage.html",
+        ),
+        ApiPage::Structure => (
+            "Mod Structure",
+            "https://lua-api.factorio.com/latest/auxiliary/mod-structure.html"
+        ),
+        ApiPage::Changelog => (
+            "Changelog Format",
+            "https://lua-api.factorio.com/latest/auxiliary/changelog-format.html"
         ),
         ApiPage::Migrations => (
             "Migrations",
@@ -128,6 +153,34 @@ pub async fn api_page(
         ApiPage::ItemWeight => (
             "Item Weight",
             "https://lua-api.factorio.com/latest/auxiliary/item-weight.html",
+        ),
+        ApiPage::ModdingTutorial => (
+            "Modding Tutorial",
+            "https://wiki.factorio.com/Tutorial:Modding_tutorial/Gangsir",
+        ),
+        ApiPage::ScriptingTutorial => (
+            "Scripting Tutorial",
+            "https://wiki.factorio.com/Tutorial:Scripting",
+        ),
+        ApiPage::Localisation => (
+            "Localisation",
+            "https://wiki.factorio.com/Tutorial:Localisation",
+        ),
+        ApiPage::ScenarioSystem => (
+            "Scenario System",
+            "https://wiki.factorio.com/Scenario_system",
+        ),
+        ApiPage::CommandLine => (
+            "Command Line Parameters",
+            "https://wiki.factorio.com/Command_line_parameters",
+        ),
+        ApiPage::Console => (
+            "Console Commands",
+            "https://wiki.factorio.com/Console",
+        ),
+        ApiPage::DataRaw => (
+            "data.raw",
+            "https://wiki.factorio.com/Data.raw",
         ),
     };
 

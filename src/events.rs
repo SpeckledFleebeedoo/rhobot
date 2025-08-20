@@ -89,6 +89,10 @@ pub async fn on_message_edit(
         return Ok(());
     };
 
+    // No command present in message anymore -> delete response
+    let message = channel_id.message(&ctx, message_id).await?;
+    message.delete(&ctx).await?;
+
     Ok(())
 }
 

@@ -45,7 +45,7 @@ impl fmt::Display for FaqError {
             Self::SerenityError(error) => f.write_str(&format!("Serenity error: {error}")),
             Self::NotFound(name) => {
                         f.write_str(&format!(
-                            "Could not find {} or any similarly tags in FAQ tags. 
+                            "Could not find {} or any similarly named tags in FAQ tags. 
                     Would you like to search [the wiki](https://wiki.factorio.com/index.php?search={})?", name.to_owned().escape_formatting(), name.replace(' ', "%20")))
                     },
             Self::NotInDatabase(name) => f.write_str(&format!("Could not get FAQ entry {name} from database")),

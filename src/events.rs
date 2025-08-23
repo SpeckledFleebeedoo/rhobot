@@ -14,7 +14,11 @@ pub async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
             let _ = send_custom_error_message(ctx, &format!("{error}")).await;
         }
         poise::FrameworkError::CommandCheckFailed { ctx, .. } => {
-            let _ = send_custom_error_message(ctx, "I'm sorry, Dave. I'm afraid I can't do that\ninvalid permissions").await;
+            let _ = send_custom_error_message(
+                ctx,
+                "I'm sorry, Dave. I'm afraid I can't do that\nInvalid permissions",
+            )
+            .await;
         }
         error => {
             if let Err(e) = poise::builtins::on_error(error).await {

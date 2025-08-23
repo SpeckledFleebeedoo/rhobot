@@ -208,11 +208,9 @@ async fn faq_core(ctx: Context<'_>, name: String) -> Result<(), Error> {
         Ok(res) => res,
         Err(FaqError::NotFound(e)) => {
             faq_not_found(ctx, &e).await?;
-            return Ok(())
+            return Ok(());
         }
-        Err(e) => {
-            return Err(e.into())
-        }
+        Err(e) => return Err(e.into()),
     };
 
     let embed = create_faq_embed(&name_lc, entry_final, close_match);
@@ -277,12 +275,10 @@ async fn resolve_faq_name(
 }
 
 async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError> {
-    let error_text = format!(
-        "Could not find {} or any similarly tags in FAQ tags. 
-        Would you like to search [the wiki](https://wiki.factorio.com/index.php?search={})?", faq_name.to_owned().escape_formatting(), faq_name.replace(' ', "%20"));
+    let error = FaqError::NotFound(faq_name.to_string());
     let embed = serenity::CreateEmbed::new()
         .title("Error while executing command faq:")
-        .description(error_text)
+        .description(format!("{error}"))
         .color(serenity::Colour::RED);
     let wiki_button = serenity::CreateButton::new("wiki_search")
         .label("Search the wiki")
@@ -313,9 +309,7 @@ async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError>
 
     let wiki_embed = match wiki_commands::get_wiki_page(faq_name).await {
         Ok(w) => w,
-        Err(e) => {
-            return Err(FaqError::WikiError(e, faq_name.to_string()))
-        }
+        Err(e) => return Err(FaqError::WikiError(e, faq_name.to_string())),
     };
     let wiki_builder = CreateReply::default()
         .embed(wiki_embed)

@@ -411,8 +411,6 @@ pub async fn mod_search(
 
 #[allow(clippy::unused_async)]
 async fn autocomplete_modname(ctx: Context<'_>, partial: &str) -> Vec<AutocompleteChoice> {
-    let mut listed_names: Vec<String> = Vec::new();
-
     let cache = ctx.data().mod_cache.clone();
     let modcache = match cache.read() {
         Ok(c) => c,
@@ -422,6 +420,8 @@ async fn autocomplete_modname(ctx: Context<'_>, partial: &str) -> Vec<Autocomple
         }
     }
     .clone();
+
+    let mut title_starts_with_names: Vec<String> = Vec::new();
     let mut list = modcache
         .clone()
         .into_iter()
@@ -430,7 +430,7 @@ async fn autocomplete_modname(ctx: Context<'_>, partial: &str) -> Vec<Autocomple
                 || f.author.to_lowercase().starts_with(&partial.to_lowercase())
         })
         .map(|f| {
-            listed_names.push(f.name.clone());
+            title_starts_with_names.push(f.name.clone());
             let title = f.title.truncate_for_embed(100 - 4 - f.author.len());
             AutocompleteChoice::new(
                 "[".to_owned() + &f.factorio_version + "] " + &title + " by " + &f.author,
@@ -442,13 +442,15 @@ async fn autocomplete_modname(ctx: Context<'_>, partial: &str) -> Vec<Autocomple
         return list;
     };
 
+    let mut title_contains_names: Vec<String> = Vec::new();
     let mut title_contains = modcache
         .iter()
         .filter(|f| {
-            !(listed_names.contains(&f.name))  // Exclude previously found names
+            !(title_starts_with_names.contains(&f.name))  // Exclude previously found names
             && f.title.to_lowercase().contains(&partial.to_lowercase())
         })
         .map(|f| {
+            title_contains_names.push(f.name.clone());
             let title = f.title.clone().truncate_for_embed(100 - 4 - f.author.len());
             AutocompleteChoice::new(
                 "[".to_owned() + &f.factorio_version + "] " + &title + " by " + &f.author,
@@ -464,8 +466,9 @@ async fn autocomplete_modname(ctx: Context<'_>, partial: &str) -> Vec<Autocomple
     let mut name_contains = modcache
         .iter()
         .filter(|f| {
-            !(listed_names.contains(&f.name))  // Exclude previously found names
-        && f.name.to_lowercase().contains(&partial.to_lowercase())
+            !(title_starts_with_names.contains(&f.name))
+            && !(title_contains_names.contains(&f.name))  // Exclude previously found names
+            && f.name.to_lowercase().contains(&partial.to_lowercase())
         })
         .map(|f| {
             let title = f.title.clone().truncate_for_embed(100 - 4 - f.author.len());

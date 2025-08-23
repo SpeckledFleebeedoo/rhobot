@@ -44,9 +44,9 @@ enum ApiPage {
     Home,
     Lifecycle,
     Storage,
-    #[name="Mod structure"]
+    #[name = "Mod structure"]
     Structure,
-    #[name="Changelog Format"]
+    #[name = "Changelog Format"]
     Changelog,
     Migrations,
     #[name = "Libraries and Functions"]
@@ -65,19 +65,19 @@ enum ApiPage {
     InstrumentMode,
     #[name = "Item Weight"]
     ItemWeight,
-    #[name="Modding Tutorial"]
+    #[name = "Modding Tutorial"]
     ModdingTutorial,
-    #[name="Scripting Tutorial"]
+    #[name = "Scripting Tutorial"]
     ScriptingTutorial,
     Localisation,
-    #[name="Scenario System"]
+    #[name = "Scenario System"]
     ScenarioSystem,
-    #[name="Command Line Parameters"]
+    #[name = "Command Line Parameters"]
     CommandLine,
-    #[name="Console Commands"]
+    #[name = "Console Commands"]
     Console,
-    #[name="data.raw"]
-    DataRaw
+    #[name = "data.raw"]
+    DataRaw,
 }
 
 /// Link a page in the auxillary API docs
@@ -106,11 +106,11 @@ pub async fn api_page(
         ),
         ApiPage::Structure => (
             "Mod Structure",
-            "https://lua-api.factorio.com/latest/auxiliary/mod-structure.html"
+            "https://lua-api.factorio.com/latest/auxiliary/mod-structure.html",
         ),
         ApiPage::Changelog => (
             "Changelog Format",
-            "https://lua-api.factorio.com/latest/auxiliary/changelog-format.html"
+            "https://lua-api.factorio.com/latest/auxiliary/changelog-format.html",
         ),
         ApiPage::Migrations => (
             "Migrations",
@@ -174,14 +174,8 @@ pub async fn api_page(
             "Command Line Parameters",
             "https://wiki.factorio.com/Command_line_parameters",
         ),
-        ApiPage::Console => (
-            "Console Commands",
-            "https://wiki.factorio.com/Console",
-        ),
-        ApiPage::DataRaw => (
-            "data.raw",
-            "https://wiki.factorio.com/Data.raw",
-        ),
+        ApiPage::Console => ("Console Commands", "https://wiki.factorio.com/Console"),
+        ApiPage::DataRaw => ("data.raw", "https://wiki.factorio.com/Data.raw"),
     };
 
     let embed = serenity::CreateEmbed::new()

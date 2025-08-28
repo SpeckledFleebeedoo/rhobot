@@ -33,7 +33,7 @@ impl DiscordFormat for String {
         self.chars()
             .flat_map(|c| {
                 match c {
-                    '_' | '*' | '~' => Some('\\'),
+                    '_' | '*' | '~' | '\\' => Some('\\'),
                     _ => None,
                 }
                 .into_iter()

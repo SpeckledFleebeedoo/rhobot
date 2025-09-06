@@ -294,17 +294,19 @@ async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError>
         .map_err(FaqError::from)?;
     let Some(_response) = error_message
         .await_component_interaction(ctx)
-        .timeout(Duration::from_secs(120))
+        .timeout(Duration::from_secs(5))
         .await
     else {
         let new_builder = CreateReply::default()
             .embed(embed)
             .components(Vec::default());
-        error_message_handle
+        match error_message_handle
             .edit(ctx, new_builder)
-            .await
-            .map_err(FaqError::from)?;
-        return Ok(());
+            .await {
+                // Continue without error if message no longer exists
+                Ok(()) | Err(serenity::Error::Http(_)) => return Ok(()),
+                Err(e) => return Err(e.into())
+            }
     };
 
     let wiki_embed = match wiki_commands::get_wiki_page(faq_name).await {

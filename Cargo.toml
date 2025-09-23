@@ -35,6 +35,7 @@ regex = { version = "1.11.1", features = ["std"] }
 rand = "0.8.5"
 dashmap = "6.1.0"
 url = "2.5.4"
+chrono-tz = "0.10.4"
 
 [patch.crates-io.serenity]
 git = "https://github.com/serenity-rs/serenity"

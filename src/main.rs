@@ -10,6 +10,7 @@ mod management;
 mod modding_api;
 mod mods;
 mod wiki_commands;
+mod fun_commands;
 
 use dashmap::DashMap;
 use dotenv::dotenv;
@@ -143,6 +144,7 @@ async fn main() {
             modding_api::api(),
             modding_api::lua::lua(),
             wiki_commands::wiki(),
+            fun_commands::anniversary(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("+".into()),

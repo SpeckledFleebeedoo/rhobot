@@ -274,6 +274,7 @@ async fn resolve_faq_name(
     Ok((entry_final, close_match))
 }
 
+#[allow(clippy::cast_sign_loss)]
 async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError> {
     let error = FaqError::NotFound(faq_name.to_string());
     let embed = serenity::CreateEmbed::new()
@@ -292,6 +293,7 @@ async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError>
         .message()
         .await
         .map_err(FaqError::from)?;
+    
     let Some(_response) = error_message
         .await_component_interaction(ctx)
         .timeout(Duration::from_secs(120))
@@ -361,20 +363,26 @@ async fn autocomplete_faq(ctx: Context<'_>, partial: &str) -> Vec<String> {
     };
     let server_id = server.get() as i64;
     let cache = ctx.data().faq_cache.clone();
-    let faqcache = match cache.read() {
-        Ok(c) => c,
-        Err(e) => {
-            error! {"Error acquiring cache: {e}"}
-            return vec![];
-        }
-    };
-    faqcache
-        .iter()
-        .filter(|f| {
-            f.server_id == server_id && f.title.to_lowercase().starts_with(&partial.to_lowercase())
-        })
-        .map(|f| f.title.clone())
-        .collect::<Vec<String>>()
+
+    let mut autocomplete_vec = {
+        let faqcache = match cache.read() {
+            Ok(c) => c,
+            Err(e) => {
+                error! {"Error acquiring cache: {e}"}
+                return vec![];
+            }
+        };
+        faqcache
+            .iter()
+            .filter(|f| {
+                f.server_id == server_id && f.title.to_lowercase().contains(&partial.to_lowercase())
+            })
+            .map(|f| f.title.clone())
+            .collect::<Vec<String>>()
+    }; // Drop faqcache variable early
+
+    autocomplete_vec.sort_unstable();
+    autocomplete_vec
 }
 
 /// Add, remove or link FAQ entries

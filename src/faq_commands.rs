@@ -293,7 +293,6 @@ async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError>
         .message()
         .await
         .map_err(FaqError::from)?;
-    
     let Some(_response) = error_message
         .await_component_interaction(ctx)
         .timeout(Duration::from_secs(120))

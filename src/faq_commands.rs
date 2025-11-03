@@ -298,16 +298,17 @@ async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError>
         .timeout(Duration::from_secs(120))
         .await
     else {
-        let new_builder = CreateReply::default()
-            .embed(embed)
-            .components(Vec::default());
+        let new_builder = poise::serenity_prelude::EditMessage::new().components(Vec::default());
         match error_message_handle
+            .into_message()
+            .await?
             .edit(ctx, new_builder)
-            .await {
-                // Continue without error if message no longer exists
-                Ok(()) | Err(serenity::Error::Http(_)) => return Ok(()),
-                Err(e) => return Err(e.into())
-            }
+            .await
+        {
+            // Continue without error if message no longer exists
+            Ok(()) | Err(serenity::Error::Http(_)) => return Ok(()),
+            Err(e) => return Err(e.into()),
+        }
     };
 
     let wiki_embed = match wiki_commands::get_wiki_page(faq_name).await {

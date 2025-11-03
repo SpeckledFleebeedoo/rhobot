@@ -6,11 +6,11 @@ mod events;
 mod faq_commands;
 mod fff_commands;
 mod formatting_tools;
+mod fun_commands;
 mod management;
 mod modding_api;
 mod mods;
 mod wiki_commands;
-mod fun_commands;
 
 use dashmap::DashMap;
 use dotenv::dotenv;

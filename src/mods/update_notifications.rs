@@ -263,9 +263,7 @@ async fn make_update_message(
     show_changelog: bool,
     cache_http: &Arc<serenity::all::Http>,
 ) -> Result<(), ModError> {
-    let mut url = String::new();
-    url.push_str("https://mods.factorio.com/mod/");
-    url.push_str(&updated_mod.name.replace(' ', "%20"));
+    let url = format!("https://mods.factorio.com/mod/{}", &updated_mod.name).replace(' ', "%20");
     let color = match updated_mod.state {
         ModState::Updated => Colour::from_rgb(0x58, 0x65, 0xF2),
         ModState::New => Colour::from_rgb(0x2E, 0xCC, 0x71),

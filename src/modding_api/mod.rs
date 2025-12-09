@@ -284,7 +284,7 @@ fn get_prototype_category(
         .find(|n| n == name);
     if prototype_name.is_some() {
         return Ok(ApiSection::Prototype);
-    };
+    }
     let type_name = api
         .types
         .iter()
@@ -292,7 +292,7 @@ fn get_prototype_category(
         .find(|n| n == name);
     if type_name.is_some() {
         return Ok(ApiSection::Type);
-    };
+    }
     Ok(ApiSection::default())
 }
 
@@ -305,15 +305,15 @@ fn split_inputs(main_search: &mut String, property_search: &mut Option<String>) 
         *property_search = Some(parts.1.to_string());
     }
 
-    if let Some(property) = property_search {
-        if property.contains(SEPARATOR) {
-            let parts = property.split_once(SEPARATOR).unwrap(); // Safe due to if condition before
-            let property = parts.0.trim().to_owned();
-            if property.is_empty() {
-                *property_search = None;
-            } else {
-                *property_search = Some(parts.0.trim().to_owned());
-            }
+    if let Some(property) = property_search
+        && property.contains(SEPARATOR)
+    {
+        let parts = property.split_once(SEPARATOR).unwrap(); // Safe due to if condition before
+        let property = parts.0.trim().to_owned();
+        if property.is_empty() {
+            *property_search = None;
+        } else {
+            *property_search = Some(parts.0.trim().to_owned());
         }
     }
 }

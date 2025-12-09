@@ -124,7 +124,7 @@ pub async fn update_faq_cache(
     match cache.write() {
         Ok(mut c) => *c = records,
         Err(e) => return Err(FaqError::CacheError(e.to_string()))?,
-    };
+    }
     Ok(())
 }
 
@@ -235,7 +235,7 @@ fn create_faq_embed(name: &str, faq_entry: BasicFaqEntry, close_match: bool) -> 
         .color(serenity::Colour::GOLD);
     if let Some(content) = faq_entry.contents {
         embed = embed.description(content);
-    };
+    }
 
     if let Some(img) = faq_entry.image {
         embed = embed.image(img);
@@ -421,12 +421,12 @@ pub async fn new(
 ) -> Result<(), Error> {
     if name.len() > 256 {
         return Err(FaqError::TitleTooLong)?;
-    };
-    if let Some(c) = &content {
-        if c.len() > 4096 {
-            return Err(FaqError::BodyTooLong)?;
-        };
-    };
+    }
+    if let Some(c) = &content
+        && c.len() > 4096
+    {
+        return Err(FaqError::BodyTooLong)?;
+    }
     let name_lc = name.capitalize();
     let server = ctx.guild_id().ok_or_else(|| FaqError::ServerNotFound)?;
     let server_id = server.get() as i64;
@@ -449,7 +449,7 @@ pub async fn new(
         database::delete_faq_entry(db, server_id, &name_lc)
             .await
             .map_err(FaqError::from)?;
-    };
+    }
     let faq_entry = DBFaqEntry {
         server_id,
         name: &name_lc,
@@ -547,7 +547,7 @@ pub async fn remove(
                 .await
                 .map_err(FaqError::from)?;
         }
-    };
+    }
     Ok(())
 }
 
@@ -574,7 +574,7 @@ pub async fn link(
         .is_some()
     {
         return Err(FaqError::AlreadyExists(name_lc))?;
-    };
+    }
 
     let timestamp = ctx.created_at().timestamp();
     let author_id = ctx.author().id.get() as i64;

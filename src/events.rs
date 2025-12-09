@@ -49,7 +49,7 @@ pub async fn on_message(
 ) -> Result<(), Error> {
     if msg.author.bot {
         return Ok(());
-    };
+    }
     if let Some(wikisearch) = message_wiki_search(&msg.content).await? {
         if let Some(response) = send_wiki_message(&ctx, msg, &wikisearch).await? {
             data.inline_command_log.insert(
@@ -86,12 +86,12 @@ pub async fn on_message_edit(
     if let Some(wikisearch) = message_wiki_search(message_content).await? {
         update_wiki_message(&ctx, channel_id, message_id, &wikisearch).await?;
         return Ok(());
-    };
+    }
 
     if let Some(modsearch) = message_mod_search(message_content) {
         update_mod_message(&ctx, data, channel_id, message_id, &modsearch).await?;
         return Ok(());
-    };
+    }
 
     // No command present in message anymore -> delete response
     let message = channel_id.message(&ctx, message_id).await?;

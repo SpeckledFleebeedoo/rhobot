@@ -124,7 +124,7 @@ pub async fn get_mods(page: i32, initializing: bool) -> Result<ApiResponse, ModE
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(ModError::BadStatusCode(response.status().to_string())),
-    };
+    }
     Ok(response.json::<ApiResponse>().await?)
 }
 
@@ -300,7 +300,7 @@ async fn make_update_message(
     match updates_channel.send_message(cache_http, builder).await {
         Ok(_) => {}
         Err(e) => error!("Error sending message: {e}"),
-    };
+    }
     Ok(())
 }
 
@@ -310,7 +310,7 @@ pub async fn get_mod_thumbnail(name: &String) -> Result<String, ModError> {
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(ModError::BadStatusCode(response.status().to_string())),
-    };
+    }
     let mod_info = response.json::<Mod>().await?;
     let thumbnail_url = format!(
         "https://assets-mod.factorio.com{}",
@@ -340,7 +340,7 @@ pub async fn get_mod_info(name: &str) -> Result<FullMod, ModError> {
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(ModError::BadStatusCode(response.status().to_string())),
-    };
+    }
     Ok(response.json::<FullMod>().await?)
 }
 
@@ -363,7 +363,7 @@ fn get_mod_changelog(mod_info: &FullMod) -> Vec<ModChangelogEntry> {
                 if !entry.version.is_empty() {
                     entry.categories.push(current_category.clone());
                     out.push(entry.clone());
-                };
+                }
                 current_category = ModChangelogCategory::default();
                 entry = ModChangelogEntry::default();
                 line.strip_prefix("Version: ")
@@ -378,7 +378,7 @@ fn get_mod_changelog(mod_info: &FullMod) -> Vec<ModChangelogEntry> {
             } else if line.starts_with("  ") {
                 if !current_category.name.is_empty() {
                     entry.categories.push(current_category.clone());
-                };
+                }
                 current_category = ModChangelogCategory::default();
                 line.strip_prefix("  ")
                     .unwrap()
@@ -446,7 +446,7 @@ pub async fn update_mod_cache(
     match cache.write() {
         Ok(mut c) => *c = records,
         Err(e) => return Err(ModError::CacheError(e.to_string())),
-    };
+    }
     Ok(())
 }
 
@@ -459,7 +459,7 @@ pub async fn update_sub_cache(
     match cache.write() {
         Ok(mut c) => *c = mod_records,
         Err(e) => return Err(ModError::CacheError(e.to_string())),
-    };
+    }
 
     Ok(())
 }
@@ -473,7 +473,7 @@ pub async fn update_author_cache(
     match cache.write() {
         Ok(mut c) => *c = author_records,
         Err(e) => return Err(ModError::CacheError(e.to_string())),
-    };
+    }
     Ok(())
 }
 

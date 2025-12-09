@@ -88,7 +88,7 @@ async fn get_fff_data(number: i32) -> Result<FFFData, FFFError> {
         reqwest::StatusCode::OK => (),
         reqwest::StatusCode::NOT_FOUND => return Err(FFFError::PageNotFound(number)),
         _ => return Err(FFFError::BadStatusCode(response.status().to_string())),
-    };
+    }
     let mut fff = FFFData::new(url);
     let text = response.text().await?;
     let document = Html::parse_document(&text);
@@ -170,7 +170,7 @@ pub async fn fff_prefix(
         fff_core(ctx, n).await?;
     } else {
         fff_default(ctx).await?;
-    };
+    }
     Ok(())
 }
 

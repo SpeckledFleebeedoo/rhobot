@@ -265,7 +265,7 @@ pub async fn store_updates_channel(
         )
         .execute(db)
         .await?;
-    };
+    }
     Ok(())
 }
 
@@ -296,7 +296,7 @@ pub async fn store_modrole(
         )
         .execute(db)
         .await?;
-    };
+    }
     Ok(())
 }
 
@@ -332,7 +332,7 @@ pub async fn store_changelog_setting(
             .execute(db)
             .await?;
         }
-    };
+    }
     Ok(())
 }
 

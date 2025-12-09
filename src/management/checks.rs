@@ -16,7 +16,7 @@ pub async fn is_mod(ctx: Context<'_>) -> Result<bool, Error> {
     let user_permissions = guild.user_permissions_in(channel, member);
     if user_permissions.contains(serenity::Permissions::ADMINISTRATOR) {
         return Ok(true);
-    };
+    }
     let db = &ctx.data().database;
     let server = ctx
         .guild_id()

@@ -174,10 +174,9 @@ async fn main() {
                     incomplete,
                     full: _,
                 } = event
+                    && !incomplete.unavailable
                 {
-                    if !incomplete.unavailable {
-                        events::on_guild_leave(incomplete.id, &data.database).await?;
-                    }
+                    events::on_guild_leave(incomplete.id, &data.database).await?;
                 }
                 if let serenity::FullEvent::Message { new_message } = event {
                     events::on_message(ctx.clone(), new_message, data).await?;
@@ -256,19 +255,19 @@ async fn main() {
             match update_mod_cache(mods_cache.clone(), &db).await {
                 Ok(()) => info!("Updated mod cache"),
                 Err(error) => error!("Error while updating mod cache: {error}"),
-            };
+            }
             match update_faq_cache(faq_cache.clone(), &db).await {
                 Ok(()) => info!("Updated faq cache"),
                 Err(error) => error!("Error while updating faq cache: {error}"),
-            };
+            }
             match update_sub_cache(subscription_cache.clone(), &db).await {
                 Ok(()) => info!("Updated subscription cache"),
                 Err(error) => error!("Error while updating subscription cache: {error}"),
-            };
+            }
             match update_author_cache(authorname_cache.clone(), &db).await {
                 Ok(()) => info!("Updated subscription cache"),
                 Err(error) => error!("Error while updating author name cache: {error}"),
-            };
+            }
             info!("Caches updated");
         }
     });
@@ -281,7 +280,7 @@ async fn main() {
             match modding_api::runtime::update_api_cache(runtime_api_cache.clone()).await {
                 Ok(()) => info!("Updated API cache"),
                 Err(error) => error!("Error while updating runtime api cache: {error}"),
-            };
+            }
             match modding_api::data::update_api_cache(data_api_cache.clone()).await {
                 Ok(()) => info!("Updated API cache"),
                 Err(error) => error!("Error whille updating data api cache: {error}"),

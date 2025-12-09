@@ -481,7 +481,7 @@ pub async fn get_runtime_api() -> Result<ApiResponse, Error> {
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(ApiError::BadStatusCode(response.status().to_string()))?,
-    };
+    }
     Ok(response
         .json::<ApiResponse>()
         .await
@@ -588,7 +588,7 @@ async fn autocomplete_class_property(ctx: Context<'_>, partial: &str) -> Vec<Str
     };
     if classname.is_empty() {
         return vec![];
-    };
+    }
 
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read() {
@@ -844,6 +844,6 @@ mod tests {
             Err(e) => {
                 panic!("{}", e)
             }
-        };
+        }
     }
 }

@@ -84,7 +84,7 @@ pub async fn find_mod(
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(ModError::BadStatusCode(response.status().to_string())),
-    };
+    }
     let found_mod_details = response.json::<SearchApiResponse>().await?;
 
     let mut mod_entry = found_mod_details

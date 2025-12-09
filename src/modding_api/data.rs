@@ -273,7 +273,7 @@ pub async fn update_api_cache(cache: Arc<RwLock<ApiResponse>>) -> Result<(), Err
         Err(e) => {
             return Err(ApiError::CacheError(e.to_string()))?;
         }
-    };
+    }
     Ok(())
 }
 
@@ -284,7 +284,7 @@ pub async fn get_data_api() -> Result<ApiResponse, Error> {
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(ApiError::BadStatusCode(response.status().to_string()))?,
-    };
+    }
     Ok(response
         .json::<ApiResponse>()
         .await
@@ -378,7 +378,7 @@ async fn autocomplete_prototype_property(ctx: Context<'_>, partial: &str) -> Vec
     };
     if prototype_name.is_empty() {
         return vec![];
-    };
+    }
 
     let cache = ctx.data().data_api_cache.clone();
     let api = match cache.read() {
@@ -512,7 +512,7 @@ async fn autocomplete_type_property(ctx: Context<'_>, partial: &str) -> Vec<Stri
     };
     if type_name.is_empty() {
         return vec![];
-    };
+    }
 
     let cache = ctx.data().data_api_cache.clone();
     let api = match cache.read() {
@@ -562,6 +562,6 @@ mod tests {
             Err(e) => {
                 panic!("{}", e)
             }
-        };
+        }
     }
 }

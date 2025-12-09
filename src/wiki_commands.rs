@@ -315,14 +315,14 @@ pub async fn opensearch_mediawiki(name: &str) -> Result<Vec<String>, WikiError> 
     let json: WikiData = response.json().await?;
     if json.titles.is_empty() {
         return Ok(vec![]);
-    };
+    }
 
     let mut output = Vec::new();
 
     for name in json.titles {
         if LANG_CODES.iter().any(|&langcode| name.ends_with(langcode)) {
             continue;
-        };
+        }
         output.push(name);
     }
     Ok(output)
@@ -346,7 +346,7 @@ pub async fn wiki(
     let mut command = name.split(SEPARATOR).next().unwrap_or(&name).trim();
     if command.is_empty() {
         command = "Main Page";
-    };
+    }
 
     let search_result: String = match ctx {
         poise::Context::Application(_) => command.to_owned(),

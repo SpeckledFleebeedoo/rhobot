@@ -440,7 +440,7 @@ async fn autocomplete_modname(ctx: Context<'_>, partial: &str) -> Vec<Autocomple
         .collect::<Vec<AutocompleteChoice>>();
     if list.len() >= 25 {
         return list;
-    };
+    }
 
     let mut title_contains_names: Vec<String> = Vec::new();
     let mut title_contains = modcache
@@ -461,7 +461,7 @@ async fn autocomplete_modname(ctx: Context<'_>, partial: &str) -> Vec<Autocomple
     list.append(&mut title_contains);
     if list.len() >= 25 {
         return list;
-    };
+    }
 
     let mut name_contains = modcache
         .iter()

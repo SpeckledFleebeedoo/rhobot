@@ -11,9 +11,9 @@ use crate::{Context, Error, SEPARATOR};
 
 #[derive(Debug)]
 pub enum WikiError {
-    ReqwestError(reqwest::Error),
+    ReqwestError(Box<reqwest::Error>),
     NoSearchResults(String),
-    SendMessageFailed(serenity::Error),
+    SendMessageFailed(Box<serenity::Error>),
     UrlParseError(url::ParseError),
 }
 
@@ -32,13 +32,13 @@ impl error::Error for WikiError {}
 
 impl From<serenity::Error> for WikiError {
     fn from(value: serenity::Error) -> Self {
-        Self::SendMessageFailed(value)
+        Self::SendMessageFailed(Box::new(value))
     }
 }
 
 impl From<reqwest::Error> for WikiError {
     fn from(value: reqwest::Error) -> Self {
-        Self::ReqwestError(value)
+        Self::ReqwestError(Box::new(value))
     }
 }
 
@@ -286,7 +286,13 @@ async fn get_mediawiki_page(name: &str) -> Result<Parse, WikiError> {
             ("formatversion", "2"),
         ],
     )?;
-    let response = reqwest::get(url).await?;
+    let user_agent = std::env::var("USER_AGENT").unwrap_or_else(|_| "Rhobot".to_string());
+    let client = reqwest::Client::builder()
+        .user_agent(user_agent)
+        .build()?;
+    let response = client.get(url)
+        .send()
+        .await?;
     let page: PageResponse = response.json().await?;
     Ok(page.parse)
 }
@@ -311,7 +317,13 @@ pub async fn opensearch_mediawiki(name: &str) -> Result<Vec<String>, WikiError> 
             ("formatversion", "2"),
         ],
     )?;
-    let response = reqwest::get(url).await?;
+    let user_agent = std::env::var("USER_AGENT").unwrap_or_else(|_| "Rhobot".to_string());
+    let client = reqwest::Client::builder()
+        .user_agent(user_agent)
+        .build()?;
+    let response = client.get(url)
+        .send()
+        .await?;
     let json: WikiData = response.json().await?;
     if json.titles.is_empty() {
         return Ok(vec![]);
@@ -441,7 +453,7 @@ fn get_factorio_wiki_parser_config() -> Configuration {
     })
 }
 
-pub async fn get_wiki_page(search_result: &str) -> Result<CreateEmbed, WikiError> {
+pub async fn get_wiki_page(search_result: &str, ) -> Result<CreateEmbed, WikiError> {
     let article = get_mediawiki_page(search_result).await?;
 
     let parsed_text = get_factorio_wiki_parser_config()

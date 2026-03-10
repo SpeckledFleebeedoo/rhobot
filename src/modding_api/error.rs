@@ -6,7 +6,7 @@ use std::{error, fmt};
 pub enum ApiError {
     CacheError(String),
     DatabaseError(database::DatabaseError),
-    SerenityError(serenity::Error),
+    SerenityError(Box<serenity::Error>),
     BadStatusCode(String),
     PrototypeNotFound(String),
     TypeNotFound(String),
@@ -18,7 +18,7 @@ pub enum ApiError {
     EventNotFound(String),
     DefineNotFound(String),
     ConceptNotFound(String),
-    ReqwestError(reqwest::Error),
+    ReqwestError(Box<reqwest::Error>),
 }
 
 impl fmt::Display for ApiError {
@@ -73,12 +73,12 @@ impl From<database::DatabaseError> for ApiError {
 
 impl From<serenity::Error> for ApiError {
     fn from(value: serenity::Error) -> Self {
-        Self::SerenityError(value)
+        Self::SerenityError(Box::new(value))
     }
 }
 
 impl From<reqwest::Error> for ApiError {
     fn from(value: reqwest::Error) -> Self {
-        Self::ReqwestError(value)
+        Self::ReqwestError(Box::new(value))
     }
 }

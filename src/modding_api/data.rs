@@ -278,7 +278,14 @@ pub async fn update_api_cache(cache: Arc<RwLock<ApiResponse>>) -> Result<(), Err
 }
 
 pub async fn get_data_api() -> Result<ApiResponse, Error> {
-    let response = reqwest::get("https://lua-api.factorio.com/latest/prototype-api.json")
+    let url = "https://lua-api.factorio.com/latest/prototype-api.json";
+    let user_agent = std::env::var("USER_AGENT").unwrap_or_else(|_| "Rhobot".to_string());
+    let client = reqwest::Client::builder()
+        .user_agent(user_agent)
+        .build()
+        .map_err(ApiError::from)?;
+    let response = client.get(url)
+        .send()
         .await
         .map_err(ApiError::from)?;
     match response.status() {

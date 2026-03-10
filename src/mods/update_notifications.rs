@@ -120,7 +120,13 @@ pub async fn get_mods(page: i32, initializing: bool) -> Result<ApiResponse, ModE
             "https://mods.factorio.com/api/mods?page_size=25&sort=updated_at&sort_order=desc&page={page}"
         )
     };
-    let response = reqwest::get(url).await?;
+    let user_agent = std::env::var("USER_AGENT").unwrap_or_else(|_| "Rhobot".to_string());
+    let client = reqwest::Client::builder()
+        .user_agent(user_agent)
+        .build()?;
+    let response = client.get(&url)
+        .send()
+        .await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(ModError::BadStatusCode(response.status().to_string())),
@@ -306,7 +312,13 @@ async fn make_update_message(
 
 pub async fn get_mod_thumbnail(name: &String) -> Result<String, ModError> {
     let url = format!("https://mods.factorio.com/api/mods/{name}");
-    let response = reqwest::get(url).await?;
+    let user_agent = std::env::var("USER_AGENT").unwrap_or_else(|_| "Rhobot".to_string());
+    let client = reqwest::Client::builder()
+        .user_agent(user_agent)
+        .build()?;
+    let response = client.get(&url)
+        .send()
+        .await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(ModError::BadStatusCode(response.status().to_string())),
@@ -336,7 +348,13 @@ struct ModChangelogCategory {
 
 pub async fn get_mod_info(name: &str) -> Result<FullMod, ModError> {
     let url = format!("https://mods.factorio.com/api/mods/{name}/full");
-    let response = reqwest::get(url).await?;
+    let user_agent = std::env::var("USER_AGENT").unwrap_or_else(|_| "Rhobot".to_string());
+    let client = reqwest::Client::builder()
+        .user_agent(user_agent)
+        .build()?;
+    let response = client.get(&url)
+        .send()
+        .await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(ModError::BadStatusCode(response.status().to_string())),

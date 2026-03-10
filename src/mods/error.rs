@@ -5,7 +5,7 @@ use crate::database::DatabaseError;
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug)]
 pub enum ModError {
-    ReqwestError(reqwest::Error),
+    ReqwestError(Box<reqwest::Error>),
     ServerNotFound,
     CacheError(String),
     ModNotFound(String),
@@ -34,7 +34,7 @@ impl error::Error for ModError {}
 
 impl From<reqwest::Error> for ModError {
     fn from(value: reqwest::Error) -> Self {
-        Self::ReqwestError(value)
+        Self::ReqwestError(Box::new(value))
     }
 }
 

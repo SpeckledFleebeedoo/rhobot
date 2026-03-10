@@ -43,6 +43,7 @@ type Context<'a> = poise::Context<'a, Data, Error>;
 const SEPARATOR: char = '|';
 
 // Custom user data passed to all command functions
+#[allow(clippy::struct_field_names)]
 pub struct Data {
     database: sqlx::SqlitePool,
     mod_cache: Arc<RwLock<Vec<ModCacheEntry>>>,

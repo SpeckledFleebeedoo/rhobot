@@ -10,7 +10,7 @@ use crate::{Context, database::DatabaseError};
 pub enum ManagementError {
     ServerNotFound,
     DatabaseError(DatabaseError),
-    SerenityError(serenity::Error),
+    SerenityError(Box<serenity::Error>),
     OwnerVerificationFailed,
 }
 
@@ -33,7 +33,7 @@ impl From<DatabaseError> for ManagementError {
 
 impl From<serenity::Error> for ManagementError {
     fn from(value: serenity::Error) -> Self {
-        Self::SerenityError(value)
+        Self::SerenityError(Box::new(value))
     }
 }
 

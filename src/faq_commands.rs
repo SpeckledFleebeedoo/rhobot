@@ -21,7 +21,7 @@ pub enum FaqError {
     CacheError(String),
     DatabaseError(database::DatabaseError),
     ManagementError(management::ManagementError),
-    SerenityError(serenity::Error),
+    SerenityError(Box<serenity::Error>),
     SerdeError(serde_json::Error),
     UTF8Error(std::str::Utf8Error),
     NotFound(String),
@@ -79,7 +79,7 @@ impl From<management::ManagementError> for FaqError {
 
 impl From<serenity::Error> for FaqError {
     fn from(value: serenity::Error) -> Self {
-        Self::SerenityError(value)
+        Self::SerenityError(Box::new(value))
     }
 }
 

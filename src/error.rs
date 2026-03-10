@@ -13,7 +13,7 @@ pub enum RhobotError {
     Mod(mods::error::ModError),
     Database(database::DatabaseError),
     Wiki(wiki_commands::WikiError),
-    Serenity(serenity::Error),
+    Serenity(Box<serenity::Error>),
 }
 
 impl fmt::Display for RhobotError {
@@ -126,6 +126,6 @@ impl From<wiki_commands::WikiError> for RhobotError {
 
 impl From<serenity::Error> for RhobotError {
     fn from(value: serenity::Error) -> Self {
-        Self::Serenity(value)
+        Self::Serenity(Box::new(value))
     }
 }

@@ -26,8 +26,8 @@ impl FFFData {
 
 #[derive(Debug)]
 pub enum FFFError {
-    SendMessageFailed(serenity::Error),
-    ReqwestError(reqwest::Error),
+    SendMessageFailed(Box<serenity::Error>),
+    ReqwestError(Box<reqwest::Error>),
     PageNotFound(i32),
     BadStatusCode(String),
     HeadNotFound,
@@ -71,19 +71,25 @@ impl error::Error for FFFError {}
 
 impl From<reqwest::Error> for FFFError {
     fn from(value: reqwest::Error) -> Self {
-        Self::ReqwestError(value)
+        Self::ReqwestError(Box::new(value))
     }
 }
 
 impl From<serenity::Error> for FFFError {
     fn from(value: serenity::Error) -> Self {
-        Self::SendMessageFailed(value)
+        Self::SendMessageFailed(Box::new(value))
     }
 }
 
 async fn get_fff_data(number: i32) -> Result<FFFData, FFFError> {
     let url = format!("https://www.factorio.com/blog/post/fff-{number}");
-    let response = reqwest::get(&url).await.map_err(FFFError::from)?;
+    let user_agent = std::env::var("USER_AGENT").unwrap_or_else(|_| "Rhobot".to_string());
+    let client = reqwest::Client::builder()
+        .user_agent(user_agent)
+        .build()?;
+    let response = client.get(&url)
+        .send()
+        .await.map_err(FFFError::from)?;
     match response.status() {
         reqwest::StatusCode::OK => (),
         reqwest::StatusCode::NOT_FOUND => return Err(FFFError::PageNotFound(number)),

@@ -206,7 +206,7 @@ pub struct Define {
     #[serde(flatten)]
     pub common: BasicMember,
     pub values: Option<Vec<BasicMember>>,
-    pub subkeys: Option<Vec<Define>>,
+    pub subkeys: Option<Vec<Self>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -474,7 +474,14 @@ pub async fn update_api_cache(cache: Arc<RwLock<ApiResponse>>) -> Result<(), Err
 }
 
 pub async fn get_runtime_api() -> Result<ApiResponse, Error> {
-    let response = reqwest::get("https://lua-api.factorio.com/latest/runtime-api.json")
+    let url = "https://lua-api.factorio.com/latest/runtime-api.json";
+    let user_agent = std::env::var("USER_AGENT").unwrap_or_else(|_| "Rhobot".to_string());
+    let client = reqwest::Client::builder()
+        .user_agent(user_agent)
+        .build()
+        .map_err(ApiError::from)?;
+    let response = client.get(url)
+        .send()
         .await
         .map_err(ApiError::from)?;
 

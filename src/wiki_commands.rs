@@ -340,26 +340,53 @@ pub async fn opensearch_mediawiki(name: &str) -> Result<Vec<String>, WikiError> 
     Ok(output)
 }
 
+pub fn wiki() -> poise::Command<crate::Data, Error> {
+    poise::Command {
+        slash_action: wiki_slash().slash_action,
+        parameters: wiki_slash().parameters,
+        install_context: wiki_slash().install_context,
+        interaction_context: wiki_slash().interaction_context,
+        ..wiki_prefix()
+    }
+}
+
 /// Link a wiki page. Can also be used inline with [[wiki search]].
 #[poise::command(
-    prefix_command,
     slash_command,
-    track_edits,
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
 )]
-pub async fn wiki(
+pub async fn wiki_slash(
     ctx: Context<'_>,
     #[description = "Wiki page name"]
     #[autocomplete = "autocomplete_wiki"]
-    #[rest]
     name: String,
 ) -> Result<(), Error> {
+    wiki_core(ctx, &name).await?;
+    Ok(())
+}
+
+/// Link a wiki page. Can also be used inline with [[wiki search]].
+#[poise::command(prefix_command, track_edits, rename = "wiki")]
+pub async fn wiki_prefix(
+    ctx: Context<'_>,
+    #[description = "Wiki page name"]
+    #[rest]
+    name: Option<String>,
+) -> Result<(), Error> {
+    let name = name.unwrap_or_else(|| String::from("Main Page"));
     let mut command = name.split(SEPARATOR).next().unwrap_or(&name).trim();
     if command.is_empty() {
         command = "Main Page";
     }
+    wiki_core(ctx, command).await?;
+    Ok(())
+}
 
+pub async fn wiki_core(
+    ctx: Context<'_>,
+    command: &str,
+) -> Result<(), Error> {
     let search_result: String = match ctx {
         poise::Context::Application(_) => command.to_owned(),
         poise::Context::Prefix(_) => {
@@ -464,8 +491,17 @@ pub async fn get_wiki_page(search_result: &str, ) -> Result<CreateEmbed, WikiErr
             let _ = write!(output, "{}", NodeWrap { n });
             output
         });
+    
+    let formatted_text = parsed_text.trim().replace("\n\n", "\n");
+    let (title, sections) = if formatted_text.starts_with("DISPLAYTITLE: ") {
+        let (mut title, mut body) = formatted_text.split_once('\n').unwrap();
+        title = title.strip_prefix("DISPLAYTITLE: ").unwrap();
+        body = body.trim_start_matches('\n');
+        (title.to_string(), body.split("||HEADING||").collect::<Vec<&str>>())
+    } else {
+        (article.title, formatted_text.split("||HEADING||").collect::<Vec<&str>>())
+    };
 
-    let sections = parsed_text.split("||HEADING||").collect::<Vec<&str>>();
 
     let formatted_text = match sections.len() {
         0 => String::new(),
@@ -479,10 +515,10 @@ pub async fn get_wiki_page(search_result: &str, ) -> Result<CreateEmbed, WikiErr
         }
     };
     let embed = CreateEmbed::new()
-        .title(article.title.truncate_for_embed(256))
+        .title(title.truncate_for_embed(256))
         .url(format!(
             "https://wiki.factorio.com/{}",
-            &article.title.replace(' ', "_")
+            title.replace(' ', "_")
         ))
         .description(formatted_text.truncate_for_embed(2048))
         .color(Colour::ORANGE);

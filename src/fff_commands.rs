@@ -166,7 +166,7 @@ pub async fn fff_slash(
 }
 
 /// Link an FFF
-#[poise::command(prefix_command, hide_in_help, track_edits, rename = "fff")]
+#[poise::command(prefix_command, track_edits, rename = "fff")]
 pub async fn fff_prefix(
     ctx: Context<'_>,
     #[description = "Number of the FFF"] number: Option<i32>,

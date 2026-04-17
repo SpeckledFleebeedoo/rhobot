@@ -185,6 +185,9 @@ async fn main() {
                 if let serenity::FullEvent::MessageUpdate { event, .. } = event {
                     events::on_message_edit(ctx.clone(), event, data).await?;
                 }
+                if let serenity::FullEvent::MessageDelete { channel_id, deleted_message_id, .. } = event {
+                    events::on_message_delete(ctx.clone(), channel_id, deleted_message_id, data).await?;
+                }
                 Ok(())
             })
         },

@@ -36,6 +36,7 @@ rand = "0.10"
 dashmap = "6.1.0"
 url = "2.5.8"
 chrono-tz = "0.10.4"
+pulldown-cmark = "0.13.3"
 
 [patch.crates-io.serenity]
 git = "https://github.com/serenity-rs/serenity"

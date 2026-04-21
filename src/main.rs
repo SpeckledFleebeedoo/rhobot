@@ -150,7 +150,7 @@ async fn main() {
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("+".into()),
             edit_tracker: Some(Arc::new(poise::EditTracker::for_timespan(
-                Duration::from_secs(3600),
+                Duration::from_hours(1),
             ))),
             ..Default::default()
         },
@@ -239,7 +239,7 @@ async fn main() {
     }
 
     let db_clone_2 = db.clone();
-    let mut mod_update_interval = time::interval(time::Duration::from_secs(60)); // Update every minute
+    let mut mod_update_interval = time::interval(time::Duration::from_mins(1)); // Update every minute
     tokio::spawn(async move {
         loop {
             mod_update_interval.tick().await;
@@ -252,7 +252,7 @@ async fn main() {
         }
     });
 
-    let mut cache_update_interval = time::interval(time::Duration::from_secs(5 * 60)); // Update every 5 minutes
+    let mut cache_update_interval = time::interval(time::Duration::from_mins(5)); // Update every 5 minutes
     tokio::spawn(async move {
         loop {
             cache_update_interval.tick().await;
@@ -276,7 +276,7 @@ async fn main() {
         }
     });
 
-    let mut api_update_interval = time::interval(time::Duration::from_secs(60 * 60 * 24)); // Update once per day
+    let mut api_update_interval = time::interval(time::Duration::from_hours(24)); // Update once per day
     api_update_interval.tick().await; // First tick happens instantly
     tokio::spawn(async move {
         loop {

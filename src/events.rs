@@ -242,7 +242,7 @@ pub fn clean_inline_command_log(
         ),
     >,
 ) {
-    let cutoff_time = tokio::time::Instant::now() - tokio::time::Duration::from_secs(3600);
+    let cutoff_time = tokio::time::Instant::now() - tokio::time::Duration::from_hours(1);
     command_log.retain(|_, (_, _, t)| *t >= cutoff_time);
 }
 

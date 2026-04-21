@@ -295,7 +295,7 @@ async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError>
         .map_err(FaqError::from)?;
     let Some(_response) = error_message
         .await_component_interaction(ctx)
-        .timeout(Duration::from_secs(120))
+        .timeout(Duration::from_mins(2))
         .await
     else {
         let new_builder = poise::serenity_prelude::EditMessage::new().components(Vec::default());
@@ -633,7 +633,7 @@ pub async fn drop_faqs(ctx: Context<'_>) -> Result<(), Error> {
 
     let Some(response) = confirmation_message
         .await_component_interaction(ctx)
-        .timeout(Duration::from_secs(60))
+        .timeout(Duration::from_mins(1))
         .await
     else {
         let new_message = CreateReply::default()

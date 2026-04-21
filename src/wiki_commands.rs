@@ -114,7 +114,7 @@ impl fmt::Display for NodeWrap<'_> {
                     let _ = write!(output, "{}", NodeWrap { n: node });
                     output
                 });
-                writeln!(f, "```{node_str}```",)
+                writeln!(f, "```{node_str}```")
             }
             Node::StartTag {
                 name: std::borrow::Cow::Borrowed("code"),
@@ -215,7 +215,7 @@ fn format_tag(
                 let _ = write!(output, "{}", NodeWrap { n: node });
                 output
             });
-            writeln!(f, "```lua\n{node_str}```",)
+            writeln!(f, "```lua\n{node_str}```")
         }
         "nowiki" => {
             let node_str = nodes.iter().fold(String::new(), |mut output, node| {

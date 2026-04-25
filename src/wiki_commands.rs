@@ -1,3 +1,4 @@
+use std::error::Error as StdError;
 use log::error;
 use parse_wiki_text::{Configuration, Node};
 use poise::CreateReply;
@@ -9,21 +10,30 @@ use std::{error, fmt, fmt::Write};
 use crate::formatting_tools::DiscordFormat;
 use crate::{Context, Error, SEPARATOR};
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 pub enum WikiError {
     ReqwestError(Box<reqwest::Error>),
     NoSearchResults(String),
     SendMessageFailed(Box<serenity::Error>),
     UrlParseError(url::ParseError),
+    MediaWikiError(String),
 }
 
 impl fmt::Display for WikiError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ReqwestError(error) => write!(f, "Error retrieving wiki page: {error}"),
+            Self::ReqwestError(error) => {
+                if let Some(source) = error.source(){
+                    write!(f, "Error retrieving wiki page: {error}: {source}")
+                } else {
+                    write!(f, "Error retrieving wiki page: {error}")
+                }
+            },
             Self::NoSearchResults(prompt) => write!(f, "No search results found for `{prompt}`"),
             Self::SendMessageFailed(error) => write!(f, "Failed to send message: {error}"),
             Self::UrlParseError(error) => write!(f, "Failed to parse wiki url: {error}"),
+            Self::MediaWikiError(error) => write!(f, "Mediawiki error: {error}"),
         }
     }
 }
@@ -147,9 +157,9 @@ impl fmt::Display for NodeWrap<'_> {
             Node::Template {
                 name, parameters, ..
             } => format_template(name, parameters, f),
+            Node::CharacterEntity { character, .. } => write!(f, "{character}"),
             // Node::Parameter { default, end, name, start } => todo!(),
             // Node::Category { end, ordinal, start, target } => todo!(),
-            // Node::CharacterEntity { character, end, start } => todo!(),
             // Node::Comment { end, start } => todo!(),
             // Node::DefinitionList { end, items, start } => todo!(),
             // Node::Image { end, start, target, text } => todo!(),
@@ -235,7 +245,14 @@ fn format_tag(
 }
 
 #[derive(Deserialize, Debug, Clone)]
-struct PageResponse {
+#[serde(untagged)]
+enum PageResponse {
+    Ok(ContentResponse),
+    Err(ErrorResponse),
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct ContentResponse {
     parse: Parse,
 }
 
@@ -243,6 +260,16 @@ struct PageResponse {
 struct Parse {
     title: String,
     wikitext: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct ErrorResponse {
+    error: ErrorDetails
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct ErrorDetails {
+    info: String,
 }
 
 // All language codes to account for future wiki expansion.
@@ -294,7 +321,10 @@ async fn get_mediawiki_page(name: &str) -> Result<Parse, WikiError> {
         .send()
         .await?;
     let page: PageResponse = response.json().await?;
-    Ok(page.parse)
+    match page {
+        PageResponse::Ok(page_response) => Ok(page_response.parse),
+        PageResponse::Err(error_response) => Err(WikiError::MediaWikiError(error_response.error.info))
+    }
 }
 
 #[derive(Deserialize, Debug)]

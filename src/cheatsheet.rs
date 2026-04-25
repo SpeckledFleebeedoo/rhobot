@@ -45,6 +45,7 @@ enum CheatSheetPage {
     PopularModList
 }
 
+/// Link a Factorio Cheatsheet page
 #[poise::command(
     slash_command,
     prefix_command,

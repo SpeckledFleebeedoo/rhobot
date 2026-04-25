@@ -1,5 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+mod cheatsheet;
 mod database;
 mod error;
 mod events;
@@ -146,6 +147,7 @@ async fn main() {
             modding_api::lua::lua(),
             wiki_commands::wiki(),
             fun_commands::anniversary(),
+            cheatsheet::cheatsheet(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             prefix: Some("+".into()),

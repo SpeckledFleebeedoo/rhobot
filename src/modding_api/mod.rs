@@ -65,7 +65,11 @@ enum ApiPage {
     InstrumentMode,
     #[name = "Item Weight"]
     ItemWeight,
-    #[name = "Modding Tutorial"]
+    #[name = "Furnace Recipe Selection"]
+    FurnaceRecipeSelection,
+    #[name = "Circuit Recipe Selection"]
+    CircuitRecipeSelection,
+    #[name = "General Tutorial"]
     ModdingTutorial,
     #[name = "Scripting Tutorial"]
     ScriptingTutorial,
@@ -154,8 +158,16 @@ pub async fn api_page(
             "Item Weight",
             "https://lua-api.factorio.com/latest/auxiliary/item-weight.html",
         ),
+        ApiPage::FurnaceRecipeSelection => (
+            "Furnace Recipe Selection",
+            "https://lua-api.factorio.com/latest/auxiliary/furnace-recipe-selection.html"
+        ),
+        ApiPage::CircuitRecipeSelection => (
+            "Circuit Recipe Selection",
+            "https://lua-api.factorio.com/latest/auxiliary/circuit-recipe-selection.html"
+        ),
         ApiPage::ModdingTutorial => (
-            "Modding Tutorial",
+            "General Tutorial",
             "https://wiki.factorio.com/Tutorial:Modding_tutorial/Gangsir",
         ),
         ApiPage::ScriptingTutorial => (

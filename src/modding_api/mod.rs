@@ -69,19 +69,6 @@ enum ApiPage {
     FurnaceRecipeSelection,
     #[name = "Circuit Recipe Selection"]
     CircuitRecipeSelection,
-    #[name = "General Tutorial"]
-    ModdingTutorial,
-    #[name = "Scripting Tutorial"]
-    ScriptingTutorial,
-    Localisation,
-    #[name = "Scenario System"]
-    ScenarioSystem,
-    #[name = "Command Line Parameters"]
-    CommandLine,
-    #[name = "Console Commands"]
-    Console,
-    #[name = "data.raw"]
-    DataRaw,
 }
 
 /// Link a page in the auxillary API docs
@@ -166,28 +153,6 @@ pub async fn api_page(
             "Circuit Recipe Selection",
             "https://lua-api.factorio.com/latest/auxiliary/circuit-recipe-selection.html"
         ),
-        ApiPage::ModdingTutorial => (
-            "General Tutorial",
-            "https://wiki.factorio.com/Tutorial:Modding_tutorial/Gangsir",
-        ),
-        ApiPage::ScriptingTutorial => (
-            "Scripting Tutorial",
-            "https://wiki.factorio.com/Tutorial:Scripting",
-        ),
-        ApiPage::Localisation => (
-            "Localisation",
-            "https://wiki.factorio.com/Tutorial:Localisation",
-        ),
-        ApiPage::ScenarioSystem => (
-            "Scenario System",
-            "https://wiki.factorio.com/Scenario_system",
-        ),
-        ApiPage::CommandLine => (
-            "Command Line Parameters",
-            "https://wiki.factorio.com/Command_line_parameters",
-        ),
-        ApiPage::Console => ("Console Commands", "https://wiki.factorio.com/Console"),
-        ApiPage::DataRaw => ("data.raw", "https://wiki.factorio.com/Data.raw"),
     };
 
     let embed = serenity::CreateEmbed::new()

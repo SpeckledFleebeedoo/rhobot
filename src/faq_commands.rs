@@ -1,6 +1,6 @@
 use log::error;
 use poise::CreateReply;
-use poise::ReplyHandle;
+use poise::Modal;
 use poise::serenity_prelude as serenity;
 use sqlx::{Pool, Sqlite};
 use std::sync::{Arc, RwLock};
@@ -30,8 +30,6 @@ pub enum FaqError {
     ServerNotFound,
     TitleTooLong,
     BodyTooLong,
-    EmbedNotFound,
-    EmbedContainsNoImage,
     AlreadyExists(String),
     NotOwner,
 }
@@ -53,8 +51,6 @@ impl fmt::Display for FaqError {
             Self::ServerNotFound => f.write_str("Could not retrieve server data."),
             Self::TitleTooLong => f.write_str("FAQ title too long (must be 256 characters or shorter)"),
             Self::BodyTooLong => f.write_str("FAQ body too long (must be 4096 characters or shorter)"),
-            Self::EmbedNotFound => f.write_str("Could not create FAQ entry: embed not found"),
-            Self::EmbedContainsNoImage => f.write_str("Could not create FAQ entry: image not found in embed"),
             Self::AlreadyExists(name) => f.write_str(&format!("Error: An faq entry with title {name} already exists")),
             Self::NotOwner => f.write_str("This command can only be used by the bot owner"),
             Self::SerdeError(error) => f.write_str(&format!("Error serializing or deserialziing: {error}")),
@@ -402,32 +398,78 @@ pub async fn faq_edit(_ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
+#[derive(Debug, poise::Modal)]
+#[name = "New FAQ entry"]
+struct FaqModal {
+    #[name = "Title"]
+    #[max_length = 256]
+    title: String,
+    #[name = "Contents"]
+    #[paragraph]
+    contents: Option<String>,
+    #[name = "Media URL"]
+    #[max_length = 256]
+    media: Option<String>,
+}
+
+pub fn new() -> poise::Command<crate::Data, Error> {
+    poise::Command {
+        slash_action: faq_new_slash().slash_action,
+        parameters: faq_new_slash().parameters,
+        install_context: faq_new_slash().install_context,
+        interaction_context: faq_new_slash().interaction_context,
+        ..faq_new_prefix()
+    }
+}
+
 /// Add an faq entry
-#[allow(clippy::unused_async, clippy::cast_possible_wrap)]
 #[poise::command(
-    prefix_command,
     slash_command,
     guild_only,
+    rename = "new"
+)]
+pub async fn faq_new_slash(ctx: poise::ApplicationContext<'_, crate::Data, crate::Error>) -> Result<(), Error> {
+    let Some(response) = FaqModal::execute(ctx).await? 
+        else {return Ok(())};
+    let faq_entry = BasicFaqEntry { title: response.title, contents: response.contents, image: response.media, link: None };
+    let context = poise::Context::from(ctx);
+    process_new_faq(context, faq_entry).await?;
+    Ok(())
+}
+
+/// Add an faq entry
+#[poise::command(
+    prefix_command,
+    guild_only,
     track_edits,
+    rename = "new",
     aliases("edit", "add")
 )]
-pub async fn new(
-    ctx: Context<'_>,
+pub async fn faq_new_prefix(
+    ctx: poise::PrefixContext<'_, crate::Data, crate::Error>,
     #[description = "Name of the faq"] name: String,
     #[description = "Link to an image."] image: Option<serenity::Attachment>,
     #[description = "Contents of the FAQ"]
     #[rest]
-    content: Option<String>,
+    contents: Option<String>,
 ) -> Result<(), Error> {
     if name.len() > 256 {
         return Err(FaqError::TitleTooLong)?;
     }
-    if let Some(c) = &content
+    if let Some(c) = &contents
         && c.len() > 4096
     {
         return Err(FaqError::BodyTooLong)?;
     }
-    let name_lc = name.capitalize();
+    let faq_entry = BasicFaqEntry { title: name, contents, image: image.map(|i| i.proxy_url), link: None };
+    let context = poise::Context::from(ctx);
+    process_new_faq(context, faq_entry).await?;
+    Ok(())
+}
+
+#[allow(clippy::cast_possible_wrap)]
+async fn process_new_faq(ctx: Context<'_>, faq_entry: BasicFaqEntry) -> Result<(), FaqError> {
+    let name_lc = faq_entry.title.capitalize();
     let server = ctx.guild_id().ok_or_else(|| FaqError::ServerNotFound)?;
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
@@ -438,9 +480,6 @@ pub async fn new(
         .map_err(FaqError::from)?
         .is_some();
 
-    // If image attached, re-upload image to generate a non-ephemeral link for storage
-    let (attachment_url, reply_handle) = get_attachment_url(image, ctx, &name_lc).await?;
-
     let timestamp = ctx.created_at().timestamp();
     let author_id = ctx.author().id.get() as i64;
 
@@ -450,16 +489,18 @@ pub async fn new(
             .await
             .map_err(FaqError::from)?;
     }
-    let faq_entry = DBFaqEntry {
+
+    // Store new FAQ entry in database
+    let faq_db_entry = DBFaqEntry {
         server_id,
         name: &name_lc,
-        content: content.as_deref(),
-        attachment_url: attachment_url.as_deref(),
+        content: faq_entry.contents.as_deref(),
+        attachment_url: faq_entry.image.as_deref(),
         timestamp,
         author_id,
         link: None,
     };
-    database::add_faq_entry(db, faq_entry)
+    database::add_faq_entry(db, faq_db_entry)
         .await
         .map_err(FaqError::from)?;
 
@@ -469,55 +510,21 @@ pub async fn new(
         format!(r#"Successfully added "{name_lc}" to database"#)
     };
 
+    // Show new FAQ entry
     let mut embed = serenity::CreateEmbed::new()
         .title(title)
         .colour(serenity::Colour::DARK_GREEN);
-    if let Some(c) = content {
+    if let Some(c) = faq_entry.contents {
         embed = embed.description(c);
     }
-    if let Some(url) = attachment_url {
+    if let Some(url) = faq_entry.image {
         embed = embed.image(url);
     }
+    
+    // Only .jpg, .jpeg, .png, .webp, and .gif are supported
     let builder = CreateReply::default().embed(embed);
-    if let Some(r) = reply_handle {
-        r.edit(ctx, builder).await.map_err(FaqError::from)?;
-    } else {
-        ctx.send(builder).await.map_err(FaqError::from)?;
-    }
+    ctx.send(builder).await.map_err(FaqError::from)?;
     Ok(())
-}
-
-async fn get_attachment_url<'a>(
-    attachment: Option<serenity::Attachment>,
-    ctx: Context<'a>,
-    name: &str,
-) -> Result<(Option<String>, Option<ReplyHandle<'a>>), FaqError> {
-    // If image attached, re-upload image to generate a non-ephemeral link for storage
-    let Some(image) = attachment else {
-        return Ok((None, None));
-    };
-
-    if !image.ephemeral {
-        return Ok((Some(image.url.clone()), None));
-    }
-
-    let attachment = serenity::CreateAttachment::url(ctx.http(), &image.url).await?;
-    let embed = serenity::CreateEmbed::new()
-        .title(format!("Adding FAQ entry: {name}"))
-        .description("Uploading image to Discord...")
-        .colour(serenity::Colour::DARK_GREEN)
-        .attachment(image.filename);
-    let builder = CreateReply::default().attachment(attachment).embed(embed);
-    let reply = ctx.send(builder).await?;
-    let message = reply.message().await?;
-
-    let Some(message_embed) = message.embeds.first() else {
-        return Err(FaqError::EmbedNotFound)?;
-    };
-    let Some(ref embed_image) = message_embed.image else {
-        return Err(FaqError::EmbedContainsNoImage)?;
-    };
-    Ok((Some(embed_image.url.clone()), Some(reply.clone())))
 }
 
 /// Remove an faq entry

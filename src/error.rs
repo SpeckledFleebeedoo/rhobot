@@ -46,8 +46,6 @@ impl RhobotError {
                 | faq_commands::FaqError::TitleTooLong
                 | faq_commands::FaqError::BodyTooLong
                 | faq_commands::FaqError::ServerNotFound
-                | faq_commands::FaqError::EmbedNotFound
-                | faq_commands::FaqError::EmbedContainsNoImage
                 | faq_commands::FaqError::AlreadyExists(_)
                 | faq_commands::FaqError::NotOwner => info!("{faq_error}"),
                 _ => error!("{faq_error}"),

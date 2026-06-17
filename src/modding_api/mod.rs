@@ -182,7 +182,10 @@ pub async fn api_page(
         .title(name)
         .description(url)
         .color(serenity::Colour::GOLD);
-    let builder = CreateReply::default().embed(embed);
+    let builder = CreateReply::default()
+        .embed(embed)
+        .reply(true)
+        .allowed_mentions(serenity::CreateAllowedMentions::default());
     ctx.send(builder).await?;
     Ok(())
 }

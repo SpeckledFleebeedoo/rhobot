@@ -1,6 +1,6 @@
 use crate::{Context, Error};
+use poise::serenity_prelude::{Colour, CreateAllowedMentions, CreateEmbed};
 use poise::{ChoiceParameter, CreateReply};
-use poise::serenity_prelude::{Colour, CreateEmbed};
 
 #[derive(Debug, poise::ChoiceParameter)]
 enum CheatSheetPage {
@@ -42,7 +42,7 @@ enum CheatSheetPage {
     Tips,
     Links,
     #[name = "Popular Mod List"]
-    PopularModList
+    PopularModList,
 }
 
 /// Link a Factorio Cheatsheet page
@@ -61,7 +61,10 @@ pub async fn cheatsheet(ctx: Context<'_>, page: CheatSheetPage) -> Result<(), Er
         .title(format!("Factorio Cheat Sheet: {title}"))
         .url(format!("https://factoriocheatsheet.com/#{url}"))
         .color(Colour::ORANGE);
-    let builder = CreateReply::default().embed(embed);
+    let builder = CreateReply::default()
+        .embed(embed)
+        .reply(true)
+        .allowed_mentions(CreateAllowedMentions::default());
     ctx.send(builder).await?;
     Ok(())
 }

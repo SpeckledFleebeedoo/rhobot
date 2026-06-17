@@ -1,9 +1,9 @@
-use std::error::Error as StdError;
 use log::error;
 use parse_wiki_text::{Configuration, Node};
 use poise::CreateReply;
-use poise::serenity_prelude::{Colour, CreateEmbed};
+use poise::serenity_prelude::{Colour, CreateAllowedMentions, CreateEmbed};
 use serde::Deserialize;
+use std::error::Error as StdError;
 use std::fmt::Debug;
 use std::{error, fmt, fmt::Write};
 
@@ -24,12 +24,12 @@ impl fmt::Display for WikiError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ReqwestError(error) => {
-                if let Some(source) = error.source(){
+                if let Some(source) = error.source() {
                     write!(f, "Error retrieving wiki page: {error}: {source}")
                 } else {
                     write!(f, "Error retrieving wiki page: {error}")
                 }
-            },
+            }
             Self::NoSearchResults(prompt) => write!(f, "No search results found for `{prompt}`"),
             Self::SendMessageFailed(error) => write!(f, "Failed to send message: {error}"),
             Self::UrlParseError(error) => write!(f, "Failed to parse wiki url: {error}"),
@@ -264,7 +264,7 @@ struct Parse {
 
 #[derive(Deserialize, Debug, Clone)]
 struct ErrorResponse {
-    error: ErrorDetails
+    error: ErrorDetails,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -314,16 +314,14 @@ async fn get_mediawiki_page(name: &str) -> Result<Parse, WikiError> {
         ],
     )?;
     let user_agent = std::env::var("USER_AGENT").unwrap_or_else(|_| "Rhobot".to_string());
-    let client = reqwest::Client::builder()
-        .user_agent(user_agent)
-        .build()?;
-    let response = client.get(url)
-        .send()
-        .await?;
+    let client = reqwest::Client::builder().user_agent(user_agent).build()?;
+    let response = client.get(url).send().await?;
     let page: PageResponse = response.json().await?;
     match page {
         PageResponse::Ok(page_response) => Ok(page_response.parse),
-        PageResponse::Err(error_response) => Err(WikiError::MediaWikiError(error_response.error.info))
+        PageResponse::Err(error_response) => {
+            Err(WikiError::MediaWikiError(error_response.error.info))
+        }
     }
 }
 
@@ -348,12 +346,8 @@ pub async fn opensearch_mediawiki(name: &str) -> Result<Vec<String>, WikiError> 
         ],
     )?;
     let user_agent = std::env::var("USER_AGENT").unwrap_or_else(|_| "Rhobot".to_string());
-    let client = reqwest::Client::builder()
-        .user_agent(user_agent)
-        .build()?;
-    let response = client.get(url)
-        .send()
-        .await?;
+    let client = reqwest::Client::builder().user_agent(user_agent).build()?;
+    let response = client.get(url).send().await?;
     let json: WikiData = response.json().await?;
     if json.titles.is_empty() {
         return Ok(vec![]);
@@ -413,10 +407,7 @@ pub async fn wiki_prefix(
     Ok(())
 }
 
-pub async fn wiki_core(
-    ctx: Context<'_>,
-    command: &str,
-) -> Result<(), Error> {
+pub async fn wiki_core(ctx: Context<'_>, command: &str) -> Result<(), Error> {
     let search_result: String = match ctx {
         poise::Context::Application(_) => command.to_owned(),
         poise::Context::Prefix(_) => {
@@ -429,7 +420,10 @@ pub async fn wiki_core(
     };
 
     let embed = get_wiki_page(&search_result).await?;
-    let builder = CreateReply::default().embed(embed);
+    let builder = CreateReply::default()
+        .embed(embed)
+        .reply(true)
+        .allowed_mentions(CreateAllowedMentions::default());
     ctx.send(builder).await?;
     Ok(())
 }
@@ -510,7 +504,7 @@ fn get_factorio_wiki_parser_config() -> Configuration {
     })
 }
 
-pub async fn get_wiki_page(search_result: &str, ) -> Result<CreateEmbed, WikiError> {
+pub async fn get_wiki_page(search_result: &str) -> Result<CreateEmbed, WikiError> {
     let article = get_mediawiki_page(search_result).await?;
 
     let parsed_text = get_factorio_wiki_parser_config()
@@ -521,17 +515,22 @@ pub async fn get_wiki_page(search_result: &str, ) -> Result<CreateEmbed, WikiErr
             let _ = write!(output, "{}", NodeWrap { n });
             output
         });
-    
+
     let formatted_text = parsed_text.trim().replace("\n\n", "\n");
     let (title, sections) = if formatted_text.starts_with("DISPLAYTITLE: ") {
         let (mut title, mut body) = formatted_text.split_once('\n').unwrap();
         title = title.strip_prefix("DISPLAYTITLE: ").unwrap();
         body = body.trim_start_matches('\n');
-        (title.to_string(), body.split("||HEADING||").collect::<Vec<&str>>())
+        (
+            title.to_string(),
+            body.split("||HEADING||").collect::<Vec<&str>>(),
+        )
     } else {
-        (article.title, formatted_text.split("||HEADING||").collect::<Vec<&str>>())
+        (
+            article.title,
+            formatted_text.split("||HEADING||").collect::<Vec<&str>>(),
+        )
     };
-
 
     let formatted_text = match sections.len() {
         0 => String::new(),

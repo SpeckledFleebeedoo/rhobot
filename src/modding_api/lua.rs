@@ -51,7 +51,10 @@ pub async fn chapter(
             .url(chapter.1)
             .author(serenity::CreateEmbedAuthor::new("Lua 5.2 Reference Manual"))
             .color(serenity::Colour::BLUE);
-        let builder = CreateReply::default().embed(embed);
+        let builder = CreateReply::default()
+            .embed(embed)
+            .reply(true)
+            .allowed_mentions(serenity::CreateAllowedMentions::default());
         ctx.send(builder).await?;
     } else {
         return Err(ApiError::LuaChapterNotFound(chapter_name.to_string()))?;
@@ -101,7 +104,10 @@ pub async fn function(
             .url(function.1)
             .author(serenity::CreateEmbedAuthor::new("Lua 5.2 Reference Manual"))
             .color(serenity::Colour::BLUE);
-        let builder = CreateReply::default().embed(embed);
+        let builder = CreateReply::default()
+            .embed(embed)
+            .reply(true)
+            .allowed_mentions(serenity::CreateAllowedMentions::default());
         ctx.send(builder).await?;
     } else {
         return Err(ApiError::LuaFunctionNotFound(function_name.to_string()))?;

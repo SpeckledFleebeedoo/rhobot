@@ -189,7 +189,7 @@ async fn list_faqs(ctx: Context<'_>) -> Result<(), Error> {
         .title("List of FAQ tags")
         .description(faq_names.join(", "))
         .color(color);
-    let builder = CreateReply::default().embed(embed);
+    let builder = CreateReply::default().embed(embed).reply(true).allowed_mentions(serenity::CreateAllowedMentions::default());
     ctx.send(builder).await.map_err(FaqError::from)?;
     Ok(())
 }
@@ -237,7 +237,7 @@ fn create_faq_embed(name: &str, faq_entry: BasicFaqEntry, close_match: bool) -> 
         embed = embed.image(img);
     }
 
-    CreateReply::default().embed(embed)
+    CreateReply::default().embed(embed).reply(true).allowed_mentions(serenity::CreateAllowedMentions::default())
 }
 
 async fn resolve_faq_name(
@@ -283,7 +283,9 @@ async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError>
     let components = vec![serenity::CreateActionRow::Buttons(vec![wiki_button])];
     let builder = CreateReply::default()
         .embed(embed.clone())
-        .components(components);
+        .components(components)
+        .reply(true)
+        .allowed_mentions(serenity::CreateAllowedMentions::default());
     let error_message_handle = ctx.send(builder).await.map_err(FaqError::from)?;
     let error_message = error_message_handle
         .message()
@@ -294,7 +296,7 @@ async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError>
         .timeout(Duration::from_mins(2))
         .await
     else {
-        let new_builder = poise::serenity_prelude::EditMessage::new().components(Vec::default());
+        let new_builder = serenity::EditMessage::new().components(Vec::default());
         match error_message_handle
             .into_message()
             .await?
@@ -313,7 +315,9 @@ async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError>
     };
     let wiki_builder = CreateReply::default()
         .embed(wiki_embed)
-        .components(Vec::default());
+        .components(Vec::default())
+        .reply(true)
+        .allowed_mentions(serenity::CreateAllowedMentions::default());
     error_message_handle.edit(ctx, wiki_builder).await?;
     Ok(())
 }
@@ -522,7 +526,7 @@ async fn process_new_faq(ctx: Context<'_>, faq_entry: BasicFaqEntry) -> Result<(
     }
     
     // Only .jpg, .jpeg, .png, .webp, and .gif are supported
-    let builder = CreateReply::default().embed(embed);
+    let builder = CreateReply::default().embed(embed).reply(true).allowed_mentions(serenity::CreateAllowedMentions::default());
     ctx.send(builder).await.map_err(FaqError::from)?;
     Ok(())
 }
@@ -545,12 +549,12 @@ pub async fn remove(
         .map_err(FaqError::from)?
     {
         0 => {
-            ctx.say(format!("FAQ entry {name_lc} does not exist in database"))
+            ctx.reply(format!("FAQ entry {name_lc} does not exist in database"))
                 .await
                 .map_err(FaqError::from)?;
         }
         _ => {
-            ctx.say(format!("FAQ entry {name_lc} removed from database"))
+            ctx.reply(format!("FAQ entry {name_lc} removed from database"))
                 .await
                 .map_err(FaqError::from)?;
         }
@@ -601,7 +605,7 @@ pub async fn link(
     database::add_faq_entry(db, faq_entry)
         .await
         .map_err(FaqError::from)?;
-    ctx.say(format!(
+    ctx.reply(format!(
         "FAQ link {name_lc} added to database, linking to {link_no_chain}"
     ))
     .await
@@ -635,6 +639,8 @@ pub async fn drop_faqs(ctx: Context<'_>) -> Result<(), Error> {
         CreateReply::default()
             .content("Are you sure you want to drop the FAQ database for this server? \n**THIS ACTION CANNOT BE REVERTED**")
             .components(components)
+            .reply(true)
+            .allowed_mentions(serenity::CreateAllowedMentions::default())
         ).await.map_err(FaqError::from)?;
     let confirmation_message = confirmation.message().await.map_err(FaqError::from)?;
 
@@ -645,7 +651,9 @@ pub async fn drop_faqs(ctx: Context<'_>) -> Result<(), Error> {
     else {
         let new_message = CreateReply::default()
             .content("Timed out")
-            .components(Vec::default());
+            .components(Vec::default())
+            .reply(true)
+            .allowed_mentions(serenity::CreateAllowedMentions::default());
         confirmation
             .edit(ctx, new_message)
             .await
@@ -669,14 +677,18 @@ pub async fn drop_faqs(ctx: Context<'_>) -> Result<(), Error> {
             );
             let builder = CreateReply::default()
                 .content("Created dump of FAQ contents:")
-                .attachment(faq_file);
+                .attachment(faq_file)
+                .reply(true)
+                .allowed_mentions(serenity::CreateAllowedMentions::default());
             ctx.send(builder).await.map_err(FaqError::from)?;
             database::clear_server_faq(db, server_id)
                 .await
                 .map_err(FaqError::from)?;
             let new_message = CreateReply::default()
                 .content("All FAQ entries for this server deleted")
-                .components(Vec::default());
+                .components(Vec::default())
+                .reply(true)
+                .allowed_mentions(serenity::CreateAllowedMentions::default());
             confirmation
                 .edit(ctx, new_message)
                 .await
@@ -684,7 +696,9 @@ pub async fn drop_faqs(ctx: Context<'_>) -> Result<(), Error> {
         } else {
             let new_message = CreateReply::default()
                 .content("No changes made")
-                .components(Vec::default());
+                .components(Vec::default())
+                .reply(true)
+                .allowed_mentions(serenity::CreateAllowedMentions::default());
             confirmation
                 .edit(ctx, new_message)
                 .await
@@ -730,7 +744,9 @@ pub async fn export_faqs(ctx: Context<'_>) -> Result<(), Error> {
     );
     let builder = CreateReply::default()
         .content("Created dump of FAQ contents:")
-        .attachment(faq_file);
+        .attachment(faq_file)
+        .reply(true)
+        .allowed_mentions(serenity::CreateAllowedMentions::default());
     ctx.send(builder).await.map_err(FaqError::from)?;
     Ok(())
 }
@@ -766,7 +782,7 @@ pub async fn import_faqs(ctx: Context<'_>, faq_json: serenity::Attachment) -> Re
             .await
             .map_err(FaqError::from)?;
     }
-    ctx.say("Successfully imported all FAQ entries")
+    ctx.reply("Successfully imported all FAQ entries")
         .await
         .map_err(FaqError::from)?;
     Ok(())

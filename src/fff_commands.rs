@@ -1,5 +1,5 @@
 use poise::CreateReply;
-use poise::serenity_prelude::{Colour, CreateEmbed};
+use poise::serenity_prelude::{Colour, CreateAllowedMentions, CreateEmbed};
 use scraper::{Html, Selector};
 use std::{error, fmt};
 
@@ -84,12 +84,8 @@ impl From<serenity::Error> for FFFError {
 async fn get_fff_data(number: i32) -> Result<FFFData, FFFError> {
     let url = format!("https://www.factorio.com/blog/post/fff-{number}");
     let user_agent = std::env::var("USER_AGENT").unwrap_or_else(|_| "Rhobot".to_string());
-    let client = reqwest::Client::builder()
-        .user_agent(user_agent)
-        .build()?;
-    let response = client.get(&url)
-        .send()
-        .await.map_err(FFFError::from)?;
+    let client = reqwest::Client::builder().user_agent(user_agent).build()?;
+    let response = client.get(&url).send().await.map_err(FFFError::from)?;
     match response.status() {
         reqwest::StatusCode::OK => (),
         reqwest::StatusCode::NOT_FOUND => return Err(FFFError::PageNotFound(number)),
@@ -188,7 +184,10 @@ async fn fff_core(ctx: Context<'_>, number: i32) -> Result<(), FFFError> {
         .description(fff_data.description.unwrap_or_default())
         .thumbnail(fff_data.image.unwrap_or_default())
         .color(Colour::ORANGE);
-    let builder = CreateReply::default().embed(embed);
+    let builder = CreateReply::default()
+        .embed(embed)
+        .reply(true)
+        .allowed_mentions(CreateAllowedMentions::default());
     ctx.send(builder).await?;
     Ok(())
 }
@@ -199,7 +198,10 @@ async fn fff_default(ctx: Context<'_>) -> Result<(), FFFError> {
         .url("https://www.factorio.com/blog")
         .thumbnail("https://factorio.com/static/img/factorio-wheel.png")
         .color(Colour::ORANGE);
-    let builder = CreateReply::default().embed(embed);
+    let builder = CreateReply::default()
+        .embed(embed)
+        .reply(true)
+        .allowed_mentions(CreateAllowedMentions::default());
     ctx.send(builder).await?;
     Ok(())
 }

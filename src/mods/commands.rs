@@ -1,7 +1,7 @@
 use log::error;
 use poise::{
     CreateReply,
-    serenity_prelude::{AutocompleteChoice, Colour, CreateEmbed},
+    serenity_prelude::{AutocompleteChoice, Colour, CreateAllowedMentions, CreateEmbed},
 };
 
 use crate::{
@@ -42,7 +42,7 @@ pub async fn set_updates_channel(
     database::store_updates_channel(db, server_id, channel_id).await?;
 
     let response = format!("Mod updates channel was set to {channel}");
-    ctx.say(response).await?;
+    ctx.reply(response).await?;
     Ok(())
 }
 
@@ -66,7 +66,7 @@ pub async fn set_modrole(
     database::store_modrole(db, server_id, role_id).await?;
 
     let response = format!("Modrole was set to {role}");
-    ctx.say(response).await?;
+    ctx.reply(response).await?;
     Ok(())
 }
 
@@ -84,10 +84,10 @@ pub async fn show_changelogs(ctx: Context<'_>, show_changelogs: bool) -> Result<
     database::store_changelog_setting(db, server_id, show_changelogs).await?;
 
     if show_changelogs {
-        ctx.say("Now showing changelogs in mod updates feed.")
+        ctx.reply("Now showing changelogs in mod updates feed.")
             .await?
     } else {
-        ctx.say("No longer showing changelogs in mod updates feed.")
+        ctx.reply("No longer showing changelogs in mod updates feed.")
             .await?
     };
     Ok(())
@@ -143,7 +143,7 @@ pub async fn subscribe_mod(
     let db = &ctx.data().database;
 
     database::add_mod_subscription(db, server_id, &modname).await?;
-    ctx.say(format!("Mod {modname} added to subscriptions"))
+    ctx.reply(format!("Mod {modname} added to subscriptions"))
         .await?;
 
     let cache = &ctx.data().mod_subscription_cache;
@@ -177,7 +177,7 @@ pub async fn unsubscribe_mod(
     let db = &ctx.data().database;
     database::remove_mod_subscription(db, server_id, &modname).await?;
     let response = format!("Mod {modname} removed from subscriptions");
-    ctx.say(response).await?;
+    ctx.reply(response).await?;
     Ok(())
 }
 
@@ -207,7 +207,7 @@ pub async fn subscribe_author(
 
     database::add_author_subscription(db, server_id, &author).await?;
     let response = format!("Author {author} added to subscriptions");
-    ctx.say(response).await?;
+    ctx.reply(response).await?;
 
     let cache = &ctx.data().mod_subscription_cache;
     match cache.write() {
@@ -257,7 +257,7 @@ pub async fn unsubscribe_author(
     let db = &ctx.data().database;
     database::remove_author_subscription(db, server_id, &author).await?;
     let response = format!("Author {author} removed from subscriptions");
-    ctx.say(response).await?;
+    ctx.reply(response).await?;
     Ok(())
 }
 
@@ -333,7 +333,7 @@ pub async fn show_subscriptions(ctx: Context<'_>) -> Result<(), Error> {
     let response = format!(
         "**Subscribed mods:**\n{subscribed_mods}\n**Subscribed authors:**\n{subscribed_authors}"
     );
-    ctx.say(response).await?;
+    ctx.reply(response).await?;
     Ok(())
 }
 
@@ -360,7 +360,10 @@ pub async fn find_mod(
         poise::Context::Application(_) => mod_search(command, false, ctx.data()).await?,
         poise::Context::Prefix(_) => mod_search(command, true, ctx.data()).await?,
     };
-    let builder = CreateReply::default().embed(embed);
+    let builder = CreateReply::default()
+        .embed(embed)
+        .reply(true)
+        .allowed_mentions(CreateAllowedMentions::default());
     ctx.send(builder).await?;
     Ok(())
 }

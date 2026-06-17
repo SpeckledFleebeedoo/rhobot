@@ -480,10 +480,7 @@ pub async fn get_runtime_api() -> Result<ApiResponse, Error> {
         .user_agent(user_agent)
         .build()
         .map_err(ApiError::from)?;
-    let response = client.get(url)
-        .send()
-        .await
-        .map_err(ApiError::from)?;
+    let response = client.get(url).send().await.map_err(ApiError::from)?;
 
     match response.status() {
         reqwest::StatusCode::OK => (),
@@ -557,7 +554,10 @@ pub async fn api_class(
         search_result.to_embed(ctx.data())
     };
 
-    let builder = CreateReply::default().embed(embed);
+    let builder = CreateReply::default()
+        .embed(embed)
+        .reply(true)
+        .allowed_mentions(serenity::CreateAllowedMentions::default());
     ctx.send(builder).await?;
     Ok(())
 }
@@ -666,7 +666,10 @@ pub async fn api_event(
         return Err(ApiError::EventNotFound(event_search))?;
     };
 
-    let builder = CreateReply::default().embed(search_result.to_embed(ctx.data()));
+    let builder = CreateReply::default()
+        .embed(search_result.to_embed(ctx.data()))
+        .reply(true)
+        .allowed_mentions(serenity::CreateAllowedMentions::default());
     ctx.send(builder).await?;
     Ok(())
 }
@@ -735,7 +738,10 @@ pub async fn api_define(
     else {
         return Err(ApiError::DefineNotFound(define_search))?;
     };
-    let builder = CreateReply::default().embed(search_result.to_embed(ctx.data()));
+    let builder = CreateReply::default()
+        .embed(search_result.to_embed(ctx.data()))
+        .reply(true)
+        .allowed_mentions(serenity::CreateAllowedMentions::default());
     ctx.send(builder).await?;
     Ok(())
 }
@@ -805,7 +811,10 @@ pub async fn api_concept(
         return Err(ApiError::ConceptNotFound(concept_search))?;
     };
 
-    let builder = CreateReply::default().embed(search_result.to_embed(ctx.data()));
+    let builder = CreateReply::default()
+        .embed(search_result.to_embed(ctx.data()))
+        .reply(true)
+        .allowed_mentions(serenity::CreateAllowedMentions::default());
     ctx.send(builder).await?;
     Ok(())
 }

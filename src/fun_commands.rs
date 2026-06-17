@@ -13,7 +13,7 @@ use crate::{Context, Error};
 )]
 pub async fn anniversary(ctx: Context<'_>) -> Result<(), Error> {
     let message = time_left_message();
-    ctx.say(&message).await?;
+    ctx.reply(&message).await?;
     Ok(())
 }
 

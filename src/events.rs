@@ -35,7 +35,7 @@ async fn send_custom_error_message(ctx: Context<'_>, msg: &str) -> Result<(), Er
         ))
         .description(msg)
         .color(serenity::Colour::RED);
-    let builder = CreateReply::default().embed(embed);
+    let builder = CreateReply::default().embed(embed).reply(true).allowed_mentions(serenity::CreateAllowedMentions::default());
     ctx.send(builder).await?;
     Ok(())
 }

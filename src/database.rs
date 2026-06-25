@@ -455,8 +455,8 @@ pub async fn create_mods_cache(db: &Pool<Sqlite>) -> Result<Vec<ModCacheEntry>, 
         FROM mods 
         WHERE (factorio_version = $1 OR factorio_version = $2) 
         ORDER BY downloads_count DESC"#,
-        "1.1",
-        "2.0"
+        "2.0",
+        "2.1"
     )
     .fetch_all(db)
     .await?

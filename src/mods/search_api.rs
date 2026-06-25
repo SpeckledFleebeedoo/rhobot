@@ -27,12 +27,7 @@ pub struct FoundMod {
     pub summary: String,
     pub thumbnail: String,
     pub title: String,
-    #[serde(default = "default_version")]
-    pub factorio_version: String,
-}
-
-fn default_version() -> String {
-    "2.0".to_owned()
+    pub factorio_versions: Vec<String>,
 }
 
 impl FoundMod {
@@ -65,7 +60,7 @@ pub async fn find_mod(
         ("username", credentials.username.as_str()),
         ("token", credentials.token.as_str()),
         ("query", name_truncated.as_str()),
-        ("version", "2.0"),
+        // ("version", "2.1"),
         ("sort_attribute", "relevancy"),
         ("only_bookmarks", "false"),
         ("show_deprecated", "false"),

@@ -377,10 +377,7 @@ pub async fn mod_search(
         search_api::find_mod(modname, &data.mod_portal_credentials).await?
     } else {
         let data = super::update_notifications::get_mod_info(modname).await?;
-        let factorio_version = data.releases.last().map_or_else(
-            || String::from("N/A"),
-            |release| release.info_json.factorio_version.clone(),
-        );
+        let factorio_versions = data.releases.iter().map(|r| r.info_json.factorio_version.clone()).collect::<Vec<String>>();
         let thumbnail = format!(
             "https://assets-mod.factorio.com{}",
             data.thumbnail
@@ -393,12 +390,21 @@ pub async fn mod_search(
             summary: data.summary,
             thumbnail,
             title: data.title,
-            factorio_version,
+            factorio_versions,
         }
     };
 
     search_result.sanitize_for_embed();
     let url = format!("https://mods.factorio.com/mod/{}", search_result.name).replace(' ', "%20");
+
+    search_result.factorio_versions.sort();
+    let oldest_factorio_version = search_result.factorio_versions.first().map_or("N/A", |f| f);
+    let newest_factorio_version = search_result.factorio_versions.last().map_or("N/A", |f| f);
+    let factorio_versions = if oldest_factorio_version == newest_factorio_version {
+        oldest_factorio_version.to_owned()
+    } else {
+        format!("{oldest_factorio_version} - {newest_factorio_version}")
+    };
 
     let embed = CreateEmbed::new()
         .title(&search_result.title)
@@ -407,7 +413,7 @@ pub async fn mod_search(
         .color(Colour::from_rgb(0x2E, 0xCC, 0x71))
         .field("Author", &search_result.owner, true)
         .field("Downloads", search_result.downloads_count.to_string(), true)
-        .field("Factorio version", &search_result.factorio_version, true)
+        .field("Factorio version", factorio_versions, true)
         .thumbnail(&search_result.thumbnail);
     Ok(embed)
 }

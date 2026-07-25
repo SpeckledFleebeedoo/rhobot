@@ -182,7 +182,10 @@ async fn fff_core(ctx: Context<'_>, number: i32) -> Result<(), FFFError> {
         .title(fff_data.title.unwrap_or_default())
         .url(fff_data.url)
         .description(fff_data.description.unwrap_or_default())
-        .thumbnail(fff_data.image.unwrap_or_default())
+        .thumbnail(
+            fff_data.image.unwrap_or_default(),
+            Some(std::borrow::Cow::Borrowed("Factorio Friday Facts")),
+        )
         .color(Colour::ORANGE);
     let builder = CreateReply::default()
         .embed(embed)
@@ -196,7 +199,10 @@ async fn fff_default(ctx: Context<'_>) -> Result<(), FFFError> {
     let embed = CreateEmbed::new()
         .title("Factorio Friday Facts")
         .url("https://www.factorio.com/blog")
-        .thumbnail("https://factorio.com/static/img/factorio-wheel.png")
+        .thumbnail(
+            "https://factorio.com/static/img/factorio-wheel.png",
+            Some(std::borrow::Cow::Borrowed("Factorio Friday Facts")),
+        )
         .color(Colour::ORANGE);
     let builder = CreateReply::default()
         .embed(embed)

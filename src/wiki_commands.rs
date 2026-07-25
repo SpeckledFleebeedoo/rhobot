@@ -1,7 +1,7 @@
 use log::error;
 use parse_wiki_text::{Configuration, Node};
 use poise::CreateReply;
-use poise::serenity_prelude::{Colour, CreateAllowedMentions, CreateEmbed};
+use poise::serenity_prelude::{Colour, CreateAllowedMentions, CreateEmbed, CreateAutocompleteResponse, AutocompleteChoice};
 use serde::Deserialize;
 use std::error::Error as StdError;
 use std::fmt::Debug;
@@ -419,7 +419,7 @@ pub async fn wiki_core(ctx: Context<'_>, command: &str) -> Result<(), Error> {
         }
     };
 
-    let embed = get_wiki_page(&search_result).await?;
+    let embed = get_wiki_page(search_result).await?;
     let builder = CreateReply::default()
         .embed(embed)
         .reply(true)
@@ -504,8 +504,8 @@ fn get_factorio_wiki_parser_config() -> Configuration {
     })
 }
 
-pub async fn get_wiki_page(search_result: &str) -> Result<CreateEmbed, WikiError> {
-    let article = get_mediawiki_page(search_result).await?;
+pub async fn get_wiki_page(search_result: String) -> Result<CreateEmbed<'static>, WikiError> {
+    let article = get_mediawiki_page(&search_result).await?;
 
     let parsed_text = get_factorio_wiki_parser_config()
         .parse(&article.wikitext)
@@ -554,15 +554,20 @@ pub async fn get_wiki_page(search_result: &str) -> Result<CreateEmbed, WikiError
     Ok(embed)
 }
 
-async fn autocomplete_wiki(_ctx: Context<'_>, partial: &str) -> Vec<String> {
+async fn autocomplete_wiki<'a>(_ctx: Context<'a>, partial: &'a str) -> CreateAutocompleteResponse<'a> {
     if partial.is_empty() {
-        return vec!["Main Page".to_owned()];
+        return CreateAutocompleteResponse::new().add_choice("Main Page")
     }
     match opensearch_mediawiki(partial).await {
-        Ok(r) => r,
+        Ok(r) => {
+            let choices = r.into_iter()
+                .map(AutocompleteChoice::from)
+                .collect::<Vec<AutocompleteChoice>>();
+            CreateAutocompleteResponse::new().set_choices(choices)
+        },
         Err(e) => {
             error!("Error searching wiki: {e}");
-            vec![]
+            CreateAutocompleteResponse::new()
         }
     }
 }

@@ -225,7 +225,7 @@ pub struct GlobalObject {
 }
 
 impl Class {
-    pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed {
+    pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed<'_> {
         let url = format!(
             "https://lua-api.factorio.com/latest/classes/{}.html",
             &self.common.name
@@ -241,7 +241,7 @@ impl Class {
 }
 
 impl Method {
-    pub fn to_embed(&self, parent: &Class, data: &Data) -> serenity::CreateEmbed {
+    pub fn to_embed(&self, parent: &Class, data: &Data) -> serenity::CreateEmbed<'_> {
         let mut sorted_params = self.parameters.clone();
         sorted_params.sort_unstable_by_key(|par| par.order);
         let parameters_str = if self.format.takes_table {
@@ -308,7 +308,7 @@ impl Method {
 }
 
 impl Attribute {
-    pub fn to_embed(&self, parent: &Class, data: &Data) -> serenity::CreateEmbed {
+    pub fn to_embed(&self, parent: &Class, data: &Data) -> serenity::CreateEmbed<'_> {
         let optional = if self.optional { "?" } else { "" };
         let url = format!(
             "https://lua-api.factorio.com/latest/classes/{}.html#{}",
@@ -332,7 +332,7 @@ impl Attribute {
 }
 
 impl Event {
-    pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed {
+    pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed<'_> {
         let url = format!(
             "https://lua-api.factorio.com/latest/events.html#{}",
             &self.common.name
@@ -348,7 +348,7 @@ impl Event {
 }
 
 impl Define {
-    pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed {
+    pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed<'_> {
         let url = format!(
             "https://lua-api.factorio.com/latest/defines.html#defines.{}",
             &self.common.name
@@ -364,7 +364,7 @@ impl Define {
 }
 
 impl Concept {
-    pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed {
+    pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed<'_> {
         let url = format!(
             "https://lua-api.factorio.com/latest/concepts.html#{}",
             &self.common.name
@@ -380,7 +380,7 @@ impl Concept {
 }
 
 impl BasicMember {
-    pub fn create_embed(&self, data: &Data) -> serenity::CreateEmbed {
+    pub fn create_embed(&self, data: &Data) -> serenity::CreateEmbed<'_> {
         serenity::CreateEmbed::new()
             .title(&self.name)
             .description(resolve_internal_links(data, &self.description).truncate_for_embed(4096))
@@ -534,24 +534,22 @@ pub async fn api_class(
     let embed = if let Some(property_name) = property_search {
         let method = search_result
             .methods
-            .clone()
-            .into_iter()
+            .iter()
             .find(|m| m.common.name.eq_ignore_ascii_case(&property_name));
         let attribute = search_result
             .attributes
-            .clone()
-            .into_iter()
+            .iter()
             .find(|a| a.common.name.eq_ignore_ascii_case(&property_name));
-
+        
         if let Some(m) = method {
-            m.to_embed(search_result, ctx.data())
+            m.to_embed(search_result, &ctx.data())
         } else if let Some(a) = attribute {
-            a.to_embed(search_result, ctx.data())
+            a.to_embed(search_result, &ctx.data())
         } else {
             return Err(ApiError::PropertyNotFound(property_name))?;
         }
     } else {
-        search_result.to_embed(ctx.data())
+        search_result.to_embed(&ctx.data())
     };
 
     let builder = CreateReply::default()
@@ -563,17 +561,17 @@ pub async fn api_class(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_class(ctx: Context<'_>, partial: &str) -> Vec<String> {
+async fn autocomplete_class<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read() {
         Ok(c) => c,
         Err(e) => {
             error! {"Error acquiring cache: {e}"}
-            return vec![];
+            return serenity::CreateAutocompleteResponse::new();
         }
     }
     .clone();
-    api.classes
+    let choices= api.classes
         .iter()
         .filter(|c| {
             c.common
@@ -581,20 +579,22 @@ async fn autocomplete_class(ctx: Context<'_>, partial: &str) -> Vec<String> {
                 .to_lowercase()
                 .contains(&partial.to_lowercase())
         })
-        .map(|c| c.common.name.clone())
-        .collect::<Vec<String>>()
+        .map(|c| serenity::AutocompleteChoice::from(c.common.name.clone()))
+        .collect::<Vec<serenity::AutocompleteChoice>>();
+
+    serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_class_property(ctx: Context<'_>, partial: &str) -> Vec<String> {
+async fn autocomplete_class_property<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
     let poise::Context::Application(appcontext) = ctx else {
-        return vec![];
+        return serenity::CreateAutocompleteResponse::new();
     };
     let serenity::ResolvedValue::String(classname) = appcontext.args[0].value else {
-        return vec![];
+        return serenity::CreateAutocompleteResponse::new();
     };
     if classname.is_empty() {
-        return vec![];
+        return serenity::CreateAutocompleteResponse::new();
     }
 
     let cache = ctx.data().runtime_api_cache.clone();
@@ -602,7 +602,7 @@ async fn autocomplete_class_property(ctx: Context<'_>, partial: &str) -> Vec<Str
         Ok(c) => c,
         Err(e) => {
             error! {"Error acquiring cache: {e}"}
-            return vec![];
+            return serenity::CreateAutocompleteResponse::new();
         }
     }
     .clone();
@@ -611,17 +611,20 @@ async fn autocomplete_class_property(ctx: Context<'_>, partial: &str) -> Vec<Str
         .iter()
         .find(|c| c.common.name.eq_ignore_ascii_case(classname))
     else {
-        return vec![];
+        return serenity::CreateAutocompleteResponse::new();
     }; // Happens when invalid class is used
 
     let methods = class.methods.clone().into_iter().map(|m| m.common);
     let attributes = class.attributes.clone().into_iter().map(|a| a.common);
     let properties = methods.chain(attributes);
 
-    properties
+    let choices = properties
         .map(|p| p.name)
         .filter(|n| n.to_lowercase().contains(&partial.to_lowercase()))
-        .collect::<Vec<String>>()
+        .map(serenity::AutocompleteChoice::from)
+        .collect::<Vec<serenity::AutocompleteChoice>>();
+
+    serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }
 
 /// Link a runtime modding API event
@@ -667,7 +670,7 @@ pub async fn api_event(
     };
 
     let builder = CreateReply::default()
-        .embed(search_result.to_embed(ctx.data()))
+        .embed(search_result.to_embed(&ctx.data()))
         .reply(true)
         .allowed_mentions(serenity::CreateAllowedMentions::default());
     ctx.send(builder).await?;
@@ -675,17 +678,17 @@ pub async fn api_event(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_event(ctx: Context<'_>, partial: &str) -> Vec<String> {
+async fn autocomplete_event<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read() {
         Ok(c) => c,
         Err(e) => {
             error! {"Error acquiring cache: {e}"}
-            return vec![];
+            return serenity::CreateAutocompleteResponse::new();
         }
     }
     .clone();
-    api.events
+    let choices = api.events
         .iter()
         .filter(|c| {
             c.common
@@ -693,8 +696,9 @@ async fn autocomplete_event(ctx: Context<'_>, partial: &str) -> Vec<String> {
                 .to_lowercase()
                 .contains(&partial.to_lowercase())
         })
-        .map(|c| c.common.name.clone())
-        .collect::<Vec<String>>()
+        .map(|c| serenity::AutocompleteChoice::from(c.common.name.clone()))
+        .collect::<Vec<serenity::AutocompleteChoice>>();
+    serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }
 
 /// Link a runtime modding API define
@@ -739,7 +743,7 @@ pub async fn api_define(
         return Err(ApiError::DefineNotFound(define_search))?;
     };
     let builder = CreateReply::default()
-        .embed(search_result.to_embed(ctx.data()))
+        .embed(search_result.to_embed(&ctx.data()))
         .reply(true)
         .allowed_mentions(serenity::CreateAllowedMentions::default());
     ctx.send(builder).await?;
@@ -747,17 +751,17 @@ pub async fn api_define(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_define(ctx: Context<'_>, partial: &str) -> Vec<String> {
+async fn autocomplete_define<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read() {
         Ok(c) => c,
         Err(e) => {
             error! {"Error acquiring cache: {e}"}
-            return vec![];
+            return poise::serenity_prelude::CreateAutocompleteResponse::new();
         }
     }
     .clone();
-    api.defines
+    let choices = api.defines
         .iter()
         .filter(|c| {
             c.common
@@ -765,8 +769,10 @@ async fn autocomplete_define(ctx: Context<'_>, partial: &str) -> Vec<String> {
                 .to_lowercase()
                 .contains(&partial.to_lowercase())
         })
-        .map(|c| c.common.name.clone())
-        .collect::<Vec<String>>()
+        .map(|c| serenity::AutocompleteChoice::from(c.common.name.clone()))
+        .collect::<Vec<serenity::AutocompleteChoice>>();
+
+    serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }
 
 /// Link a runtime modding API concept
@@ -812,7 +818,7 @@ pub async fn api_concept(
     };
 
     let builder = CreateReply::default()
-        .embed(search_result.to_embed(ctx.data()))
+        .embed(search_result.to_embed(&ctx.data()))
         .reply(true)
         .allowed_mentions(serenity::CreateAllowedMentions::default());
     ctx.send(builder).await?;
@@ -820,17 +826,17 @@ pub async fn api_concept(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_concept(ctx: Context<'_>, partial: &str) -> Vec<String> {
+async fn autocomplete_concept<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read() {
         Ok(c) => c,
         Err(e) => {
             error! {"Error acquiring cache: {e}"}
-            return vec![];
+            return serenity::CreateAutocompleteResponse::new();
         }
     }
     .clone();
-    api.concepts
+    let choices = api.concepts
         .iter()
         .filter(|c| {
             c.common
@@ -838,8 +844,9 @@ async fn autocomplete_concept(ctx: Context<'_>, partial: &str) -> Vec<String> {
                 .to_lowercase()
                 .contains(&partial.to_lowercase())
         })
-        .map(|c| c.common.name.clone())
-        .collect::<Vec<String>>()
+        .map(|c| serenity::AutocompleteChoice::from(c.common.name.clone()))
+        .collect::<Vec<serenity::AutocompleteChoice>>();
+    serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }
 
 #[allow(unused_imports)]

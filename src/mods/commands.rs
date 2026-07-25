@@ -4,6 +4,8 @@ use poise::{
     serenity_prelude::{AutocompleteChoice, Colour, CreateAllowedMentions, CreateEmbed},
 };
 
+use poise::serenity_prelude as serenity;
+
 use crate::{
     Context, Data, Error, SEPARATOR, database,
     formatting_tools::DiscordFormat,
@@ -36,7 +38,7 @@ pub async fn set_updates_channel(
     channel: poise::serenity_prelude::GuildChannel,
 ) -> Result<(), Error> {
     let channel_id = channel.id.get() as i64;
-    let server_id = channel.guild_id.get() as i64;
+    let server_id = channel.base.guild_id.get() as i64;
     let db = &ctx.data().database;
 
     database::store_updates_channel(db, server_id, channel_id).await?;
@@ -182,7 +184,7 @@ pub async fn unsubscribe_mod(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_subscribed_modname(ctx: Context<'_>, partial: &str) -> Vec<String> {
+async fn autocomplete_subscribed_modname<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
     autocomplete_unsubscribe(ctx, partial, &AutocompleteType::Mod)
 }
 
@@ -221,20 +223,24 @@ pub async fn subscribe_author(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_author(ctx: Context<'_>, partial: &str) -> Vec<String> {
+async fn autocomplete_author<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
     let cache = &ctx.data().mod_author_cache;
     let author_cache = match cache.read() {
         Ok(c) => c,
         Err(e) => {
             error! {"Error acquiring cache: {e}"}
-            return vec![];
+            return serenity::CreateAutocompleteResponse::new();
         }
     }
     .clone();
-    author_cache
+
+    let choices = author_cache
         .into_iter()
         .filter(|entry| entry.starts_with(partial))
-        .collect::<Vec<String>>()
+        .map(serenity::AutocompleteChoice::from)
+        .collect::<Vec<serenity::AutocompleteChoice>>();
+
+    serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }
 
 /// Unsubscribe from a mod author
@@ -262,29 +268,29 @@ pub async fn unsubscribe_author(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_subscribed_author(ctx: Context<'_>, partial: &str) -> Vec<String> {
+async fn autocomplete_subscribed_author<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
     autocomplete_unsubscribe(ctx, partial, &AutocompleteType::Author)
 }
 #[allow(clippy::cast_possible_wrap)]
-fn autocomplete_unsubscribe(
-    ctx: Context<'_>,
-    partial: &str,
-    data_type: &AutocompleteType,
-) -> Vec<String> {
+fn autocomplete_unsubscribe<'a>(
+    ctx: Context<'a>,
+    partial: &'a str,
+    data_type: &'a AutocompleteType,
+) -> serenity::CreateAutocompleteResponse<'a> {
     let cache = &ctx.data().mod_subscription_cache;
     let Some(server) = ctx.guild_id() else {
         error!("Could not get server ID while autocompleting faq name");
-        return vec![];
+        return serenity::CreateAutocompleteResponse::new();
     };
     let server_id = server.get() as i64;
     let subscription_cache = match cache.read() {
         Ok(c) => c,
         Err(e) => {
             error! {"Error acquiring cache: {e}"}
-            return vec![];
+            return serenity::CreateAutocompleteResponse::new();
         }
     };
-    match data_type {
+    let choices = match data_type {
         AutocompleteType::Mod => subscription_cache
             .clone()
             .into_iter()
@@ -294,7 +300,8 @@ fn autocomplete_unsubscribe(
                 SubscriptionType::Modname(name) => Some(name),
             })
             .filter(|entry| entry.starts_with(partial))
-            .collect::<Vec<String>>(),
+            .map(serenity::AutocompleteChoice::from)
+            .collect::<Vec<AutocompleteChoice>>(),
         AutocompleteType::Author => subscription_cache
             .clone()
             .into_iter()
@@ -304,8 +311,11 @@ fn autocomplete_unsubscribe(
                 SubscriptionType::Modname(_) => None,
             })
             .filter(|entry| entry.starts_with(partial))
-            .collect::<Vec<String>>(),
-    }
+            .map(serenity::AutocompleteChoice::from)
+            .collect::<Vec<AutocompleteChoice>>(),
+    };
+    drop(subscription_cache);
+    serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }
 
 /// List which mods and authors the server is currently subscribed to.
@@ -355,10 +365,11 @@ pub async fn find_mod(
     #[rest]
     modname: String,
 ) -> Result<(), Error> {
-    let command = modname.split(SEPARATOR).next().unwrap_or(&modname).trim();
+    let command = modname.split(SEPARATOR).next().unwrap_or(&modname).trim().to_owned();
+    let data = &ctx.data();
     let embed = match ctx {
-        poise::Context::Application(_) => mod_search(command, false, ctx.data()).await?,
-        poise::Context::Prefix(_) => mod_search(command, true, ctx.data()).await?,
+        poise::Context::Application(_) => mod_search(command, false, data).await?,
+        poise::Context::Prefix(_) => mod_search(command, true, data).await?,
     };
     let builder = CreateReply::default()
         .embed(embed)
@@ -369,14 +380,14 @@ pub async fn find_mod(
 }
 
 pub async fn mod_search(
-    modname: &str,
+    modname: String,
     imprecise_search: bool,
-    data: &Data,
-) -> Result<CreateEmbed, Error> {
+    data: &'_ Data,
+) -> Result<CreateEmbed<'_>, Error> {
     let mut search_result = if imprecise_search {
-        search_api::find_mod(modname, &data.mod_portal_credentials).await?
+        search_api::find_mod(&modname, &data.mod_portal_credentials).await?
     } else {
-        let data = super::update_notifications::get_mod_info(modname).await?;
+        let data = super::update_notifications::get_mod_info(&modname).await?;
         let factorio_versions = data.releases.iter().map(|r| r.info_json.factorio_version.clone()).collect::<Vec<String>>();
         let thumbnail = format!(
             "https://assets-mod.factorio.com{}",
@@ -407,31 +418,31 @@ pub async fn mod_search(
     };
 
     let embed = CreateEmbed::new()
-        .title(&search_result.title)
+        .title(search_result.title)
         .url(url)
-        .description(&search_result.summary)
+        .description(search_result.summary)
         .color(Colour::from_rgb(0x2E, 0xCC, 0x71))
-        .field("Author", &search_result.owner, true)
+        .field("Author", search_result.owner, true)
         .field("Downloads", search_result.downloads_count.to_string(), true)
         .field("Factorio version", factorio_versions, true)
-        .thumbnail(&search_result.thumbnail);
+        .thumbnail(search_result.thumbnail, None);
     Ok(embed)
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_modname(ctx: Context<'_>, partial: &str) -> Vec<AutocompleteChoice> {
+async fn autocomplete_modname<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
     let cache = ctx.data().mod_cache.clone();
     let modcache = match cache.read() {
         Ok(c) => c,
         Err(e) => {
             error! {"Error acquiring cache: {e}"}
-            return vec![];
+            return serenity::CreateAutocompleteResponse::new();
         }
     }
     .clone();
 
     let mut title_starts_with_names: Vec<String> = Vec::new();
-    let mut list = modcache
+    let mut choices = modcache
         .clone()
         .into_iter()
         .filter(move |f| {
@@ -447,8 +458,8 @@ async fn autocomplete_modname(ctx: Context<'_>, partial: &str) -> Vec<Autocomple
             )
         })
         .collect::<Vec<AutocompleteChoice>>();
-    if list.len() >= 25 {
-        return list;
+    if choices.len() >= 25 {
+        return serenity::CreateAutocompleteResponse::new().set_choices(choices);
     }
 
     let mut title_contains_names: Vec<String> = Vec::new();
@@ -467,9 +478,9 @@ async fn autocomplete_modname(ctx: Context<'_>, partial: &str) -> Vec<Autocomple
             )
         })
         .collect::<Vec<AutocompleteChoice>>();
-    list.append(&mut title_contains);
-    if list.len() >= 25 {
-        return list;
+    choices.append(&mut title_contains);
+    if choices.len() >= 25 {
+        return serenity::CreateAutocompleteResponse::new().set_choices(choices);
     }
 
     let mut name_contains = modcache
@@ -487,7 +498,7 @@ async fn autocomplete_modname(ctx: Context<'_>, partial: &str) -> Vec<Autocomple
             )
         })
         .collect::<Vec<AutocompleteChoice>>();
-    list.append(&mut name_contains);
+    choices.append(&mut name_contains);
 
-    list
+    serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }

@@ -2,6 +2,7 @@ use log::error;
 use poise::CreateReply;
 use poise::Modal;
 use poise::serenity_prelude as serenity;
+use poise::serenity_prelude::CollectComponentInteractions;
 use sqlx::{Pool, Sqlite};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -215,7 +216,7 @@ async fn faq_core(ctx: Context<'_>, name: String) -> Result<(), Error> {
 }
 
 // Make and send embed for faq entry
-fn create_faq_embed(name: &str, faq_entry: BasicFaqEntry, close_match: bool) -> CreateReply {
+fn create_faq_embed(name: &str, faq_entry: BasicFaqEntry, close_match: bool) -> CreateReply<'_> {
     let title = if close_match {
         format!(
             r#"Could not find "{}" in FAQ tags. Did you mean "{}"?"#,
@@ -234,7 +235,7 @@ fn create_faq_embed(name: &str, faq_entry: BasicFaqEntry, close_match: bool) -> 
     }
 
     if let Some(img) = faq_entry.image {
-        embed = embed.image(img);
+        embed = embed.image(img, None);
     }
 
     CreateReply::default().embed(embed).reply(true).allowed_mentions(serenity::CreateAllowedMentions::default())
@@ -277,13 +278,13 @@ async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError>
         .title("Error while executing command faq:")
         .description(format!("{error}"))
         .color(serenity::Colour::RED);
-    let wiki_button = serenity::CreateButton::new("wiki_search")
+    let buttons = [serenity::CreateButton::new("wiki_search")
         .label("Search the wiki")
-        .style(serenity::ButtonStyle::Primary);
-    let components = vec![serenity::CreateActionRow::Buttons(vec![wiki_button])];
+        .style(serenity::ButtonStyle::Primary)];
+    let components = [serenity::CreateComponent::ActionRow(serenity::CreateActionRow::buttons(&buttons))];
     let builder = CreateReply::default()
         .embed(embed.clone())
-        .components(components)
+        .components(&components)
         .reply(true)
         .allowed_mentions(serenity::CreateAllowedMentions::default());
     let error_message_handle = ctx.send(builder).await.map_err(FaqError::from)?;
@@ -291,8 +292,8 @@ async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError>
         .message()
         .await
         .map_err(FaqError::from)?;
-    let Some(_response) = error_message
-        .await_component_interaction(ctx)
+    let Some(_response) = error_message.id
+        .collect_component_interactions(ctx.serenity_context())
         .timeout(Duration::from_mins(2))
         .await
     else {
@@ -309,7 +310,7 @@ async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError>
         }
     };
 
-    let wiki_embed = match wiki_commands::get_wiki_page(faq_name).await {
+    let wiki_embed = match wiki_commands::get_wiki_page(faq_name.to_string()).await {
         Ok(w) => w,
         Err(e) => return Err(FaqError::WikiError(e, faq_name.to_string())),
     };
@@ -356,10 +357,10 @@ fn find_closest_faq(
 }
 
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
-async fn autocomplete_faq(ctx: Context<'_>, partial: &str) -> Vec<String> {
+async fn autocomplete_faq<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
     let Some(server) = ctx.guild_id() else {
         error!("Could not get server ID while autocompleting faq name");
-        return vec![];
+        return serenity::CreateAutocompleteResponse::new();
     };
     let server_id = server.get() as i64;
     let cache = ctx.data().faq_cache.clone();
@@ -369,7 +370,7 @@ async fn autocomplete_faq(ctx: Context<'_>, partial: &str) -> Vec<String> {
             Ok(c) => c,
             Err(e) => {
                 error! {"Error acquiring cache: {e}"}
-                return vec![];
+                return serenity::CreateAutocompleteResponse::new();
             }
         };
         faqcache
@@ -382,7 +383,11 @@ async fn autocomplete_faq(ctx: Context<'_>, partial: &str) -> Vec<String> {
     }; // Drop faqcache variable early
 
     autocomplete_vec.sort_unstable();
-    autocomplete_vec
+    let choices = autocomplete_vec.into_iter()
+        .map(serenity::AutocompleteChoice::from)
+        .collect::<Vec<serenity::AutocompleteChoice>>();
+
+    serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }
 
 /// Add, remove or link FAQ entries
@@ -441,7 +446,7 @@ pub async fn faq_new_slash(ctx: poise::ApplicationContext<'_, crate::Data, crate
     Ok(())
 }
 
-/// Add an faq entry
+/// Add or overwrite an faq entry
 #[poise::command(
     prefix_command,
     guild_only,
@@ -465,7 +470,7 @@ pub async fn faq_new_prefix(
     {
         return Err(FaqError::BodyTooLong)?;
     }
-    let faq_entry = BasicFaqEntry { title: name, contents, image: image.map(|i| i.proxy_url), link: None };
+    let faq_entry = BasicFaqEntry { title: name, contents, image: image.map(|i| i.proxy_url.into()), link: None };
     let context = poise::Context::from(ctx);
     process_new_faq(context, faq_entry).await?;
     Ok(())
@@ -484,9 +489,6 @@ async fn process_new_faq(ctx: Context<'_>, faq_entry: BasicFaqEntry) -> Result<(
         .map_err(FaqError::from)?
         .is_some();
 
-    let timestamp = ctx.created_at().timestamp();
-    let author_id = ctx.author().id.get() as i64;
-
     // Delete previous entry to prevent duplication
     if pre_existing {
         database::delete_faq_entry(db, server_id, &name_lc)
@@ -500,8 +502,6 @@ async fn process_new_faq(ctx: Context<'_>, faq_entry: BasicFaqEntry) -> Result<(
         name: &name_lc,
         content: faq_entry.contents.as_deref(),
         attachment_url: faq_entry.image.as_deref(),
-        timestamp,
-        author_id,
         link: None,
     };
     database::add_faq_entry(db, faq_db_entry)
@@ -522,7 +522,7 @@ async fn process_new_faq(ctx: Context<'_>, faq_entry: BasicFaqEntry) -> Result<(
         embed = embed.description(c);
     }
     if let Some(url) = faq_entry.image {
-        embed = embed.image(url);
+        embed = embed.image(url, None);
     }
     
     // Only .jpg, .jpeg, .png, .webp, and .gif are supported
@@ -587,9 +587,6 @@ pub async fn link(
         return Err(FaqError::AlreadyExists(name_lc))?;
     }
 
-    let timestamp = ctx.created_at().timestamp();
-    let author_id = ctx.author().id.get() as i64;
-
     // Find entry to link to
     let linked_entry = get_faq_entry(db, server_id, &link_to_lc).await?;
     let link_no_chain = linked_entry.link.map_or(link_to_lc, |link| link);
@@ -598,8 +595,6 @@ pub async fn link(
         name: &name_lc,
         content: None,
         attachment_url: None,
-        timestamp,
-        author_id,
         link: Some(&link_no_chain),
     };
     database::add_faq_entry(db, faq_entry)
@@ -626,26 +621,26 @@ pub async fn link(
 pub async fn drop_faqs(ctx: Context<'_>) -> Result<(), Error> {
     let db = &ctx.data().database;
     let server_id = management::get_server_id(ctx).map_err(FaqError::from)?;
-    let button_yes = serenity::CreateButton::new("Yes")
-        .label("Yes")
-        .style(serenity::ButtonStyle::Danger);
-    let button_no = serenity::CreateButton::new("No")
-        .label("No")
-        .style(serenity::ButtonStyle::Primary);
-    let components = vec![serenity::CreateActionRow::Buttons(vec![
-        button_yes, button_no,
-    ])];
+    let buttons = [
+        serenity::CreateButton::new("Yes")
+            .label("Yes")
+            .style(serenity::ButtonStyle::Danger),
+        serenity::CreateButton::new("No")
+            .label("No")
+            .style(serenity::ButtonStyle::Primary)
+    ];
+    let components = [serenity::CreateComponent::ActionRow(serenity::CreateActionRow::buttons(&buttons))];
     let confirmation = ctx.send(
         CreateReply::default()
             .content("Are you sure you want to drop the FAQ database for this server? \n**THIS ACTION CANNOT BE REVERTED**")
-            .components(components)
+            .components(&components)
             .reply(true)
             .allowed_mentions(serenity::CreateAllowedMentions::default())
         ).await.map_err(FaqError::from)?;
     let confirmation_message = confirmation.message().await.map_err(FaqError::from)?;
 
-    let Some(response) = confirmation_message
-        .await_component_interaction(ctx)
+    let Some(response) = confirmation_message.id
+        .collect_component_interactions(ctx.serenity_context())
         .timeout(Duration::from_mins(1))
         .await
     else {
@@ -766,16 +761,12 @@ pub async fn import_faqs(ctx: Context<'_>, faq_json: serenity::Attachment) -> Re
     let file_str = std::str::from_utf8(&content).map_err(FaqError::from)?;
     let faqs: Vec<BasicFaqEntry> = serde_json::from_str(file_str).map_err(FaqError::from)?;
     let db = &ctx.data().database;
-    let timestamp = ctx.created_at().timestamp();
-    let author = ctx.author().id.get() as i64;
     for faq in faqs {
         let db_faq_entry = database::DBFaqEntry {
             server_id,
             name: &faq.title,
             content: faq.contents.as_deref(),
             attachment_url: faq.image.as_deref(),
-            timestamp,
-            author_id: author,
             link: faq.link.as_deref(),
         };
         database::add_faq_entry(db, db_faq_entry)

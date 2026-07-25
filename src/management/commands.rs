@@ -34,35 +34,13 @@ pub async fn info(ctx: Context<'_>) -> Result<(), Error> {
         .title("ρBot")
         .field("Creator", "SpeckledFleebeedoo (<@247640901805932544>)", false)
         .field("Source", "[GitHub](https://www.github.com/SpeckledFleebeedoo/rhobot)", true)
-        .field("Invite link", "[Invite](https://discord.com/api/oauth2/authorize?client_id=872540831599456296&permissions=274877925376&scope=bot%20applications.commands)", true);
+        .field("Invite link", "[Invite](https://discord.com/api/oauth2/authorize?client_id=872540831599456296&permissions=274877925376&scope=bot%20applications.commands)", true)
+        .field("Privacy policy", "[Privacy policy](https://speckledfleebeedoo.github.io/RHOBOT_PRIVACY_POLICY.html)", true);
     let builder = CreateReply::default()
         .embed(embed)
         .reply(true)
         .allowed_mentions(serenity::CreateAllowedMentions::default());
     ctx.send(builder).await?;
-    Ok(())
-}
-
-/// Show this help menu
-#[poise::command(
-    prefix_command,
-    track_edits,
-    slash_command,
-    install_context = "Guild|User",
-    interaction_context = "Guild|BotDm|PrivateChannel"
-)]
-pub async fn help(
-    ctx: Context<'_>,
-    #[description = "Specific command to show help about"]
-    #[autocomplete = "poise::builtins::autocomplete_command"]
-    command: Option<String>,
-) -> Result<(), Error> {
-    poise::builtins::help(
-        ctx,
-        command.as_deref(),
-        poise::builtins::HelpConfiguration::default(),
-    )
-    .await?;
     Ok(())
 }
 

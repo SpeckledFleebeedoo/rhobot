@@ -14,6 +14,7 @@ pub enum RhobotError {
     Database(database::DatabaseError),
     Wiki(wiki_commands::WikiError),
     Serenity(Box<serenity::Error>),
+    CommandNotFound(String),
 }
 
 impl fmt::Display for RhobotError {
@@ -27,6 +28,7 @@ impl fmt::Display for RhobotError {
             Self::Database(error) => f.write_str(&format!("Error in Database module: {error}")),
             Self::Wiki(error) => f.write_str(&error.to_string()),
             Self::Serenity(error) => f.write_str(&format!("Serenity error: {error}")),
+            Self::CommandNotFound(command) => f.write_str(&format!("Command not found: {command}")),
         }
     }
 }
@@ -74,6 +76,7 @@ impl RhobotError {
                 _ => error!("{wiki_error}"),
             },
             Self::Serenity(error) => error!("{error}"),
+            Self::CommandNotFound(command) => error!("Command not found: {command}"),
         }
     }
 }

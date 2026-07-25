@@ -64,15 +64,17 @@ pub async fn chapter(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_chapter(_ctx: Context<'_>, partial: &str) -> Vec<String> {
-    CHAPTERS
+async fn autocomplete_chapter<'a>(_ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
+    let choices = CHAPTERS
         .iter()
         .filter(|ch| {
             let c = ch.0.to_owned();
             c.to_lowercase().contains(&partial.to_lowercase())
         })
-        .map(|ch| ch.0.to_owned())
-        .collect::<Vec<String>>()
+        .map(|ch| serenity::AutocompleteChoice::from(ch.0.to_owned()))
+        .collect::<Vec<serenity::AutocompleteChoice>>();
+    
+    serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }
 
 /// Link functions in the lua 5.2 manual
@@ -116,13 +118,15 @@ pub async fn function(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_function(_ctx: Context<'_>, partial: &str) -> Vec<String> {
-    FUNCTIONS
+async fn autocomplete_function<'a>(_ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
+    let choices = FUNCTIONS
         .iter()
         .filter(|f| {
             let c = f.0.to_owned();
             c.to_lowercase().contains(&partial.to_lowercase())
         })
-        .map(|f| f.0.to_owned())
-        .collect::<Vec<String>>()
+        .map(|f| serenity::AutocompleteChoice::from(f.0.to_owned()))
+        .collect::<Vec<serenity::AutocompleteChoice>>();
+    
+    serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }

@@ -127,8 +127,6 @@ pub struct DBFaqEntry<'a> {
     pub name: &'a str,
     pub content: Option<&'a str>,
     pub attachment_url: Option<&'a str>,
-    pub timestamp: i64,
-    pub author_id: i64,
     pub link: Option<&'a str>,
 }
 
@@ -137,14 +135,12 @@ pub async fn add_faq_entry(
     faq_entry: DBFaqEntry<'_>,
 ) -> Result<(), DatabaseError> {
     sqlx::query!(
-        r#"INSERT INTO faq (server_id, title, contents, image, edit_time, author, link)
-        VALUES (?, ?, ?, ?, ?, ?, ?)"#,
+        r#"INSERT INTO faq (server_id, title, contents, image, link)
+        VALUES (?, ?, ?, ?, ?)"#,
         faq_entry.server_id,
         faq_entry.name,
         faq_entry.content,
         faq_entry.attachment_url,
-        faq_entry.timestamp,
-        faq_entry.author_id,
         faq_entry.link
     )
     .execute(db)

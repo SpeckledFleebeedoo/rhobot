@@ -8,6 +8,7 @@ mod faq_commands;
 mod fff_commands;
 mod formatting_tools;
 mod fun_commands;
+mod help;
 mod management;
 mod modding_api;
 mod mods;
@@ -55,7 +56,7 @@ pub struct Data {
     data_api_cache: Arc<RwLock<modding_api::data::ApiResponse>>,
     mod_portal_credentials: Arc<ModPortalCredentials>,
     inline_command_log: Arc<
-        DashMap<serenity::MessageId, (serenity::ChannelId, serenity::MessageId, time::Instant)>,
+        DashMap<serenity::MessageId, (serenity::GenericChannelId, serenity::MessageId, time::Instant)>,
     >,
 }
 
@@ -63,6 +64,7 @@ pub struct Data {
 #[tokio::main]
 async fn main() {
     env_logger::init();
+    rustls::crypto::ring::default_provider().install_default().expect("Failed to install ring as rustls provider");
     dotenv().ok();
 
     // Initialize sqlx database
@@ -126,7 +128,7 @@ async fn main() {
     // Every option can be omitted to use its default value
     let options = poise::FrameworkOptions {
         commands: vec![
-            management::commands::help(),
+            help::help(),
             management::commands::info(),
             management::commands::get_server_info(),
             management::commands::reset_server_settings(),
@@ -171,59 +173,36 @@ async fn main() {
         // Enforce command checks even for owners (enforced by default)
         // Set to true to bypass checks, which is useful for testing
         skip_checks_for_owners: false,
-        event_handler: |ctx, event, _framework, data| {
-            Box::pin(async move {
-                if let serenity::FullEvent::GuildDelete {
-                    incomplete,
-                    full: _,
-                } = event
-                    && !incomplete.unavailable
-                {
-                    events::on_guild_leave(incomplete.id, &data.database).await?;
-                }
-                if let serenity::FullEvent::Message { new_message } = event {
-                    events::on_message(ctx.clone(), new_message, data).await?;
-                }
-                if let serenity::FullEvent::MessageUpdate { event, .. } = event {
-                    events::on_message_edit(ctx.clone(), event, data).await?;
-                }
-                if let serenity::FullEvent::MessageDelete { channel_id, deleted_message_id, .. } = event {
-                    events::on_message_delete(ctx.clone(), channel_id, deleted_message_id, data).await?;
-                }
-                Ok(())
-            })
-        },
+        // event_handler: 
         ..Default::default()
     };
 
+    let data = Arc::new(Data {
+        database: db_clone,
+        mod_cache: mods_cache_clone,
+        faq_cache: faq_cache_clone,
+        mod_subscription_cache: subscription_cache_clone,
+        mod_author_cache: authorname_cache_clone,
+        runtime_api_cache: runtime_api_cache_clone,
+        data_api_cache: data_api_cache_clone,
+        mod_portal_credentials,
+        inline_command_log,
+    });
+
     let framework = poise::Framework::builder()
-        .setup(move |ctx, ready, framework| {
-            Box::pin(async move {
-                println!("Logged in as {}", ready.user.name);
-                poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(Data {
-                    database: db_clone,
-                    mod_cache: mods_cache_clone,
-                    faq_cache: faq_cache_clone,
-                    mod_subscription_cache: subscription_cache_clone,
-                    mod_author_cache: authorname_cache_clone,
-                    runtime_api_cache: runtime_api_cache_clone,
-                    data_api_cache: data_api_cache_clone,
-                    mod_portal_credentials,
-                    inline_command_log,
-                })
-            })
-        })
         .options(options)
         .build();
 
-    let token = var("DISCORD_TOKEN")
+    let token = poise::serenity_prelude::Token::from_env("DISCORD_TOKEN")
         .expect("Missing `DISCORD_TOKEN` env var, see README for more information.");
     let intents =
         serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT;
 
     let client = serenity::ClientBuilder::new(token, intents)
-        .framework(framework)
+        .framework(Box::new(framework))
+        .event_handler(Arc::new(events::CustomEventHandler::new(data.clone())))
+        .data(data)
+        .status(serenity::OnlineStatus::Online)
         .await;
 
     let http_clone = client.as_ref().unwrap().http.clone();

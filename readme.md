@@ -27,3 +27,8 @@ Rewrite of and replacement for [SpeckledFleebeedoo/Factorio-Mod-Notifier](https:
 5. Apply all migrations to the database: `sqlx migrate run`
 3. Build the application: `cargo build`
 4. Run the application: `cargo run`
+
+
+## Privacy
+
+The Privacy Policy can be found [HERE](https://speckledfleebeedoo.github.io/RHOBOT_PRIVACY_POLICY.html).

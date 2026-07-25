@@ -301,9 +301,9 @@ async fn make_update_message(
         .description(changelog.truncate_for_embed(4096))
         .field("**Author**", &author_link, true)
         .field("**Version**", &updated_mod.version, true)
-        .thumbnail(&updated_mod.thumbnail);
+        .thumbnail(&updated_mod.thumbnail, None);
     let builder = CreateMessage::new().embed(embed);
-    match updates_channel.send_message(cache_http, builder).await {
+    match updates_channel.widen().send_message(cache_http, builder).await {
         Ok(_) => {}
         Err(e) => error!("Error sending message: {e}"),
     }

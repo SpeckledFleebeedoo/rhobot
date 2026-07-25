@@ -4,7 +4,7 @@ use crate::{Context, Error, database, management::ManagementError};
 
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 pub async fn is_mod(ctx: Context<'_>) -> Result<bool, Error> {
-    let Some(channel) = &ctx.guild_channel().await else {
+    let Some(serenity::Channel::Guild(channel)) = &ctx.channel().await else {
         return Ok(false);
     };
     let Some(member) = &ctx.author_member().await else {

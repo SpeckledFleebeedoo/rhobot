@@ -184,7 +184,10 @@ pub async fn unsubscribe_mod(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_subscribed_modname<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
+async fn autocomplete_subscribed_modname<'a>(
+    ctx: Context<'a>,
+    partial: &'a str,
+) -> serenity::CreateAutocompleteResponse<'a> {
     autocomplete_unsubscribe(ctx, partial, &AutocompleteType::Mod)
 }
 
@@ -223,7 +226,10 @@ pub async fn subscribe_author(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_author<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
+async fn autocomplete_author<'a>(
+    ctx: Context<'a>,
+    partial: &'a str,
+) -> serenity::CreateAutocompleteResponse<'a> {
     let cache = &ctx.data().mod_author_cache;
     let author_cache = match cache.read() {
         Ok(c) => c,
@@ -237,6 +243,7 @@ async fn autocomplete_author<'a>(ctx: Context<'a>, partial: &'a str) -> serenity
     let choices = author_cache
         .into_iter()
         .filter(|entry| entry.starts_with(partial))
+        .take(25)
         .map(serenity::AutocompleteChoice::from)
         .collect::<Vec<serenity::AutocompleteChoice>>();
 
@@ -268,7 +275,10 @@ pub async fn unsubscribe_author(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_subscribed_author<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
+async fn autocomplete_subscribed_author<'a>(
+    ctx: Context<'a>,
+    partial: &'a str,
+) -> serenity::CreateAutocompleteResponse<'a> {
     autocomplete_unsubscribe(ctx, partial, &AutocompleteType::Author)
 }
 #[allow(clippy::cast_possible_wrap)]
@@ -300,6 +310,7 @@ fn autocomplete_unsubscribe<'a>(
                 SubscriptionType::Modname(name) => Some(name),
             })
             .filter(|entry| entry.starts_with(partial))
+            .take(25)
             .map(serenity::AutocompleteChoice::from)
             .collect::<Vec<AutocompleteChoice>>(),
         AutocompleteType::Author => subscription_cache
@@ -311,10 +322,12 @@ fn autocomplete_unsubscribe<'a>(
                 SubscriptionType::Modname(_) => None,
             })
             .filter(|entry| entry.starts_with(partial))
+            .take(25)
             .map(serenity::AutocompleteChoice::from)
             .collect::<Vec<AutocompleteChoice>>(),
     };
     drop(subscription_cache);
+
     serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }
 
@@ -365,7 +378,12 @@ pub async fn find_mod(
     #[rest]
     modname: String,
 ) -> Result<(), Error> {
-    let command = modname.split(SEPARATOR).next().unwrap_or(&modname).trim().to_owned();
+    let command = modname
+        .split(SEPARATOR)
+        .next()
+        .unwrap_or(&modname)
+        .trim()
+        .to_owned();
     let data = &ctx.data();
     let embed = match ctx {
         poise::Context::Application(_) => mod_search(command, false, data).await?,
@@ -388,7 +406,11 @@ pub async fn mod_search(
         search_api::find_mod(&modname, &data.mod_portal_credentials).await?
     } else {
         let data = super::update_notifications::get_mod_info(&modname).await?;
-        let factorio_versions = data.releases.iter().map(|r| r.info_json.factorio_version.clone()).collect::<Vec<String>>();
+        let factorio_versions = data
+            .releases
+            .iter()
+            .map(|r| r.info_json.factorio_version.clone())
+            .collect::<Vec<String>>();
         let thumbnail = format!(
             "https://assets-mod.factorio.com{}",
             data.thumbnail
@@ -430,7 +452,10 @@ pub async fn mod_search(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_modname<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
+async fn autocomplete_modname<'a>(
+    ctx: Context<'a>,
+    partial: &'a str,
+) -> serenity::CreateAutocompleteResponse<'a> {
     let cache = ctx.data().mod_cache.clone();
     let modcache = match cache.read() {
         Ok(c) => c,
@@ -449,6 +474,7 @@ async fn autocomplete_modname<'a>(ctx: Context<'a>, partial: &'a str) -> serenit
             f.title.to_lowercase().starts_with(&partial.to_lowercase())
                 || f.author.to_lowercase().starts_with(&partial.to_lowercase())
         })
+        .take(25)
         .map(|f| {
             title_starts_with_names.push(f.name.clone());
             let title = f.title.truncate_for_embed(100 - 4 - f.author.len());
@@ -462,6 +488,8 @@ async fn autocomplete_modname<'a>(ctx: Context<'a>, partial: &'a str) -> serenit
         return serenity::CreateAutocompleteResponse::new().set_choices(choices);
     }
 
+    let autocomplete_slots_remaining = 25 - choices.len();
+
     let mut title_contains_names: Vec<String> = Vec::new();
     let mut title_contains = modcache
         .iter()
@@ -469,6 +497,7 @@ async fn autocomplete_modname<'a>(ctx: Context<'a>, partial: &'a str) -> serenit
             !(title_starts_with_names.contains(&f.name))  // Exclude previously found names
             && f.title.to_lowercase().contains(&partial.to_lowercase())
         })
+        .take(autocomplete_slots_remaining)
         .map(|f| {
             title_contains_names.push(f.name.clone());
             let title = f.title.clone().truncate_for_embed(100 - 4 - f.author.len());
@@ -478,18 +507,22 @@ async fn autocomplete_modname<'a>(ctx: Context<'a>, partial: &'a str) -> serenit
             )
         })
         .collect::<Vec<AutocompleteChoice>>();
+
     choices.append(&mut title_contains);
     if choices.len() >= 25 {
         return serenity::CreateAutocompleteResponse::new().set_choices(choices);
     }
+
+    let autocomplete_slots_remaining = 25 - choices.len();
 
     let mut name_contains = modcache
         .iter()
         .filter(|f| {
             !(title_starts_with_names.contains(&f.name))
             && !(title_contains_names.contains(&f.name))  // Exclude previously found names
-            && f.name.to_lowercase().contains(&partial.to_lowercase())
+            && (f.name.to_lowercase().contains(&partial.to_lowercase()) || f.author.to_lowercase().contains(&partial.to_lowercase()))
         })
+        .take(autocomplete_slots_remaining)
         .map(|f| {
             let title = f.title.clone().truncate_for_embed(100 - 4 - f.author.len());
             AutocompleteChoice::new(

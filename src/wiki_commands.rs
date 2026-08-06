@@ -561,6 +561,7 @@ async fn autocomplete_wiki<'a>(_ctx: Context<'a>, partial: &'a str) -> CreateAut
     match opensearch_mediawiki(partial).await {
         Ok(r) => {
             let choices = r.into_iter()
+                .take(25)
                 .map(AutocompleteChoice::from)
                 .collect::<Vec<AutocompleteChoice>>();
             CreateAutocompleteResponse::new().set_choices(choices)

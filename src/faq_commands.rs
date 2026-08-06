@@ -384,6 +384,7 @@ async fn autocomplete_faq<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::C
 
     autocomplete_vec.sort_unstable();
     let choices = autocomplete_vec.into_iter()
+        .take(25)
         .map(serenity::AutocompleteChoice::from)
         .collect::<Vec<serenity::AutocompleteChoice>>();
 

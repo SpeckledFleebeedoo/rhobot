@@ -203,7 +203,8 @@ fn message_prompt_search(
     let mut in_code_block = false;
     let mut blockquote_depth = 0;
     let mut filtered_message = String::new();
-    for event in pulldown_cmark::Parser::new(message_content) {
+    let events = pulldown_cmark::Parser::new(message_content);
+    for event in events {
         match event {
             pulldown_cmark::Event::Start(pulldown_cmark::Tag::CodeBlock(_)) => {
                 in_code_block = true;
@@ -214,6 +215,9 @@ fn message_prompt_search(
             pulldown_cmark::Event::Start(pulldown_cmark::Tag::BlockQuote(None)) => {
                 filtered_message.push('>');
                 blockquote_depth += 1;
+            }
+            pulldown_cmark::Event::End(pulldown_cmark::TagEnd::BlockQuote(None)) => {
+                blockquote_depth -= 1;
             }
             pulldown_cmark::Event::SoftBreak => {
                 for _ in 0..blockquote_depth {
@@ -248,10 +252,14 @@ fn message_prompt_search(
             } else if start_counter > 2 {
                 start_index = None;
             }
-            end_counter = 0;
-        } else if current_char == closing_char {
-            end_counter += 1;
+        } else {
             start_counter = 0;
+        }
+
+        if current_char == closing_char {
+            end_counter += 1;
+        } else {
+            end_counter = 0;
         }
 
         if let Some(s) = start_index
@@ -288,7 +296,10 @@ async fn send_inline_search_response(
     if embeds.is_empty() {
         Ok(None)
     } else {
-        let builder: serenity::CreateMessage = serenity::CreateMessage::new().add_embeds(embeds);
+        let builder: serenity::CreateMessage = serenity::CreateMessage::new()
+            .add_embeds(embeds)
+            .reference_message(msg)
+            .allowed_mentions(serenity::CreateAllowedMentions::default());
         let response = msg.channel_id.send_message(ctx.http(), builder).await?;
         Ok(Some(response.id))
     }

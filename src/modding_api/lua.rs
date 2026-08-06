@@ -72,8 +72,8 @@ async fn autocomplete_chapter<'a>(_ctx: Context<'a>, partial: &'a str) -> sereni
             c.to_lowercase().contains(&partial.to_lowercase())
         })
         .map(|ch| serenity::AutocompleteChoice::from(ch.0.to_owned()))
+        .take(25)
         .collect::<Vec<serenity::AutocompleteChoice>>();
-    
     serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }
 
@@ -126,6 +126,7 @@ async fn autocomplete_function<'a>(_ctx: Context<'a>, partial: &'a str) -> seren
             c.to_lowercase().contains(&partial.to_lowercase())
         })
         .map(|f| serenity::AutocompleteChoice::from(f.0.to_owned()))
+        .take(25)
         .collect::<Vec<serenity::AutocompleteChoice>>();
     
     serenity::CreateAutocompleteResponse::new().set_choices(choices)

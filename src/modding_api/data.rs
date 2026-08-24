@@ -240,6 +240,9 @@ impl fmt::Display for ComplexType {
                 write!(f, "{value}")
             }
             Self::Union { options, .. } => {
+                if options.len() > 6 {
+                    return write!(f, "union")
+                }
                 let options_string = options
                     .iter()
                     .map(|t| format!("{t}"))

@@ -137,7 +137,7 @@ fn list_parameters(command: &poise::structs::Command<Data, Error>) -> String {
         .collect::<Vec<_>>()
         .join(" ");
     if text.is_empty() {
-        return text
+        return text;
     }
     format!(" {text}")
 }
@@ -165,7 +165,16 @@ fn command_overview(ctx: Context<'_>) -> String {
     }
     let text = make_two_column_list(output_lines, ctx.prefix());
 
-    format!("```\n{text}\n```")
+    let remove_info = match ctx {
+        poise::Context::Application(_) => {
+            "Callers can remove bot messages by reacting with an ❌."
+        }
+        poise::Context::Prefix(_) => {
+            "Bot messages can be edited by editing the original command or removed by reacting with an ❌."
+        }
+    };
+
+    format!("```\n{text}\n\n{remove_info}\n```")
 }
 
 fn make_two_column_list(entries: Vec<(Cow<str>, Option<Cow<str>>)>, prefix: &str) -> String {

@@ -484,19 +484,6 @@ async fn process_new_faq(ctx: Context<'_>, faq_entry: BasicFaqEntry) -> Result<(
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
 
-    // Check if name already exists
-    let pre_existing = database::find_faq_entry_opt(db, server_id, &name_lc)
-        .await
-        .map_err(FaqError::from)?
-        .is_some();
-
-    // Delete previous entry to prevent duplication
-    if pre_existing {
-        database::delete_faq_entry(db, server_id, &name_lc)
-            .await
-            .map_err(FaqError::from)?;
-    }
-
     // Store new FAQ entry in database
     let faq_db_entry = DBFaqEntry {
         server_id,
@@ -505,9 +492,23 @@ async fn process_new_faq(ctx: Context<'_>, faq_entry: BasicFaqEntry) -> Result<(
         attachment_url: faq_entry.image.as_deref(),
         link: None,
     };
-    database::add_faq_entry(db, faq_db_entry)
+
+    // Check if name already exists
+    let pre_existing = database::find_faq_entry_opt(db, server_id, &name_lc)
         .await
-        .map_err(FaqError::from)?;
+        .map_err(FaqError::from)?
+        .is_some();
+
+    // Update or create FAQ entry
+    if pre_existing {
+        database::update_faq_entry(db, faq_db_entry)
+            .await
+            .map_err(FaqError::from)?;
+    } else {
+        database::add_faq_entry(db, faq_db_entry)
+            .await
+            .map_err(FaqError::from)?;
+    }
 
     let title = if pre_existing {
         format!(r#"Successfully edited "{name_lc}""#)

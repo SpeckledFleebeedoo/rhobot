@@ -148,6 +148,25 @@ pub async fn add_faq_entry(
     Ok(())
 }
 
+pub async fn update_faq_entry(
+    db: &Pool<Sqlite>,
+    faq_entry: DBFaqEntry<'_>
+) -> Result<(), DatabaseError> {
+    sqlx::query!(
+        r#"UPDATE faq SET contents = ?, image = ?, link = ? 
+        WHERE (server_id = ? AND title = ?)"#,
+        faq_entry.content,
+        faq_entry.attachment_url,
+        faq_entry.link,
+        faq_entry.server_id,
+        faq_entry.name
+    )
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+
 pub async fn find_faq_entry_opt(
     db: &Pool<Sqlite>,
     server_id: i64,

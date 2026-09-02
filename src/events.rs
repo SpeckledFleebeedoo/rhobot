@@ -5,6 +5,7 @@ use poise::serenity_prelude as serenity;
 use sqlx::{Pool, Sqlite};
 use std::sync::Arc;
 
+use crate::faq_commands;
 use crate::{Data, Error, database, mods::commands, wiki_commands};
 
 pub struct CustomEventHandler {
@@ -100,9 +101,10 @@ pub async fn on_message(
     }
     let wikisearch = message_prompt_search(&msg.content, '[', ']');
     let modsearch = message_prompt_search(&msg.content, '>', '<');
-    if !modsearch.is_empty() || !wikisearch.is_empty() {
+    let faqsearch = message_prompt_search(&msg.content, '{', '}');
+    if !modsearch.is_empty() || !wikisearch.is_empty() || faqsearch.is_empty() {
         if let Some(response) =
-            send_inline_search_response(&ctx, msg, data, modsearch, wikisearch).await?
+            send_inline_search_response(&ctx, msg, data, modsearch, wikisearch, faqsearch).await?
         {
             data.inline_command_log.insert(
                 msg.id,
@@ -281,6 +283,7 @@ async fn send_inline_search_response(
     data: &Data,
     modnames: Vec<String>,
     wikinames: Vec<String>,
+    faqnames: Vec<String>,
 ) -> Result<Option<serenity::MessageId>, Error> {
     let mut embeds: Vec<serenity::CreateEmbed> = Vec::new();
     for modname in &modnames {
@@ -291,6 +294,14 @@ async fn send_inline_search_response(
     for wikiname in &wikinames {
         if let Some(search_result) = search_wiki_page_name(wikiname).await? {
             embeds.push(wiki_commands::get_wiki_page(&search_result).await?);
+        }
+    }
+    for faqname in &faqnames {
+        let cache = data.faq_cache.clone();
+        let Some(server_id) = msg.guild_id else {continue};
+        let db = &data.database;
+        if let Ok(embed) = faq_commands::faq_core(faqname.clone(), cache, i64::from(server_id), db).await {
+            embeds.push(embed);
         }
     }
     if embeds.is_empty() {

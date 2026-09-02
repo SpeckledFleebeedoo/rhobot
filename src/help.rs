@@ -162,7 +162,7 @@ fn command_overview(ctx: Context<'_>) -> String {
     }
     let text = make_two_column_list(output_lines, "/");
 
-    let remove_info = "Callers can remove bot messages by reacting with an ❌.";
+    let remove_info = "Callers can remove bot messages by reacting with an ❌.\nInline commands work only if the bot is pinged in the same message, multiple commands can be used at once.";
 
     format!("```\n{text}\n\n{remove_info}\n```")
 }

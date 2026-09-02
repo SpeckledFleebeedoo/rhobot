@@ -88,7 +88,6 @@ pub async fn get_server_info(ctx: Context<'_>) -> Result<(), Error> {
     category = "Settings"
 )]
 pub async fn register_commands(ctx: poise::Context<'_, Data, Error>) -> Result<(), Error> {
-    // poise::builtins::register_application_commands(poise::Context::Application(ctx), true).await?;
     poise::builtins::register_application_commands_buttons(ctx).await?;
     Ok(())
 }

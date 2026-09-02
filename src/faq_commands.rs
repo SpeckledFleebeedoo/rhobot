@@ -2,7 +2,7 @@ use log::error;
 use poise::CreateReply;
 use poise::Modal;
 use poise::serenity_prelude as serenity;
-use poise::serenity_prelude::CollectComponentInteractions;
+use poise::serenity_prelude::{CollectComponentInteractions, small_fixed_array::FixedArray, small_fixed_array::FixedString};
 use sqlx::{Pool, Sqlite};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -31,6 +31,7 @@ pub enum FaqError {
     ServerNotFound,
     TitleTooLong,
     BodyTooLong,
+    EmbedNotFound,
     AlreadyExists(String),
     NotOwner,
 }
@@ -52,6 +53,7 @@ impl fmt::Display for FaqError {
             Self::ServerNotFound => f.write_str("Could not retrieve server data."),
             Self::TitleTooLong => f.write_str("FAQ title too long (must be 256 characters or shorter)"),
             Self::BodyTooLong => f.write_str("FAQ body too long (must be 4096 characters or shorter)"),
+            Self::EmbedNotFound => f.write_str("Could not create FAQ entry: embed not found"),
             Self::AlreadyExists(name) => f.write_str(&format!("Error: An faq entry with title {name} already exists")),
             Self::NotOwner => f.write_str("This command can only be used by the bot owner"),
             Self::SerdeError(error) => f.write_str(&format!("Error serializing or deserialziing: {error}")),
@@ -413,13 +415,20 @@ pub async fn faq_edit(_ctx: Context<'_>) -> Result<(), Error> {
 struct FaqModal {
     #[name = "Title"]
     #[max_length = 256]
-    title: String,
+    title: FixedString<u16>,
     #[name = "Contents"]
     #[paragraph]
-    contents: Option<String>,
-    #[name = "Media URL"]
+    contents: Option<FixedString<u16>>,
+    #[name = "Image"]
+    #[file_upload]
+    #[min_values = 0]
+    #[max_values = 1]
+    #[file_types(".jpg", ".jpeg", ".png", ".webp", ".gif")]
+    media: Option<FixedArray<serenity::Attachment>>,
+    #[name = "Image URL"]
+    #[description = "Alternative to file upload"]
     #[max_length = 256]
-    media: Option<String>,
+    media_url: Option<FixedString<u16>>,
 }
 
 pub fn new() -> poise::Command<crate::Data, Error> {
@@ -441,7 +450,13 @@ pub fn new() -> poise::Command<crate::Data, Error> {
 pub async fn faq_new_slash(ctx: poise::ApplicationContext<'_, crate::Data, crate::Error>) -> Result<(), Error> {
     let Some(response) = FaqModal::execute(ctx).await? 
         else {return Ok(())};
-    let faq_entry = BasicFaqEntry { title: response.title, contents: response.contents, image: response.media, link: None };
+    let url = if let Some(media_vec) = response.media{
+        let media = media_vec.into_iter().next();
+        get_attachment_url(media, poise::Context::Application(ctx)).await?.map(String::from)
+    } else {
+        response.media_url.map(String::from)
+    };
+    let faq_entry = BasicFaqEntry { title: response.title.to_string(), contents: response.contents.map(String::from), image: url, link: None };
     let context = poise::Context::from(ctx);
     process_new_faq(context, faq_entry).await?;
     Ok(())
@@ -531,6 +546,29 @@ async fn process_new_faq(ctx: Context<'_>, faq_entry: BasicFaqEntry) -> Result<(
     let builder = CreateReply::default().embed(embed).reply(true).allowed_mentions(serenity::CreateAllowedMentions::default());
     ctx.send(builder).await.map_err(FaqError::from)?;
     Ok(())
+}
+
+/// If image attached, re-upload image to generate a non-ephemeral link for storage
+async fn get_attachment_url(
+    attachment: Option<serenity::Attachment>,
+    ctx: Context<'_>,
+) -> Result<Option<FixedString<u32>>, FaqError> {
+    let Some(image) = attachment else {
+        return Ok(None);
+    };
+
+    if !image.ephemeral {
+        return Ok(Some(image.url.clone()));
+    }
+
+    let attachment = serenity::CreateAttachment::url(image.url.to_string(), image.filename.clone()).await?;
+    let builder = CreateReply::default().attachment(attachment);
+    let reply = ctx.send(builder).await?;
+    let message = reply.message().await?;
+    let Some(attachment) = message.attachments.first() else {
+        return Err(FaqError::EmbedNotFound)?;
+    };
+    Ok(Some(attachment.url.clone()))
 }
 
 /// Remove an faq entry

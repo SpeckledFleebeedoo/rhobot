@@ -5,7 +5,7 @@ use poise::serenity_prelude as serenity;
 use sqlx::{Pool, Sqlite};
 use std::sync::Arc;
 
-use crate::{Context, Data, Error, database, mods::commands, wiki_commands};
+use crate::{Data, Error, database, mods::commands, wiki_commands};
 
 pub struct CustomEventHandler {
     pub data: Arc<Data>,
@@ -73,7 +73,7 @@ pub async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
     }
 }
 
-async fn send_custom_error_message(ctx: Context<'_>, msg: &str) -> Result<(), Error> {
+async fn send_custom_error_message(ctx: poise::Context<'_, Data, Error>, msg: &str) -> Result<(), Error> {
     let embed = serenity::CreateEmbed::new()
         .title(format!(
             "Error while executing command {}:",
@@ -290,7 +290,7 @@ async fn send_inline_search_response(
     }
     for wikiname in &wikinames {
         if let Some(search_result) = search_wiki_page_name(wikiname).await? {
-            embeds.push(wiki_commands::get_wiki_page(search_result).await?);
+            embeds.push(wiki_commands::get_wiki_page(&search_result).await?);
         }
     }
     if embeds.is_empty() {
@@ -321,7 +321,7 @@ async fn update_inline_search_response(
     }
     for wikiname in wikinames {
         if let Some(search_result) = search_wiki_page_name(&wikiname).await? {
-            embeds.push(wiki_commands::get_wiki_page(search_result).await?);
+            embeds.push(wiki_commands::get_wiki_page(&search_result).await?);
         }
     }
     if !embeds.is_empty() {

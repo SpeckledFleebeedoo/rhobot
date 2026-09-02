@@ -8,13 +8,12 @@ use std::fmt::Debug;
 use std::{error, fmt, fmt::Write};
 
 use crate::formatting_tools::DiscordFormat;
-use crate::{Context, Error, SEPARATOR};
+use crate::{Context, Error};
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 pub enum WikiError {
     ReqwestError(Box<reqwest::Error>),
-    NoSearchResults(String),
     SendMessageFailed(Box<serenity::Error>),
     UrlParseError(url::ParseError),
     MediaWikiError(String),
@@ -30,7 +29,6 @@ impl fmt::Display for WikiError {
                     write!(f, "Error retrieving wiki page: {error}")
                 }
             }
-            Self::NoSearchResults(prompt) => write!(f, "No search results found for `{prompt}`"),
             Self::SendMessageFailed(error) => write!(f, "Failed to send message: {error}"),
             Self::UrlParseError(error) => write!(f, "Failed to parse wiki url: {error}"),
             Self::MediaWikiError(error) => write!(f, "Mediawiki error: {error}"),
@@ -364,23 +362,13 @@ pub async fn opensearch_mediawiki(name: &str) -> Result<Vec<String>, WikiError> 
     Ok(output)
 }
 
-pub fn wiki() -> poise::Command<crate::Data, Error> {
-    poise::Command {
-        slash_action: wiki_slash().slash_action,
-        parameters: wiki_slash().parameters,
-        install_context: wiki_slash().install_context,
-        interaction_context: wiki_slash().interaction_context,
-        ..wiki_prefix()
-    }
-}
-
 /// Link a wiki page. Can also be used inline with [[wiki search]].
 #[poise::command(
     slash_command,
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
 )]
-pub async fn wiki_slash(
+pub async fn wiki(
     ctx: Context<'_>,
     #[description = "Wiki page name"]
     #[autocomplete = "autocomplete_wiki"]
@@ -390,36 +378,8 @@ pub async fn wiki_slash(
     Ok(())
 }
 
-/// Link a wiki page. Can also be used inline with [[wiki search]].
-#[poise::command(prefix_command, track_edits, rename = "wiki")]
-pub async fn wiki_prefix(
-    ctx: Context<'_>,
-    #[description = "Wiki page name"]
-    #[rest]
-    name: Option<String>,
-) -> Result<(), Error> {
-    let name = name.unwrap_or_else(|| String::from("Main Page"));
-    let mut command = name.split(SEPARATOR).next().unwrap_or(&name).trim();
-    if command.is_empty() {
-        command = "Main Page";
-    }
-    wiki_core(ctx, command).await?;
-    Ok(())
-}
-
 pub async fn wiki_core(ctx: Context<'_>, command: &str) -> Result<(), Error> {
-    let search_result: String = match ctx {
-        poise::Context::Application(_) => command.to_owned(),
-        poise::Context::Prefix(_) => {
-            let results = opensearch_mediawiki(command).await?;
-            let res = results
-                .first()
-                .ok_or_else(|| WikiError::NoSearchResults(command.to_owned()))?;
-            res.to_owned()
-        }
-    };
-
-    let embed = get_wiki_page(search_result).await?;
+    let embed = get_wiki_page(command).await?;
     let builder = CreateReply::default()
         .embed(embed)
         .reply(true)
@@ -504,8 +464,8 @@ fn get_factorio_wiki_parser_config() -> Configuration {
     })
 }
 
-pub async fn get_wiki_page(search_result: String) -> Result<CreateEmbed<'static>, WikiError> {
-    let article = get_mediawiki_page(&search_result).await?;
+pub async fn get_wiki_page(search_result: &str) -> Result<CreateEmbed<'static>, WikiError> {
+    let article = get_mediawiki_page(search_result).await?;
 
     let parsed_text = get_factorio_wiki_parser_config()
         .parse(&article.wikitext)

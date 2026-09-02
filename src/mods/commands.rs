@@ -7,7 +7,7 @@ use poise::{
 use poise::serenity_prelude as serenity;
 
 use crate::{
-    Context, Data, Error, SEPARATOR, database,
+    Context, Data, Error, database,
     formatting_tools::DiscordFormat,
     management::{checks::is_mod, get_server_id},
 };
@@ -26,7 +26,6 @@ enum AutocompleteType {
 /// Set the channel to send mod update messages to. Bot will not work without one.
 #[allow(clippy::cast_possible_wrap)]
 #[poise::command(
-    prefix_command,
     slash_command,
     guild_only,
     check = "is_mod",
@@ -51,7 +50,6 @@ pub async fn set_updates_channel(
 /// Set which role is allowed to edit bot settings. Admins can always edit settings.
 #[allow(clippy::cast_possible_wrap)]
 #[poise::command(
-    prefix_command,
     slash_command,
     guild_only,
     check = "is_mod",
@@ -74,7 +72,6 @@ pub async fn set_modrole(
 
 /// Turn showing changelogs in update feed on or off
 #[poise::command(
-    prefix_command,
     slash_command,
     guild_only,
     check = "is_mod",
@@ -98,7 +95,6 @@ pub async fn show_changelogs(ctx: Context<'_>, show_changelogs: bool) -> Result<
 /// Unsubscribe from a mod or author.
 #[allow(clippy::unused_async)]
 #[poise::command(
-    prefix_command,
     slash_command,
     guild_only,
     check = "is_mod",
@@ -113,7 +109,6 @@ pub async fn unsubscribe(_: Context<'_>) -> Result<(), Error> {
 /// Subscribe to a mod or author. Only subscriptions are shown in the update feed.
 #[allow(clippy::unused_async)]
 #[poise::command(
-    prefix_command,
     slash_command,
     guild_only,
     check = "is_mod",
@@ -128,7 +123,6 @@ pub async fn subscribe(_: Context<'_>) -> Result<(), Error> {
 /// Subscribe to a mod
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
 #[poise::command(
-    prefix_command,
     slash_command,
     guild_only,
     check = "is_mod",
@@ -162,7 +156,6 @@ pub async fn subscribe_mod(
 /// Unsubscribe from a mod
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
 #[poise::command(
-    prefix_command,
     slash_command,
     guild_only,
     check = "is_mod",
@@ -194,7 +187,6 @@ async fn autocomplete_subscribed_modname<'a>(
 /// Subscribe to a mod author
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
 #[poise::command(
-    prefix_command,
     slash_command,
     guild_only,
     check = "is_mod",
@@ -253,7 +245,6 @@ async fn autocomplete_author<'a>(
 /// Unsubscribe from a mod author
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
 #[poise::command(
-    prefix_command,
     slash_command,
     guild_only,
     check = "is_mod",
@@ -333,7 +324,7 @@ fn autocomplete_unsubscribe<'a>(
 
 /// List which mods and authors the server is currently subscribed to.
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
-#[poise::command(prefix_command, slash_command, guild_only, category = "Subscriptions")]
+#[poise::command(slash_command, guild_only, category = "Subscriptions")]
 pub async fn show_subscriptions(ctx: Context<'_>) -> Result<(), Error> {
     let server = ctx.guild_id().ok_or_else(|| ModError::ServerNotFound)?;
     let server_id = server.get() as i64;
@@ -363,11 +354,8 @@ pub async fn show_subscriptions(ctx: Context<'_>) -> Result<(), Error> {
 /// Find a mod on the mod portal. Can also be used inline with >>mod search<<.
 #[allow(clippy::unused_async)]
 #[poise::command(
-    prefix_command,
     slash_command,
-    track_edits,
     rename = "mod",
-    aliases("find-mod", "find_mod"),
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
 )]
@@ -375,20 +363,10 @@ pub async fn find_mod(
     ctx: Context<'_>,
     #[autocomplete = "autocomplete_modname"]
     #[description = "Name of the mod to search for"]
-    #[rest]
     modname: String,
 ) -> Result<(), Error> {
-    let command = modname
-        .split(SEPARATOR)
-        .next()
-        .unwrap_or(&modname)
-        .trim()
-        .to_owned();
     let data = &ctx.data();
-    let embed = match ctx {
-        poise::Context::Application(_) => mod_search(command, false, data).await?,
-        poise::Context::Prefix(_) => mod_search(command, true, data).await?,
-    };
+    let embed = mod_search(modname, false, data).await?;
     let builder = CreateReply::default()
         .embed(embed)
         .reply(true)

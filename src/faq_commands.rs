@@ -10,7 +10,7 @@ use std::{error, fmt};
 
 use crate::management::checks;
 use crate::{
-    Context, Error, SEPARATOR, database,
+    Context, Error, database,
     database::DBFaqEntry,
     formatting_tools::DiscordFormat,
     management::{self, checks::is_mod},
@@ -29,8 +29,6 @@ pub enum FaqError {
     NotInDatabase(String),
     WikiError(wiki_commands::WikiError, String),
     ServerNotFound,
-    TitleTooLong,
-    BodyTooLong,
     EmbedNotFound,
     AlreadyExists(String),
     NotOwner,
@@ -51,8 +49,6 @@ impl fmt::Display for FaqError {
             Self::NotInDatabase(name) => f.write_str(&format!("Could not get FAQ entry {name} from database")),
             Self::WikiError(error, pagename) => f.write_str(&format!("Could not find \"{pagename}\" on wiki: {error}")),
             Self::ServerNotFound => f.write_str("Could not retrieve server data."),
-            Self::TitleTooLong => f.write_str("FAQ title too long (must be 256 characters or shorter)"),
-            Self::BodyTooLong => f.write_str("FAQ body too long (must be 4096 characters or shorter)"),
             Self::EmbedNotFound => f.write_str("Could not create FAQ entry: embed not found"),
             Self::AlreadyExists(name) => f.write_str(&format!("Error: An faq entry with title {name} already exists")),
             Self::NotOwner => f.write_str("This command can only be used by the bot owner"),
@@ -127,50 +123,11 @@ pub async fn update_faq_cache(
     Ok(())
 }
 
-pub fn faq() -> poise::Command<crate::Data, Error> {
-    poise::Command {
-        slash_action: faq_slash().slash_action,
-        parameters: faq_slash().parameters,
-        ..faq_prefix()
-    }
-}
-
-#[allow(clippy::unused_async)]
-#[poise::command(slash_command, hide_in_help, guild_only)]
-pub async fn faq_slash(
+/// List all faq entries
+#[poise::command(slash_command, guild_only)]
+pub async fn faq_list(
     ctx: Context<'_>,
-    #[description = "Name of the faq entry"]
-    #[autocomplete = "autocomplete_faq"]
-    name: String,
 ) -> Result<(), Error> {
-    faq_core(ctx, name).await?;
-    Ok(())
-}
-
-/// Frequently Asked Questions
-#[allow(clippy::unused_async)]
-#[poise::command(
-    prefix_command,
-    guild_only,
-    track_edits,
-    rename = "faq",
-    aliases("faw", "link", "tag", "tags")
-)]
-pub async fn faq_prefix(
-    ctx: Context<'_>,
-    #[description = "Name of the faq entry"]
-    #[rest]
-    name: Option<String>,
-) -> Result<(), Error> {
-    if let Some(n) = name {
-        faq_core(ctx, n).await?;
-    } else {
-        list_faqs(ctx).await?;
-    }
-    Ok(())
-}
-
-async fn list_faqs(ctx: Context<'_>) -> Result<(), Error> {
     let db = &ctx.data().database;
     let server_id = management::get_server_id(ctx).map_err(FaqError::from)?;
     let faq_map = database::get_server_faqs(server_id, db)
@@ -197,9 +154,15 @@ async fn list_faqs(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-async fn faq_core(ctx: Context<'_>, name: String) -> Result<(), Error> {
-    let command = name.split(SEPARATOR).next().unwrap_or(&name).trim();
-    let name_lc = command.capitalize();
+/// Frequently Asked Questions
+#[poise::command(slash_command, guild_only)]
+pub async fn faq(
+    ctx: Context<'_>,
+    #[description = "Name of the faq entry"]
+    #[autocomplete = "autocomplete_faq"]
+    name: String,
+) -> Result<(), Error> {
+    let name_lc = name.capitalize();
     let db = &ctx.data().database;
     let server_id = management::get_server_id(ctx).map_err(FaqError::from)?;
 
@@ -312,7 +275,7 @@ async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError>
         }
     };
 
-    let wiki_embed = match wiki_commands::get_wiki_page(faq_name.to_string()).await {
+    let wiki_embed = match wiki_commands::get_wiki_page(faq_name).await {
         Ok(w) => w,
         Err(e) => return Err(FaqError::WikiError(e, faq_name.to_string())),
     };
@@ -321,7 +284,7 @@ async fn faq_not_found(ctx: Context<'_>, faq_name: &str) -> Result<(), FaqError>
         .components(Vec::default())
         .reply(true)
         .allowed_mentions(serenity::CreateAllowedMentions::default());
-    error_message_handle.edit(ctx, wiki_builder).await?;
+    error_message_handle.edit(poise::Context::Application(ctx), wiki_builder).await?;
     Ok(())
 }
 
@@ -396,14 +359,12 @@ async fn autocomplete_faq<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::C
 /// Add, remove or link FAQ entries
 #[allow(clippy::unused_async)]
 #[poise::command(
-    prefix_command,
     slash_command,
     guild_only,
     check = "is_mod",
     category = "Settings",
     subcommands("new", "remove", "link"),
     rename = "faqedit",
-    aliases("faq-edit", "faq_edit"),
     subcommand_required
 )]
 pub async fn faq_edit(_ctx: Context<'_>) -> Result<(), Error> {
@@ -431,64 +392,23 @@ struct FaqModal {
     media_url: Option<FixedString<u16>>,
 }
 
-pub fn new() -> poise::Command<crate::Data, Error> {
-    poise::Command {
-        slash_action: faq_new_slash().slash_action,
-        parameters: faq_new_slash().parameters,
-        install_context: faq_new_slash().install_context,
-        interaction_context: faq_new_slash().interaction_context,
-        ..faq_new_prefix()
-    }
-}
-
 /// Add an faq entry
 #[poise::command(
     slash_command,
     guild_only,
-    rename = "new"
 )]
-pub async fn faq_new_slash(ctx: poise::ApplicationContext<'_, crate::Data, crate::Error>) -> Result<(), Error> {
+pub async fn new(ctx: Context<'_>) -> Result<(), Error> {
     let Some(response) = FaqModal::execute(ctx).await? 
         else {return Ok(())};
     let url = if let Some(media_vec) = response.media{
         let media = media_vec.into_iter().next();
-        get_attachment_url(media, poise::Context::Application(ctx)).await?.map(String::from)
+        get_attachment_url(media, ctx).await?.map(String::from)
     } else {
         response.media_url.map(String::from)
     };
     let faq_entry = BasicFaqEntry { title: response.title.to_string(), contents: response.contents.map(String::from), image: url, link: None };
-    let context = poise::Context::from(ctx);
-    process_new_faq(context, faq_entry).await?;
-    Ok(())
-}
-
-/// Add or overwrite an faq entry
-#[poise::command(
-    prefix_command,
-    guild_only,
-    track_edits,
-    rename = "new",
-    aliases("edit", "add")
-)]
-pub async fn faq_new_prefix(
-    ctx: poise::PrefixContext<'_, crate::Data, crate::Error>,
-    #[description = "Name of the faq"] name: String,
-    #[description = "Link to an image."] image: Option<serenity::Attachment>,
-    #[description = "Contents of the FAQ"]
-    #[rest]
-    contents: Option<String>,
-) -> Result<(), Error> {
-    if name.len() > 256 {
-        return Err(FaqError::TitleTooLong)?;
-    }
-    if let Some(c) = &contents
-        && c.len() > 4096
-    {
-        return Err(FaqError::BodyTooLong)?;
-    }
-    let faq_entry = BasicFaqEntry { title: name, contents, image: image.map(|i| i.proxy_url.into()), link: None };
-    let context = poise::Context::from(ctx);
-    process_new_faq(context, faq_entry).await?;
+    // let context = poise::Context::from(ctx);
+    process_new_faq(ctx, faq_entry).await?;
     Ok(())
 }
 
@@ -573,7 +493,7 @@ async fn get_attachment_url(
 
 /// Remove an faq entry
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
-#[poise::command(prefix_command, slash_command, guild_only, aliases("delete"))]
+#[poise::command(slash_command, guild_only)]
 pub async fn remove(
     ctx: Context<'_>,
     #[description = "FAQ entry to remove"]
@@ -604,7 +524,7 @@ pub async fn remove(
 
 /// Link two faq titles to the same content
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
-#[poise::command(prefix_command, slash_command, guild_only)]
+#[poise::command(slash_command, guild_only)]
 pub async fn link(
     ctx: Context<'_>,
     #[description = "Name for link"] name: String,
@@ -690,7 +610,7 @@ pub async fn drop_faqs(ctx: Context<'_>) -> Result<(), Error> {
             .reply(true)
             .allowed_mentions(serenity::CreateAllowedMentions::default());
         confirmation
-            .edit(ctx, new_message)
+            .edit(poise::Context::Application(ctx), new_message)
             .await
             .map_err(FaqError::from)?;
         return Ok(());
@@ -725,7 +645,7 @@ pub async fn drop_faqs(ctx: Context<'_>) -> Result<(), Error> {
                 .reply(true)
                 .allowed_mentions(serenity::CreateAllowedMentions::default());
             confirmation
-                .edit(ctx, new_message)
+                .edit(poise::Context::Application(ctx), new_message)
                 .await
                 .map_err(FaqError::from)?;
         } else {
@@ -735,7 +655,7 @@ pub async fn drop_faqs(ctx: Context<'_>) -> Result<(), Error> {
                 .reply(true)
                 .allowed_mentions(serenity::CreateAllowedMentions::default());
             confirmation
-                .edit(ctx, new_message)
+                .edit(poise::Context::Application(ctx), new_message)
                 .await
                 .map_err(FaqError::from)?;
         }

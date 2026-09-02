@@ -7,7 +7,6 @@ use crate::{Context, Error};
 #[allow(clippy::unused_async)]
 #[poise::command(
     slash_command,
-    prefix_command,
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
 )]

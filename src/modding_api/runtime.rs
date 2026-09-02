@@ -7,9 +7,9 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{Context, Data, Error, SEPARATOR, formatting_tools::DiscordFormat};
+use crate::{Context, Data, Error, formatting_tools::DiscordFormat};
 
-use super::{error::ApiError, resolve_internal_links, split_inputs};
+use super::{error::ApiError, resolve_internal_links};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct BasicMember {
@@ -495,9 +495,7 @@ pub async fn get_runtime_api() -> Result<ApiResponse, Error> {
 /// Link a runtime modding API class.
 #[allow(clippy::unused_async)]
 #[poise::command(
-    prefix_command,
     slash_command,
-    track_edits,
     rename = "class",
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
@@ -507,12 +505,11 @@ pub async fn api_class(
     #[description = "Search term"]
     #[autocomplete = "autocomplete_class"]
     #[rename = "class"]
-    mut class_search: String,
+    class_search: String,
     #[description = "Class property"]
     #[autocomplete = "autocomplete_class_property"]
     #[rename = "property"]
-    #[rest]
-    mut property_search: Option<String>,
+    property_search: Option<String>,
 ) -> Result<(), Error> {
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read() {
@@ -521,7 +518,7 @@ pub async fn api_class(
     }
     .clone();
 
-    split_inputs(&mut class_search, &mut property_search);
+    // split_inputs(&mut class_search, &mut property_search);
 
     let Some(search_result) = api
         .classes
@@ -588,10 +585,7 @@ async fn autocomplete_class<'a>(ctx: Context<'a>, partial: &'a str) -> serenity:
 
 #[allow(clippy::unused_async)]
 async fn autocomplete_class_property<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
-    let poise::Context::Application(appcontext) = ctx else {
-        return serenity::CreateAutocompleteResponse::new();
-    };
-    let serenity::ResolvedValue::String(classname) = appcontext.args[0].value else {
+    let serenity::ResolvedValue::String(classname) = ctx.args[0].value else {
         return serenity::CreateAutocompleteResponse::new();
     };
     if classname.is_empty() {
@@ -632,9 +626,7 @@ async fn autocomplete_class_property<'a>(ctx: Context<'a>, partial: &'a str) -> 
 /// Link a runtime modding API event
 #[allow(clippy::unused_async)]
 #[poise::command(
-    prefix_command,
     slash_command,
-    track_edits,
     rename = "event",
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
@@ -644,8 +636,7 @@ pub async fn api_event(
     #[description = "Search term"]
     #[autocomplete = "autocomplete_event"]
     #[rename = "event"]
-    #[rest]
-    mut event_search: String,
+    event_search: String,
 ) -> Result<(), Error> {
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read() {
@@ -653,15 +644,6 @@ pub async fn api_event(
         Err(e) => return Err(ApiError::CacheError(e.to_string()))?,
     }
     .clone();
-
-    if event_search.contains(SEPARATOR) {
-        event_search = event_search
-            .split_once(SEPARATOR)
-            .unwrap()
-            .0
-            .trim()
-            .to_string(); // Safe due to if condition before
-    }
 
     let Some(search_result) = api
         .events
@@ -707,9 +689,7 @@ async fn autocomplete_event<'a>(ctx: Context<'a>, partial: &'a str) -> serenity:
 /// Link a runtime modding API define
 #[allow(clippy::unused_async)]
 #[poise::command(
-    prefix_command,
     slash_command,
-    track_edits,
     rename = "define",
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
@@ -719,8 +699,7 @@ pub async fn api_define(
     #[description = "Search term"]
     #[autocomplete = "autocomplete_define"]
     #[rename = "define"]
-    #[rest]
-    mut define_search: String,
+    define_search: String,
 ) -> Result<(), Error> {
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read() {
@@ -728,15 +707,6 @@ pub async fn api_define(
         Err(e) => return Err(ApiError::CacheError(e.to_string()))?,
     }
     .clone();
-
-    if define_search.contains(SEPARATOR) {
-        define_search = define_search
-            .split_once(SEPARATOR)
-            .unwrap()
-            .0
-            .trim()
-            .to_string(); // Safe due to if condition before
-    }
 
     let Some(search_result) = api
         .defines
@@ -782,9 +752,7 @@ async fn autocomplete_define<'a>(ctx: Context<'a>, partial: &'a str) -> serenity
 /// Link a runtime modding API concept
 #[allow(clippy::unused_async)]
 #[poise::command(
-    prefix_command,
     slash_command,
-    track_edits,
     rename = "concept",
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
@@ -794,8 +762,7 @@ pub async fn api_concept(
     #[description = "Search term"]
     #[autocomplete = "autocomplete_concept"]
     #[rename = "concept"]
-    #[rest]
-    mut concept_search: String,
+    concept_search: String,
 ) -> Result<(), Error> {
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read() {
@@ -803,15 +770,6 @@ pub async fn api_concept(
         Err(e) => return Err(ApiError::CacheError(e.to_string()))?,
     }
     .clone();
-
-    if concept_search.contains(SEPARATOR) {
-        concept_search = concept_search
-            .split_once(SEPARATOR)
-            .unwrap()
-            .0
-            .trim()
-            .to_string(); // Safe due to if condition before
-    }
 
     let Some(search_result) = api
         .concepts

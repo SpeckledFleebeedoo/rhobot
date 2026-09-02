@@ -1,9 +1,9 @@
 use poise::serenity_prelude as serenity;
 
-use crate::{Context, Error, database, management::ManagementError};
+use crate::{Context, Error, database, management::ManagementError, Data};
 
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-pub async fn is_mod(ctx: Context<'_>) -> Result<bool, Error> {
+pub async fn is_mod(ctx: poise::Context<'_, Data, Error>) -> Result<bool, Error> {
     let Some(serenity::Channel::Guild(channel)) = &ctx.channel().await else {
         return Ok(false);
     };

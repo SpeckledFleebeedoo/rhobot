@@ -6,12 +6,11 @@ use std::fmt::Write as _;
 
 /// Show this help menu
 #[allow(clippy::unused_async, clippy::option_if_let_else)]
-#[poise::command(prefix_command, track_edits, slash_command)]
+#[poise::command(slash_command)]
 pub async fn help(
     ctx: Context<'_>,
     #[description = "Specific command to show help about"]
     #[autocomplete = "autocomplete_command"]
-    #[rest]
     command: Option<String>,
 ) -> Result<(), Error> {
     let message = match command {
@@ -52,8 +51,6 @@ pub async fn autocomplete_command<'a>(
 }
 
 fn command_details(ctx: Context<'_>, commandname: &str) -> Result<String, Error> {
-    let prefix = ctx.prefix();
-
     let (parentname, command) = if commandname.contains(' ') {
         let (maincommandname, subcommandname) = commandname.split_once(' ').unwrap();
         let Some(main_c) = ctx
@@ -94,7 +91,7 @@ fn command_details(ctx: Context<'_>, commandname: &str) -> Result<String, Error>
         .collect();
 
     let parameters = list_parameters(command);
-    let mut message = format!("`{prefix}{name}{parameters}`\n\n{description}");
+    let mut message = format!("`/{name}{parameters}`\n\n{description}");
 
     let subcommands_text = make_two_column_list(subcommands_list, "");
     if !subcommands_text.is_empty() {
@@ -163,16 +160,9 @@ fn command_overview(ctx: Context<'_>) -> String {
             output_lines.append(&mut commands);
         }
     }
-    let text = make_two_column_list(output_lines, ctx.prefix());
+    let text = make_two_column_list(output_lines, "/");
 
-    let remove_info = match ctx {
-        poise::Context::Application(_) => {
-            "Callers can remove bot messages by reacting with an ❌."
-        }
-        poise::Context::Prefix(_) => {
-            "Bot messages can be edited by editing the original command or removed by reacting with an ❌."
-        }
-    };
+    let remove_info = "Callers can remove bot messages by reacting with an ❌.";
 
     format!("```\n{text}\n\n{remove_info}\n```")
 }

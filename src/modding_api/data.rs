@@ -9,7 +9,7 @@ use std::{
 
 use crate::{Context, Data, Error, formatting_tools::DiscordFormat};
 
-use super::{error::ApiError, resolve_internal_links, split_inputs};
+use super::{error::ApiError, resolve_internal_links};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BasicMember {
@@ -301,9 +301,7 @@ pub async fn get_data_api() -> Result<ApiResponse, Error> {
 /// Link a modding API prototype
 #[allow(clippy::unused_async)]
 #[poise::command(
-    prefix_command,
     slash_command,
-    track_edits,
     rename = "prototype",
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
@@ -313,12 +311,11 @@ pub async fn api_prototype(
     #[description = "Search term"]
     #[autocomplete = "autocomplete_prototype"]
     #[rename = "prototype"]
-    mut prototype_search: String,
+    prototype_search: String,
     #[description = "Prototype property"]
     #[autocomplete = "autocomplete_prototype_property"]
     #[rename = "property"]
-    #[rest]
-    mut property_search: Option<String>,
+    property_search: Option<String>,
 ) -> Result<(), Error> {
     let cache = ctx.data().data_api_cache.clone();
     let api = match cache.read() {
@@ -326,8 +323,6 @@ pub async fn api_prototype(
         Err(e) => return Err(ApiError::CacheError(e.to_string()))?,
     }
     .clone();
-
-    split_inputs(&mut prototype_search, &mut property_search);
 
     let Some(search_result) = api
         .prototypes
@@ -384,10 +379,7 @@ async fn autocomplete_prototype<'a>(ctx: Context<'a>, partial: &'a str) -> seren
 
 #[allow(clippy::unused_async)]
 async fn autocomplete_prototype_property<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
-    let poise::Context::Application(appcontext) = ctx else {
-        return serenity::CreateAutocompleteResponse::new();
-    };
-    let serenity::ResolvedValue::String(prototype_name) = appcontext.args[0].value else {
+    let serenity::ResolvedValue::String(prototype_name) = ctx.args[0].value else {
         return serenity::CreateAutocompleteResponse::new();
     };
     if prototype_name.is_empty() {
@@ -428,9 +420,7 @@ async fn autocomplete_prototype_property<'a>(ctx: Context<'a>, partial: &'a str)
 /// Link a modding API type
 #[allow(clippy::unused_async)]
 #[poise::command(
-    prefix_command,
     slash_command,
-    track_edits,
     rename = "type",
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
@@ -440,12 +430,11 @@ pub async fn api_type(
     #[description = "Search term"]
     #[autocomplete = "autocomplete_type"]
     #[rename = "type"]
-    mut type_search: String,
+    type_search: String,
     #[description = "Type property"]
     #[autocomplete = "autocomplete_type_property"]
     #[rename = "property"]
-    #[rest]
-    mut property_search: Option<String>,
+    property_search: Option<String>,
 ) -> Result<(), Error> {
     let cache = ctx.data().data_api_cache.clone();
     let api = match cache.read() {
@@ -453,8 +442,6 @@ pub async fn api_type(
         Err(e) => return Err(ApiError::CacheError(e.to_string()))?,
     }
     .clone();
-
-    split_inputs(&mut type_search, &mut property_search);
 
     let Some(search_result) = api
         .types
@@ -532,10 +519,7 @@ async fn autocomplete_type<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::
 
 #[allow(clippy::unused_async)]
 async fn autocomplete_type_property<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
-    let poise::Context::Application(appcontext) = ctx else {
-        return serenity::CreateAutocompleteResponse::new();
-    };
-    let serenity::ResolvedValue::String(type_name) = appcontext.args[0].value else {
+    let serenity::ResolvedValue::String(type_name) = ctx.args[0].value else {
         return serenity::CreateAutocompleteResponse::new();
     };
     if type_name.is_empty() {

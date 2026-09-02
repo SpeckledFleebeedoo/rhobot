@@ -2,13 +2,12 @@ use poise::CreateReply;
 use poise::serenity_prelude as serenity;
 
 use crate::{
-    Context, Error, database,
+    Context, Error, Data, database,
     management::{checks::is_mod, get_server_id},
 };
 
 /// Remove all stored data for this server, resetting all settings.
 #[poise::command(
-    prefix_command,
     slash_command,
     guild_only,
     category = "Settings",
@@ -24,7 +23,6 @@ pub async fn reset_server_settings(ctx: Context<'_>) -> Result<(), Error> {
 
 /// Print bot info
 #[poise::command(
-    prefix_command,
     slash_command,
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
@@ -46,7 +44,6 @@ pub async fn info(ctx: Context<'_>) -> Result<(), Error> {
 
 /// Show stored information about this server
 #[poise::command(
-    prefix_command,
     slash_command,
     guild_only,
     ephemeral,
@@ -78,5 +75,20 @@ pub async fn get_server_info(ctx: Context<'_>) -> Result<(), Error> {
             ctx.reply("No data stored about this server").await?;
         }
     }
+    Ok(())
+}
+
+/// Re-register all commands
+#[poise::command(
+    slash_command,
+    prefix_command,
+    ephemeral,
+    hide_in_help,
+    owners_only,
+    category = "Settings"
+)]
+pub async fn register_commands(ctx: poise::Context<'_, Data, Error>) -> Result<(), Error> {
+    // poise::builtins::register_application_commands(poise::Context::Application(ctx), true).await?;
+    poise::builtins::register_application_commands_buttons(ctx).await?;
     Ok(())
 }

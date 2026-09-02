@@ -137,41 +137,19 @@ async fn get_fff_data(number: i32) -> Result<FFFData, FFFError> {
     Ok(fff)
 }
 
-pub fn fff() -> poise::Command<crate::Data, Error> {
-    poise::Command {
-        slash_action: fff_slash().slash_action,
-        parameters: fff_slash().parameters,
-        install_context: fff_slash().install_context,
-        interaction_context: fff_slash().interaction_context,
-        ..fff_prefix()
-    }
-}
-
 /// Link an FFF
 #[poise::command(
     slash_command,
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
 )]
-pub async fn fff_slash(
-    ctx: Context<'_>,
-    #[description = "Number of the FFF"] number: i32,
-) -> Result<(), Error> {
-    fff_core(ctx, number).await?;
-    Ok(())
-}
-
-/// Link an FFF
-#[poise::command(prefix_command, track_edits, rename = "fff")]
-pub async fn fff_prefix(
+pub async fn fff(
     ctx: Context<'_>,
     #[description = "Number of the FFF"] number: Option<i32>,
-    #[rest] _rest: Option<String>,
 ) -> Result<(), Error> {
-    if let Some(n) = number {
-        fff_core(ctx, n).await?;
-    } else {
-        fff_default(ctx).await?;
+    match number {
+        Some(n) => fff_core(ctx, n).await?,
+        None => fff_default(ctx).await?,
     }
     Ok(())
 }

@@ -14,15 +14,13 @@ use poise::serenity_prelude as serenity;
 use regex::Regex;
 use std::sync::{Arc, RwLock};
 
-use crate::{Context, Data, Error, SEPARATOR};
+use crate::{Context, Data, Error};
 use error::ApiError;
 
 /// Link a page in the mod making API.
 #[allow(clippy::unused_async)]
 #[poise::command(
-    prefix_command,
     slash_command,
-    track_edits,
     subcommands(
         "api_class",
         "api_event",
@@ -74,9 +72,7 @@ enum ApiPage {
 /// Link a page in the auxillary API docs
 #[allow(clippy::unused_async)]
 #[poise::command(
-    prefix_command,
     slash_command,
-    track_edits,
     rename = "page",
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
@@ -274,26 +270,4 @@ fn get_prototype_category(
         return Ok(ApiSection::Type);
     }
     Ok(ApiSection::default())
-}
-
-/// Splits and sanitizes inputs that use ``item::property`` shorthand or include comments
-fn split_inputs(main_search: &mut String, property_search: &mut Option<String>) {
-    if main_search.contains("::") {
-        let search_clone = main_search.clone();
-        let parts = search_clone.split_once("::").unwrap();
-        *main_search = parts.0.to_string();
-        *property_search = Some(parts.1.to_string());
-    }
-
-    if let Some(property) = property_search
-        && property.contains(SEPARATOR)
-    {
-        let parts = property.split_once(SEPARATOR).unwrap(); // Safe due to if condition before
-        let property = parts.0.trim().to_owned();
-        if property.is_empty() {
-            *property_search = None;
-        } else {
-            *property_search = Some(parts.0.trim().to_owned());
-        }
-    }
 }

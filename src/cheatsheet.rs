@@ -48,8 +48,6 @@ enum CheatSheetPage {
 /// Link a Factorio Cheatsheet page
 #[poise::command(
     slash_command,
-    prefix_command,
-    track_edits,
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
 )]

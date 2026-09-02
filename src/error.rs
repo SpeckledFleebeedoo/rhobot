@@ -45,8 +45,6 @@ impl RhobotError {
             Self::FAQ(faq_error) => match faq_error {
                 faq_commands::FaqError::NotInDatabase(_)
                 | faq_commands::FaqError::NotFound(_)
-                | faq_commands::FaqError::TitleTooLong
-                | faq_commands::FaqError::BodyTooLong
                 | faq_commands::FaqError::ServerNotFound
                 | faq_commands::FaqError::AlreadyExists(_)
                 | faq_commands::FaqError::NotOwner => info!("{faq_error}"),
@@ -71,10 +69,7 @@ impl RhobotError {
                 _ => error! {"{mod_error}"},
             },
             Self::Database(database_error) => error!("{database_error}"),
-            Self::Wiki(wiki_error) => match wiki_error {
-                wiki_commands::WikiError::NoSearchResults(_) => info!("{wiki_error}"),
-                _ => error!("{wiki_error}"),
-            },
+            Self::Wiki(wiki_error) => error!("{wiki_error}"),
             Self::Serenity(error) => error!("{error}"),
             Self::CommandNotFound(command) => error!("Command not found: {command}"),
         }

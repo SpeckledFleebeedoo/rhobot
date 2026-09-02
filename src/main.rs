@@ -21,7 +21,6 @@ use poise::serenity_prelude as serenity;
 use std::{
     env::var,
     sync::{Arc, RwLock},
-    time::Duration,
 };
 use tokio::time;
 
@@ -39,10 +38,7 @@ use crate::{
 
 // Types used by all command functions
 type Error = RhobotError;
-type Context<'a> = poise::Context<'a, Data, Error>;
-
-// Command separator for adding comments
-const SEPARATOR: char = '|';
+type Context<'a> = poise::ApplicationContext<'a, Data, Error>;
 
 // Custom user data passed to all command functions
 #[allow(clippy::struct_field_names)]
@@ -132,6 +128,7 @@ async fn main() {
             management::commands::info(),
             management::commands::get_server_info(),
             management::commands::reset_server_settings(),
+            management::commands::register_commands(),
             mods::commands::find_mod(),
             mods::commands::show_subscriptions(),
             mods::commands::subscribe(),
@@ -140,6 +137,7 @@ async fn main() {
             mods::commands::set_modrole(),
             mods::commands::show_changelogs(),
             faq_commands::faq(),
+            faq_commands::faq_list(),
             faq_commands::faq_edit(),
             faq_commands::drop_faqs(),
             faq_commands::export_faqs(),
@@ -152,10 +150,7 @@ async fn main() {
             cheatsheet::cheatsheet(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
-            prefix: Some("+".into()),
-            edit_tracker: Some(Arc::new(poise::EditTracker::for_timespan(
-                Duration::from_hours(1),
-            ))),
+            mention_as_prefix: true,
             ..Default::default()
         },
         // The global error handler for all error cases that may occur
@@ -193,7 +188,7 @@ async fn main() {
         .options(options)
         .build();
 
-    let token = poise::serenity_prelude::Token::from_env("DISCORD_TOKEN")
+    let token = serenity::Token::from_env("DISCORD_TOKEN")
         .expect("Missing `DISCORD_TOKEN` env var, see README for more information.");
     let intents =
         serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT;

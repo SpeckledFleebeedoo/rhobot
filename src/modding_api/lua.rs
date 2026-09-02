@@ -5,14 +5,12 @@ use super::{
     error::ApiError,
     lua_constants::{CHAPTERS, FUNCTIONS},
 };
-use crate::{Context, Error, SEPARATOR};
+use crate::{Context, Error};
 
 /// Link items in the Lua 5.2 manual
 #[allow(clippy::unused_async)]
 #[poise::command(
-    prefix_command,
     slash_command,
-    track_edits,
     subcommand_required,
     subcommands("chapter", "function"),
     install_context = "Guild|User",
@@ -25,9 +23,7 @@ pub async fn lua(_ctx: Context<'_>) -> Result<(), Error> {
 /// Link chapters in the lua 5.2 manual
 #[allow(clippy::unused_async)]
 #[poise::command(
-    prefix_command,
     slash_command,
-    track_edits,
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
 )]
@@ -36,15 +32,8 @@ pub async fn chapter(
     #[description = "Chapter name"]
     #[autocomplete = "autocomplete_chapter"]
     #[rename = "chapter"]
-    #[rest]
-    chapter_raw: String,
+    chapter_name: String,
 ) -> Result<(), Error> {
-    let chapter_name = chapter_raw
-        .split_once(SEPARATOR)
-        .unwrap_or((&chapter_raw, ""))
-        .0
-        .trim();
-
     if let Some(chapter) = CHAPTERS.iter().find(|ch| ch.0 == chapter_name) {
         let embed = serenity::CreateEmbed::new()
             .title(chapter.0)
@@ -57,7 +46,7 @@ pub async fn chapter(
             .allowed_mentions(serenity::CreateAllowedMentions::default());
         ctx.send(builder).await?;
     } else {
-        return Err(ApiError::LuaChapterNotFound(chapter_name.to_string()))?;
+        return Err(ApiError::LuaChapterNotFound(chapter_name))?;
     }
 
     Ok(())
@@ -80,9 +69,7 @@ async fn autocomplete_chapter<'a>(_ctx: Context<'a>, partial: &'a str) -> sereni
 /// Link functions in the lua 5.2 manual
 #[allow(clippy::unused_async)]
 #[poise::command(
-    prefix_command,
     slash_command,
-    track_edits,
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
 )]
@@ -91,15 +78,8 @@ pub async fn function(
     #[description = "function name"]
     #[autocomplete = "autocomplete_function"]
     #[rename = "function"]
-    #[rest]
-    function_raw: String,
+    function_name: String,
 ) -> Result<(), Error> {
-    let function_name = function_raw
-        .split_once(SEPARATOR)
-        .unwrap_or((&function_raw, ""))
-        .0
-        .trim();
-
     if let Some(function) = FUNCTIONS.iter().find(|f| f.0 == function_name) {
         let embed = serenity::CreateEmbed::new()
             .title(function.0)
@@ -112,7 +92,7 @@ pub async fn function(
             .allowed_mentions(serenity::CreateAllowedMentions::default());
         ctx.send(builder).await?;
     } else {
-        return Err(ApiError::LuaFunctionNotFound(function_name.to_string()))?;
+        return Err(ApiError::LuaFunctionNotFound(function_name))?;
     }
     Ok(())
 }

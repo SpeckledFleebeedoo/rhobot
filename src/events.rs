@@ -102,7 +102,7 @@ pub async fn on_message(
     let wikisearch = message_prompt_search(&msg.content, '[', ']');
     let modsearch = message_prompt_search(&msg.content, '>', '<');
     let faqsearch = message_prompt_search(&msg.content, '{', '}');
-    if !modsearch.is_empty() || !wikisearch.is_empty() || faqsearch.is_empty() {
+    if !modsearch.is_empty() || !wikisearch.is_empty() || !faqsearch.is_empty() {
         if let Some(response) =
             send_inline_search_response(&ctx, msg, data, modsearch, wikisearch, faqsearch).await?
         {

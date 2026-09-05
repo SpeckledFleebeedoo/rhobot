@@ -574,7 +574,7 @@ async fn autocomplete_class<'a>(ctx: Context<'a>, partial: &'a str) -> serenity:
             c.common
                 .name
                 .to_lowercase()
-                .contains(&partial.to_lowercase())
+                .contains(partial.to_lowercase().trim())
         })
         .take(25)
         .map(|c| serenity::AutocompleteChoice::from(c.common.name.clone()))
@@ -615,7 +615,7 @@ async fn autocomplete_class_property<'a>(ctx: Context<'a>, partial: &'a str) -> 
 
     let choices = properties
         .map(|p| p.name)
-        .filter(|n| n.to_lowercase().contains(&partial.to_lowercase()))
+        .filter(|n| n.to_lowercase().contains(partial.to_lowercase().trim()))
         .take(25)
         .map(serenity::AutocompleteChoice::from)
         .collect::<Vec<serenity::AutocompleteChoice>>();
@@ -678,7 +678,7 @@ async fn autocomplete_event<'a>(ctx: Context<'a>, partial: &'a str) -> serenity:
             c.common
                 .name
                 .to_lowercase()
-                .contains(&partial.to_lowercase())
+                .contains(partial.to_lowercase().trim())
         })
         .take(25)
         .map(|c| serenity::AutocompleteChoice::from(c.common.name.clone()))
@@ -740,7 +740,7 @@ async fn autocomplete_define<'a>(ctx: Context<'a>, partial: &'a str) -> serenity
             c.common
                 .name
                 .to_lowercase()
-                .contains(&partial.to_lowercase())
+                .contains(partial.to_lowercase().trim())
         })
         .take(25)
         .map(|c| serenity::AutocompleteChoice::from(c.common.name.clone()))
@@ -804,7 +804,7 @@ async fn autocomplete_concept<'a>(ctx: Context<'a>, partial: &'a str) -> serenit
             c.common
                 .name
                 .to_lowercase()
-                .contains(&partial.to_lowercase())
+                .contains(partial.to_lowercase().trim())
         })
         .take(25)
         .map(|c| serenity::AutocompleteChoice::from(c.common.name.clone()))

@@ -234,7 +234,7 @@ async fn autocomplete_author<'a>(
 
     let choices = author_cache
         .into_iter()
-        .filter(|entry| entry.starts_with(partial))
+        .filter(|entry| entry.to_lowercase().starts_with(partial.to_lowercase().trim()))
         .take(25)
         .map(serenity::AutocompleteChoice::from)
         .collect::<Vec<serenity::AutocompleteChoice>>();
@@ -300,7 +300,7 @@ fn autocomplete_unsubscribe<'a>(
                 SubscriptionType::Author(_) => None,
                 SubscriptionType::Modname(name) => Some(name),
             })
-            .filter(|entry| entry.starts_with(partial))
+            .filter(|entry| entry.to_lowercase().starts_with(partial.to_lowercase().trim()))
             .take(25)
             .map(serenity::AutocompleteChoice::from)
             .collect::<Vec<AutocompleteChoice>>(),
@@ -312,7 +312,7 @@ fn autocomplete_unsubscribe<'a>(
                 SubscriptionType::Author(name) => Some(name),
                 SubscriptionType::Modname(_) => None,
             })
-            .filter(|entry| entry.starts_with(partial))
+            .filter(|entry| entry.to_lowercase().starts_with(partial.to_lowercase().trim()))
             .take(25)
             .map(serenity::AutocompleteChoice::from)
             .collect::<Vec<AutocompleteChoice>>(),
@@ -449,8 +449,8 @@ async fn autocomplete_modname<'a>(
         .clone()
         .into_iter()
         .filter(move |f| {
-            f.title.to_lowercase().starts_with(&partial.to_lowercase())
-                || f.author.to_lowercase().starts_with(&partial.to_lowercase())
+            f.title.to_lowercase().starts_with(partial.to_lowercase().trim())
+                || f.author.to_lowercase().starts_with(partial.to_lowercase().trim())
         })
         .take(25)
         .map(|f| {
@@ -473,7 +473,7 @@ async fn autocomplete_modname<'a>(
         .iter()
         .filter(|f| {
             !(title_starts_with_names.contains(&f.name))  // Exclude previously found names
-            && f.title.to_lowercase().contains(&partial.to_lowercase())
+            && f.title.to_lowercase().contains(partial.to_lowercase().trim())
         })
         .take(autocomplete_slots_remaining)
         .map(|f| {
@@ -498,7 +498,7 @@ async fn autocomplete_modname<'a>(
         .filter(|f| {
             !(title_starts_with_names.contains(&f.name))
             && !(title_contains_names.contains(&f.name))  // Exclude previously found names
-            && (f.name.to_lowercase().contains(&partial.to_lowercase()) || f.author.to_lowercase().contains(&partial.to_lowercase()))
+            && (f.name.to_lowercase().contains(partial.to_lowercase().trim()) || f.author.to_lowercase().contains(partial.to_lowercase().trim()))
         })
         .take(autocomplete_slots_remaining)
         .map(|f| {

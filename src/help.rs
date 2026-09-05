@@ -42,7 +42,7 @@ pub async fn autocomplete_command<'a>(
             cmdvec.append(&mut subcommands);
             cmdvec
         })
-        .filter(|cmd| cmd.starts_with(partial))
+        .filter(|cmd| cmd.to_lowercase().contains(partial.to_lowercase().trim()))
         .map(AutocompleteChoice::from)
         .collect::<Vec<AutocompleteChoice>>();
 

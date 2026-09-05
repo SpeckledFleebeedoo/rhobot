@@ -518,7 +518,7 @@ async fn autocomplete_wiki<'a>(_ctx: Context<'a>, partial: &'a str) -> CreateAut
     if partial.is_empty() {
         return CreateAutocompleteResponse::new().add_choice("Main Page")
     }
-    match opensearch_mediawiki(partial).await {
+    match opensearch_mediawiki(partial.trim()).await {
         Ok(r) => {
             let choices = r.into_iter()
                 .take(25)

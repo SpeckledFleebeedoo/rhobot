@@ -369,7 +369,7 @@ async fn autocomplete_faq<'a>(
         faqcache
             .iter()
             .filter(|f| {
-                f.server_id == server_id && f.title.to_lowercase().contains(&partial.to_lowercase())
+                f.server_id == server_id && f.title.to_lowercase().contains(partial.to_lowercase().trim())
             })
             .map(|f| f.title.clone())
             .collect::<Vec<String>>()

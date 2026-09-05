@@ -58,7 +58,7 @@ async fn autocomplete_chapter<'a>(_ctx: Context<'a>, partial: &'a str) -> sereni
         .iter()
         .filter(|ch| {
             let c = ch.0.to_owned();
-            c.to_lowercase().contains(&partial.to_lowercase())
+            c.to_lowercase().contains(partial.to_lowercase().trim())
         })
         .map(|ch| serenity::AutocompleteChoice::from(ch.0.to_owned()))
         .take(25)
@@ -103,7 +103,7 @@ async fn autocomplete_function<'a>(_ctx: Context<'a>, partial: &'a str) -> seren
         .iter()
         .filter(|f| {
             let c = f.0.to_owned();
-            c.to_lowercase().contains(&partial.to_lowercase())
+            c.to_lowercase().contains(partial.to_lowercase().trim())
         })
         .map(|f| serenity::AutocompleteChoice::from(f.0.to_owned()))
         .take(25)

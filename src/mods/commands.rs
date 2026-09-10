@@ -137,6 +137,7 @@ pub async fn subscribe_mod(
     let server = ctx.guild_id().ok_or_else(|| ModError::ServerNotFound)?;
     let server_id = server.get() as i64;
     let db = &ctx.data().database;
+    let modname = modname.trim_start_matches('*').to_string();
 
     database::add_mod_subscription(db, server_id, &modname).await?;
     ctx.reply(format!("Mod {modname} added to subscriptions"))
@@ -366,7 +367,9 @@ pub async fn find_mod(
     modname: String,
 ) -> Result<(), Error> {
     let data = &ctx.data();
-    let embed = mod_search(modname, false, data).await?;
+    let imprecise_search = !modname.starts_with('*');
+    let search_term = modname.trim_start_matches('*').to_string();
+    let embed = mod_search(search_term, imprecise_search, data).await?;
     let builder = CreateReply::default()
         .embed(embed)
         .reply(true)
@@ -458,7 +461,7 @@ async fn autocomplete_modname<'a>(
             let title = f.title.truncate_for_embed(100 - 4 - f.author.len());
             AutocompleteChoice::new(
                 "[".to_owned() + &f.factorio_version + "] " + &title + " by " + &f.author,
-                f.name,
+                "*".to_owned() + &f.name,
             )
         })
         .collect::<Vec<AutocompleteChoice>>();
@@ -481,7 +484,7 @@ async fn autocomplete_modname<'a>(
             let title = f.title.clone().truncate_for_embed(100 - 4 - f.author.len());
             AutocompleteChoice::new(
                 "[".to_owned() + &f.factorio_version + "] " + &title + " by " + &f.author,
-                f.name.clone(),
+                "*".to_owned() + &f.name,
             )
         })
         .collect::<Vec<AutocompleteChoice>>();
@@ -505,7 +508,7 @@ async fn autocomplete_modname<'a>(
             let title = f.title.clone().truncate_for_embed(100 - 4 - f.author.len());
             AutocompleteChoice::new(
                 "[".to_owned() + &f.factorio_version + "] " + &title + " by " + &f.author,
-                f.name.clone(),
+                "*".to_owned() + &f.name,
             )
         })
         .collect::<Vec<AutocompleteChoice>>();

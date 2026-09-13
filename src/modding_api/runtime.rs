@@ -228,7 +228,7 @@ impl Class {
     pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed<'_> {
         let url = format!(
             "https://lua-api.factorio.com/latest/classes/{}.html",
-            &self.common.name
+            self.common.name
         );
         self.common
             .create_embed(data)
@@ -285,7 +285,7 @@ impl Method {
 
         let url = format!(
             "https://lua-api.factorio.com/latest/classes/{}.html#{}",
-            &parent.common.name, &self.common.name
+            parent.common.name, self.common.name
         );
         let description = format!(
             "{}{}",
@@ -297,7 +297,7 @@ impl Method {
             .title(
                 format!(
                     "{}::{}{}",
-                    &parent.common.name, &self.common.name, parameters_str
+                    parent.common.name, self.common.name, parameters_str
                 )
                 .truncate_for_embed(256),
             )
@@ -312,18 +312,18 @@ impl Attribute {
         let optional = if self.optional { "?" } else { "" };
         let url = format!(
             "https://lua-api.factorio.com/latest/classes/{}.html#{}",
-            &parent.common.name, &self.common.name
+            parent.common.name, self.common.name
         );
         let description = format!(
             "```{}{}```{}",
-            &self.types,
+            self.types,
             optional,
             resolve_internal_links(data, &self.common.description)
         )
         .truncate_for_embed(4096);
         serenity::CreateEmbed::new()
             .title(
-                format!("{}::{}", &parent.common.name, &self.common.name).truncate_for_embed(256),
+                format!("{}::{}", parent.common.name, self.common.name).truncate_for_embed(256),
             )
             .description(description)
             .color(serenity::Colour::GOLD)
@@ -335,7 +335,7 @@ impl Event {
     pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed<'_> {
         let url = format!(
             "https://lua-api.factorio.com/latest/events.html#{}",
-            &self.common.name
+            self.common.name
         );
         self.common
             .create_embed(data)
@@ -351,7 +351,7 @@ impl Define {
     pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed<'_> {
         let url = format!(
             "https://lua-api.factorio.com/latest/defines.html#defines.{}",
-            &self.common.name
+            self.common.name
         );
         self.common
             .create_embed(data)
@@ -367,7 +367,7 @@ impl Concept {
     pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed<'_> {
         let url = format!(
             "https://lua-api.factorio.com/latest/concepts.html#{}",
-            &self.common.name
+            self.common.name
         );
         self.common
             .create_embed(data)
@@ -427,7 +427,7 @@ impl fmt::Display for ComplexType {
                 write!(f, "function({fun_parameters})")
             }
             Self::Literal { value, .. } => match value {
-                serde_json::Value::String(str) => write!(f, r#""{}""#, &str),
+                serde_json::Value::String(str) => write!(f, r#""{str}""#),
                 serde_json::Value::Bool(bool) => write!(f, "{bool}"),
                 serde_json::Value::Number(num) => write!(f, "{num}"),
                 _ => write!(f, ""),
@@ -820,7 +820,7 @@ mod tests {
 
     #[tokio::test]
     async fn decode_api() {
-        let file = std::fs::File::open("runtime-api-v5.json");
+        let file = std::fs::File::open("runtime-api-v6.json");
         assert!(file.is_ok(), "Failed to read file");
 
         let buf_reader = std::io::BufReader::new(file.unwrap());

@@ -53,6 +53,23 @@ impl serenity::EventHandler for CustomEventHandler {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct BotMessageInfo {
+    server_id: serenity::GuildId,
+    channel_id: serenity::GenericChannelId,
+    message_id: serenity::MessageId,
+    timestamp: tokio::time::Instant,
+}
+
+impl BotMessageInfo {
+    async fn get_message(
+        &self,
+        ctx: &serenity::Context,
+    ) -> Result<serenity::Message, serenity::Error> {
+        self.channel_id.message(&ctx, self.message_id).await
+    }
+}
+
 pub async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
     match error {
         poise::FrameworkError::Command { error, ctx, .. } => {
@@ -74,7 +91,10 @@ pub async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
     }
 }
 
-async fn send_custom_error_message(ctx: poise::Context<'_, Data, Error>, msg: &str) -> Result<(), Error> {
+async fn send_custom_error_message(
+    ctx: poise::Context<'_, Data, Error>,
+    msg: &str,
+) -> Result<(), Error> {
     let embed = serenity::CreateEmbed::new()
         .title(format!(
             "Error while executing command {}:",
@@ -106,9 +126,18 @@ pub async fn on_message(
         if let Some(response) =
             send_inline_search_response(&ctx, msg, data, modsearch, wikisearch, faqsearch).await?
         {
+            let Some(guild_id) = msg.guild_id else {
+                log::warn!("Failed to store message details, guild ID not found");
+                return Ok(())
+            };
             data.inline_command_log.insert(
                 msg.id,
-                (msg.channel_id, response, tokio::time::Instant::now()),
+                BotMessageInfo {
+                    server_id: guild_id,
+                    channel_id: msg.channel_id,
+                    message_id: response,
+                    timestamp: tokio::time::Instant::now(),
+                },
             );
         }
         return Ok(());
@@ -121,22 +150,31 @@ pub async fn on_message_edit(
     msg: &serenity::MessageUpdateEvent,
     data: &Data,
 ) -> Result<(), Error> {
-    if !data.inline_command_log.contains_key(&msg.message.id) {
+    println!("Message edit detected!");
+    let Some(entry) = data.inline_command_log.get(&msg.message.id) else {
         return Ok(());
-    }
-    let (channel_id, message_id, _) = *data.inline_command_log.get(&msg.message.id).unwrap();
+    };
+    let bot_message_info = entry.clone();
     let message_content = &msg.message.content;
     let wikisearch = message_prompt_search(message_content, '[', ']');
     let modsearch = message_prompt_search(message_content, '>', '<');
-    if !modsearch.is_empty() || !wikisearch.is_empty() {
-        update_inline_search_response(&ctx, data, channel_id, message_id, modsearch, wikisearch)
-            .await?;
+    let faqsearch = message_prompt_search(message_content, '{', '}');
+    if !modsearch.is_empty() || !wikisearch.is_empty() || !faqsearch.is_empty() {
+        update_inline_search_response(
+            &ctx,
+            data,
+            bot_message_info,
+            modsearch,
+            wikisearch,
+            faqsearch,
+        )
+        .await?;
         return Ok(());
     }
 
     // No command present in message anymore -> delete response
-    let message = channel_id.message(&ctx, message_id).await?;
-    message.delete(&ctx.http, None).await?;
+    let bot_message = bot_message_info.get_message(&ctx).await?;
+    bot_message.delete(&ctx.http, None).await?;
     data.inline_command_log.remove(&msg.message.id);
 
     Ok(())
@@ -148,11 +186,10 @@ pub async fn on_message_delete(
     deleted_message_id: &serenity::all::MessageId,
     data: &Data,
 ) -> Result<(), Error> {
-    if !data.inline_command_log.contains_key(deleted_message_id) {
+    let Some(entry) = data.inline_command_log.get(deleted_message_id) else {
         return Ok(());
-    }
-    let (_, message_id, _) = *data.inline_command_log.get(deleted_message_id).unwrap();
-    let message = channel_id.message(&ctx, message_id).await?;
+    };
+    let message = channel_id.message(&ctx, entry.message_id).await?;
     message.delete(&ctx.http, None).await?;
     data.inline_command_log.remove(deleted_message_id);
 
@@ -298,9 +335,13 @@ async fn send_inline_search_response(
     }
     for faqname in &faqnames {
         let cache = data.faq_cache.clone();
-        let Some(server_id) = msg.guild_id else {continue};
+        let Some(server_id) = msg.guild_id else {
+            continue;
+        };
         let db = &data.database;
-        if let Ok(embed) = faq_commands::faq_core(faqname.clone(), cache, i64::from(server_id), db).await {
+        if let Ok(embed) =
+            faq_commands::faq_core(faqname.clone(), cache, i64::from(server_id), db).await
+        {
             embeds.push(embed);
         }
     }
@@ -319,11 +360,12 @@ async fn send_inline_search_response(
 async fn update_inline_search_response(
     ctx: &serenity::Context,
     data: &Data,
-    channel_id: serenity::GenericChannelId,
-    message_id: serenity::MessageId,
+    bot_message_info: BotMessageInfo,
     modnames: Vec<String>,
     wikinames: Vec<String>,
+    faqnames: Vec<String>,
 ) -> Result<(), Error> {
+    println!("Updating message: {modnames:?}, {wikinames:?}, {faqnames:?}");
     let mut embeds: Vec<serenity::CreateEmbed> = Vec::new();
     for modname in modnames {
         if let Ok(embed) = commands::mod_search(modname, true, data).await {
@@ -335,10 +377,29 @@ async fn update_inline_search_response(
             embeds.push(wiki_commands::get_wiki_page(&search_result).await?);
         }
     }
+    for faqname in &faqnames {
+        println!("{faqname}");
+        let cache: Arc<std::sync::RwLock<Vec<faq_commands::FaqCacheEntry>>> =
+            data.faq_cache.clone();
+        let db = &data.database;
+        if let Ok(embed) = faq_commands::faq_core(
+            faqname.clone(),
+            cache,
+            i64::from(bot_message_info.server_id),
+            db,
+        )
+        .await
+        {
+            embeds.push(embed);
+        }
+    }
+    println!("{embeds:?}");
     if !embeds.is_empty() {
         let builder: serenity::EditMessage = serenity::EditMessage::new().add_embeds(embeds);
-        channel_id
-            .edit_message(&ctx.http, message_id, builder)
+        // bot_message.edit(ctx, builder).await?;
+        bot_message_info
+            .channel_id
+            .edit_message(&ctx.http, bot_message_info.message_id, builder)
             .await?;
     }
     Ok(())
@@ -353,19 +414,10 @@ async fn search_wiki_page_name(name: &str) -> Result<Option<String>, Error> {
 }
 
 pub fn clean_inline_command_log(
-    command_log: &Arc<
-        dashmap::DashMap<
-            serenity::MessageId,
-            (
-                serenity::GenericChannelId,
-                serenity::MessageId,
-                tokio::time::Instant,
-            ),
-        >,
-    >,
+    command_log: &Arc<dashmap::DashMap<serenity::MessageId, BotMessageInfo>>,
 ) {
     let cutoff_time = tokio::time::Instant::now() - tokio::time::Duration::from_hours(1);
-    command_log.retain(|_, (_, _, t)| *t >= cutoff_time);
+    command_log.retain(|_, m| m.timestamp >= cutoff_time);
 }
 
 #[allow(clippy::cast_possible_wrap)]

@@ -269,7 +269,7 @@ async fn make_update_message(
     show_changelog: bool,
     cache_http: &Arc<serenity::all::Http>,
 ) -> Result<(), ModError> {
-    let url = format!("https://mods.factorio.com/mod/{}", &updated_mod.name).replace(' ', "%20");
+    let url = format!("https://mods.factorio.com/mod/{}", updated_mod.name).replace(' ', "%20");
     let color = match updated_mod.state {
         ModState::Updated => Colour::from_rgb(0x58, 0x65, 0xF2),
         ModState::New => Colour::from_rgb(0x2E, 0xCC, 0x71),
@@ -292,7 +292,7 @@ async fn make_update_message(
     let author_link = format!(
         "{} ([more](https://mods.factorio.com/user/{}))",
         updated_mod.author.clone().escape_formatting(),
-        &updated_mod.author
+        updated_mod.author
     );
     let embed = CreateEmbed::new()
         .title(title.truncate_for_embed(256))

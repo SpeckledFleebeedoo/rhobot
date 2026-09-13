@@ -80,7 +80,7 @@ pub async fn get_server_faqs(
 }
 
 pub async fn get_faq_titles(db: &Pool<Sqlite>) -> Result<Vec<FaqCacheEntry>, DatabaseError> {
-    let records = sqlx::query_as!(FaqCacheEntry, r#"SELECT server_id, title FROM faq"#)
+    let records = sqlx::query_as!(FaqCacheEntry, r#"SELECT server_id, title, link FROM faq"#)
         .fetch_all(db)
         .await?;
     Ok(records)

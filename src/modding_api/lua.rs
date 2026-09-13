@@ -46,7 +46,7 @@ pub async fn chapter(
             .allowed_mentions(serenity::CreateAllowedMentions::default());
         ctx.send(builder).await?;
     } else {
-        return Err(ApiError::LuaChapterNotFound(chapter_name))?;
+        Err(ApiError::LuaChapterNotFound(chapter_name))?;
     }
 
     Ok(())
@@ -92,7 +92,7 @@ pub async fn function(
             .allowed_mentions(serenity::CreateAllowedMentions::default());
         ctx.send(builder).await?;
     } else {
-        return Err(ApiError::LuaFunctionNotFound(function_name))?;
+        Err(ApiError::LuaFunctionNotFound(function_name))?;
     }
     Ok(())
 }

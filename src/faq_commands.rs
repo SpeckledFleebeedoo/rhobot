@@ -104,6 +104,7 @@ impl From<wiki_commands::WikiError> for FaqError {
 pub struct FaqCacheEntry {
     pub server_id: i64,
     pub title: String,
+    pub link: Option<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -207,7 +208,7 @@ pub fn create_faq_embed<'a>(
         format!(
             r#"Could not find "{}" in FAQ tags. Did you mean "{}"?"#,
             name.escape_formatting(),
-            &faq_entry.title.clone().escape_formatting()
+            faq_entry.title.clone().escape_formatting()
         )
     } else {
         faq_entry.title.clone()
@@ -328,7 +329,6 @@ fn find_closest_faq(
     name: &str,
     server_id: i64,
 ) -> Result<Option<String>, FaqError> {
-    // let cache: Arc<RwLock<Vec<FaqCacheEntry>>> = ctx.data().faq_cache.clone();
     let faq_cache = match cache.read() {
         Ok(c) => c,
         Err(e) => {
@@ -371,15 +371,20 @@ async fn autocomplete_faq<'a>(
             .filter(|f| {
                 f.server_id == server_id && f.title.to_lowercase().contains(partial.to_lowercase().trim())
             })
-            .map(|f| f.title.clone())
-            .collect::<Vec<String>>()
+            .cloned()
+            .collect::<Vec<FaqCacheEntry>>()
     }; // Drop faqcache variable early
 
-    autocomplete_vec.sort_unstable();
+    autocomplete_vec.sort_unstable_by(|a, b| a.title.cmp(&b.title));
     let choices = autocomplete_vec
         .into_iter()
         .take(25)
-        .map(serenity::AutocompleteChoice::from)
+        .map(|f| {
+            match f.link {
+                Some(l) => serenity::AutocompleteChoice::new(f.title, l),
+                None => serenity::AutocompleteChoice::from(f.title),
+            }
+        })
         .collect::<Vec<serenity::AutocompleteChoice>>();
 
     serenity::CreateAutocompleteResponse::new().set_choices(choices)
@@ -579,12 +584,12 @@ pub async fn link(
         .map_err(FaqError::from)?
         .is_some()
     {
-        return Err(FaqError::AlreadyExists(name_lc))?;
+        Err(FaqError::AlreadyExists(name_lc.clone()))?;
     }
 
     // Find entry to link to
     let linked_entry = get_faq_entry(db, server_id, &link_to_lc).await?;
-    let link_no_chain = linked_entry.link.map_or(link_to_lc, |link| link);
+    let link_no_chain = linked_entry.link.unwrap_or(link_to_lc);
     let faq_entry = DBFaqEntry {
         server_id,
         name: &name_lc,
@@ -696,7 +701,7 @@ pub async fn drop_faqs(ctx: Context<'_>) -> Result<(), Error> {
                 .map_err(FaqError::from)?;
         }
     } else {
-        return Err(FaqError::NotOwner)?;
+        Err(FaqError::NotOwner)?;
     }
 
     Ok(())

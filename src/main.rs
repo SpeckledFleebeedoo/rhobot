@@ -34,6 +34,7 @@ use crate::{
             update_sub_cache,
         },
     },
+    events::BotMessageInfo,
 };
 
 // Types used by all command functions
@@ -52,7 +53,7 @@ pub struct Data {
     data_api_cache: Arc<RwLock<modding_api::data::ApiResponse>>,
     mod_portal_credentials: Arc<ModPortalCredentials>,
     inline_command_log: Arc<
-        DashMap<serenity::MessageId, (serenity::GenericChannelId, serenity::MessageId, time::Instant)>,
+        DashMap<serenity::MessageId, BotMessageInfo>,
     >,
 }
 

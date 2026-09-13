@@ -144,7 +144,7 @@ impl Prototype {
     pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed<'_> {
         let url = format!(
             "https://lua-api.factorio.com/latest/prototypes/{}.html",
-            &self.common.name
+            self.common.name
         );
         self.common
             .create_embed(data)
@@ -162,14 +162,14 @@ impl Property {
             TypeOrPrototype::Type(t) => {
                 let url = format!(
                     "https://lua-api.factorio.com/latest/types/{}.html#{}",
-                    &t.common.name, &self.common.name
+                    t.common.name, self.common.name
                 );
                 let optional = if self.optional { " (optional)" } else { "" };
                 let parent_name = &t.common.name;
                 let t_name = &self.common.name;
                 let description = format!(
                     "`{}{}`\n{}",
-                    &self.r#type,
+                    self.r#type,
                     optional,
                     resolve_internal_links(data, &self.common.description)
                 )
@@ -184,14 +184,14 @@ impl Property {
             TypeOrPrototype::Prototype(p) => {
                 let url = format!(
                     "https://lua-api.factorio.com/latest/prototypes/{}.html#{}",
-                    &p.common.name, &self.common.name
+                    p.common.name, self.common.name
                 );
                 let optional = if self.optional { " (optional)" } else { "" };
                 let parent_name = &p.common.name;
                 let p_name = &self.common.name;
                 let description = format!(
                     "`{}{}`\n{}",
-                    &self.r#type,
+                    self.r#type,
                     optional,
                     resolve_internal_links(data, &self.common.description)
                 )
@@ -211,11 +211,11 @@ impl DataStageType {
     pub fn to_embed(&self, data: &Data) -> serenity::CreateEmbed<'_> {
         let url = format!(
             "https://lua-api.factorio.com/latest/types/{}.html",
-            &self.common.name
+            self.common.name
         );
         self.common
             .create_embed(data)
-            .title(format!("{} :: {}", &self.common.name, &self.r#type)) // Override name to include type
+            .title(format!("{} :: {}", self.common.name, self.r#type)) // Override name to include type
             .author(
                 serenity::CreateEmbedAuthor::new("Type")
                     .url("https://lua-api.factorio.com/latest/types.html"),
@@ -257,7 +257,7 @@ impl fmt::Display for ComplexType {
                 write!(f, "dictionary[{key} → {value}]")
             }
             Self::Literal { value, .. } => match value {
-                serde_json::Value::String(str) => write!(f, r#""{}""#, &str),
+                serde_json::Value::String(str) => write!(f, r#""{str}""#),
                 serde_json::Value::Bool(bool) => write!(f, "{bool}"),
                 serde_json::Value::Number(num) => write!(f, "{num}"),
                 _ => write!(f, ""),
@@ -274,7 +274,7 @@ pub async fn update_api_cache(cache: Arc<RwLock<ApiResponse>>) -> Result<(), Err
     match cache.write() {
         Ok(mut c) => *c = new_data_api,
         Err(e) => {
-            return Err(ApiError::CacheError(e.to_string()))?;
+            Err(ApiError::CacheError(e.to_string()))?;
         }
     }
     Ok(())
@@ -567,7 +567,7 @@ mod tests {
 
     #[tokio::test]
     async fn decode_api() {
-        let file = std::fs::File::open("prototype-api-v5.json");
+        let file = std::fs::File::open("prototype-api-v6.json");
         assert!(file.is_ok(), "Failed to read file");
 
         let buf_reader = std::io::BufReader::new(file.unwrap());

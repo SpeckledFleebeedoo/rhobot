@@ -149,6 +149,7 @@ async fn main() {
             wiki_commands::wiki(),
             fun_commands::anniversary(),
             cheatsheet::cheatsheet(),
+            events::run_inline_commands(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             mention_as_prefix: true,

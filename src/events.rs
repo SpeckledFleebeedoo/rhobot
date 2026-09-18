@@ -6,7 +6,7 @@ use sqlx::{Pool, Sqlite};
 use std::sync::Arc;
 
 use crate::faq_commands;
-use crate::{Data, Error, database, mods::commands, wiki_commands};
+use crate::{Context, Data, Error, database, mods::commands, wiki_commands};
 
 pub struct CustomEventHandler {
     pub data: Arc<Data>,
@@ -28,7 +28,7 @@ impl serenity::EventHandler for CustomEventHandler {
                 }
             }
             serenity::FullEvent::Message { new_message, .. } => {
-                let _ = on_message(ctx.clone(), new_message, &self.data).await;
+                let _ = on_message(ctx.clone(), new_message, &self.data, None).await;
             }
             serenity::FullEvent::MessageDelete {
                 channel_id,
@@ -39,7 +39,7 @@ impl serenity::EventHandler for CustomEventHandler {
                     .await;
             }
             serenity::FullEvent::MessageUpdate { event, .. } => {
-                let _ = on_message_edit(ctx.clone(), event, &self.data).await;
+                let _ = on_message_edit(ctx.clone(), &event.message, &self.data).await;
             }
             serenity::FullEvent::ReactionAdd { add_reaction, .. } => {
                 let _ = on_react_added(ctx.clone(), add_reaction).await;
@@ -67,6 +67,55 @@ impl BotMessageInfo {
         ctx: &serenity::Context,
     ) -> Result<serenity::Message, serenity::Error> {
         self.channel_id.message(&ctx, self.message_id).await
+    }
+}
+
+#[derive(Debug, Clone)]
+enum InlineCommandType {
+    Wiki,
+    Mod,
+    Faq,
+}
+
+impl InlineCommandType {
+    const fn start(&self) -> char {
+        match self {
+            Self::Wiki => '[',
+            Self::Mod => '>',
+            Self::Faq => '{',
+        }
+    }
+    const fn end(&self) -> char {
+        match self {
+            Self::Wiki => ']',
+            Self::Mod => '<',
+            Self::Faq => '}',
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct InlineCommand {
+    name: String,
+    kind: InlineCommandType,
+}
+
+#[poise::command(context_menu_command = "Run inline commands")]
+pub async fn run_inline_commands(ctx: Context<'_>, mut msg: serenity::Message) -> Result<(), Error> {
+    let data = ctx.data();
+    msg.guild_id = ctx.guild_id();
+    match data.inline_command_log.get(&msg.id) {
+        Some(_) => {
+            on_message_edit(ctx.serenity_context().clone(), &msg, &data).await?;
+                let builder = poise::CreateReply::default()
+                .ephemeral(true)
+                .content("Response updated");
+            ctx.send(builder).await?;
+            Ok(())
+        },
+        None => {
+            on_message(ctx.serenity_context().clone(), &msg, &data, Some(ctx)).await
+        },
     }
 }
 
@@ -115,67 +164,60 @@ pub async fn on_message(
     ctx: serenity::Context,
     msg: &serenity::Message,
     data: &Data,
+    app_context: Option<Context<'_>>,
 ) -> Result<(), Error> {
     if msg.author.bot() {
         return Ok(());
     }
-    let wikisearch = message_prompt_search(&msg.content, '[', ']');
-    let modsearch = message_prompt_search(&msg.content, '>', '<');
-    let faqsearch = message_prompt_search(&msg.content, '{', '}');
-    if !modsearch.is_empty() || !wikisearch.is_empty() || !faqsearch.is_empty() {
-        if let Some(response) =
-            send_inline_search_response(&ctx, msg, data, modsearch, wikisearch, faqsearch).await?
-        {
-            let Some(guild_id) = msg.guild_id else {
-                log::warn!("Failed to store message details, guild ID not found");
-                return Ok(())
-            };
-            data.inline_command_log.insert(
-                msg.id,
-                BotMessageInfo {
-                    server_id: guild_id,
-                    channel_id: msg.channel_id,
-                    message_id: response,
-                    timestamp: tokio::time::Instant::now(),
-                },
-            );
-        }
-        return Ok(());
+    let prompts = message_prompt_search(&msg.content);
+    if let Some(context) = app_context
+        && prompts.is_empty()
+    {
+        let builder = poise::CreateReply::default()
+            .ephemeral(true)
+            .content("No inline commands found in message");
+        context.send(builder).await?;
+    } else if !prompts.is_empty()
+        && let Some(response) =
+            send_inline_search_response(&ctx, msg, data, prompts, app_context).await?
+    {
+        let Some(guild_id) = msg.guild_id else {
+            log::warn!("Failed to store message details, guild ID not found");
+            return Ok(());
+        };
+        data.inline_command_log.insert(
+            msg.id,
+            BotMessageInfo {
+                server_id: guild_id,
+                channel_id: msg.channel_id,
+                message_id: response,
+                timestamp: tokio::time::Instant::now(),
+            },
+        );
     }
     Ok(())
 }
 
 pub async fn on_message_edit(
     ctx: serenity::Context,
-    msg: &serenity::MessageUpdateEvent,
+    msg: &serenity::Message,
     data: &Data,
 ) -> Result<(), Error> {
-    println!("Message edit detected!");
-    let Some(entry) = data.inline_command_log.get(&msg.message.id) else {
+    let Some(entry) = data.inline_command_log.get(&msg.id) else {
         return Ok(());
     };
     let bot_message_info = entry.clone();
-    let message_content = &msg.message.content;
-    let wikisearch = message_prompt_search(message_content, '[', ']');
-    let modsearch = message_prompt_search(message_content, '>', '<');
-    let faqsearch = message_prompt_search(message_content, '{', '}');
-    if !modsearch.is_empty() || !wikisearch.is_empty() || !faqsearch.is_empty() {
-        update_inline_search_response(
-            &ctx,
-            data,
-            bot_message_info,
-            modsearch,
-            wikisearch,
-            faqsearch,
-        )
-        .await?;
+    let message_content = &msg.content;
+    let prompts = message_prompt_search(message_content);
+    if !prompts.is_empty() {
+        update_inline_search_response(&ctx, data, bot_message_info, prompts).await?;
         return Ok(());
     }
 
     // No command present in message anymore -> delete response
     let bot_message = bot_message_info.get_message(&ctx).await?;
     bot_message.delete(&ctx.http, None).await?;
-    data.inline_command_log.remove(&msg.message.id);
+    data.inline_command_log.remove(&msg.id);
 
     Ok(())
 }
@@ -234,11 +276,20 @@ pub async fn on_react_added(
     Ok(())
 }
 
-fn message_prompt_search(
-    message_content: &str,
-    opening_char: char,
-    closing_char: char,
-) -> Vec<String> {
+fn message_prompt_search(message_content: &str) -> Vec<InlineCommand> {
+    let stripped_message = strip_message(message_content);
+    let mut prompts = Vec::new();
+    for kind in [
+        InlineCommandType::Wiki,
+        InlineCommandType::Faq,
+        InlineCommandType::Mod,
+    ] {
+        prompts.push(extract_prompts(&kind, &stripped_message));
+    }
+    prompts.concat()
+}
+
+fn strip_message(message_content: &str) -> String {
     let mut in_code_block = false;
     let mut blockquote_depth = 0;
     let mut filtered_message = String::new();
@@ -274,7 +325,10 @@ fn message_prompt_search(
             _ => (),
         }
     }
+    filtered_message
+}
 
+fn extract_prompts(kind: &InlineCommandType, filtered_message: &str) -> Vec<InlineCommand> {
     let char_vec = filtered_message.chars().collect::<Vec<char>>();
     let mut start_index: Option<usize> = None;
     let mut results = Vec::new();
@@ -282,9 +336,8 @@ fn message_prompt_search(
     let mut start_counter = 0;
     let mut end_counter = 0;
 
-    for i in 0..char_vec.len() {
-        let current_char = char_vec[i];
-        if current_char == opening_char {
+    for (i, current_char) in char_vec.iter().enumerate() {
+        if *current_char == kind.start() {
             start_counter += 1;
             if start_counter == 2 {
                 start_index = Some(i + 1);
@@ -295,7 +348,7 @@ fn message_prompt_search(
             start_counter = 0;
         }
 
-        if current_char == closing_char {
+        if *current_char == kind.end() {
             end_counter += 1;
         } else {
             end_counter = 0;
@@ -304,9 +357,12 @@ fn message_prompt_search(
         if let Some(s) = start_index
             && end_counter == 2
         {
-            let modname = filtered_message[s..i - 1].to_string();
-            if !modname.is_empty() {
-                results.push(modname);
+            let prompt = filtered_message[s..i - 1].to_string();
+            if !prompt.is_empty() {
+                results.push(InlineCommand {
+                    name: prompt,
+                    kind: kind.clone(),
+                });
             }
             start_index = None;
         }
@@ -318,41 +374,34 @@ async fn send_inline_search_response(
     ctx: &serenity::Context,
     msg: &serenity::Message,
     data: &Data,
-    modnames: Vec<String>,
-    wikinames: Vec<String>,
-    faqnames: Vec<String>,
+    prompts: Vec<InlineCommand>,
+    app_context: Option<Context<'_>>,
 ) -> Result<Option<serenity::MessageId>, Error> {
-    let mut embeds: Vec<serenity::CreateEmbed> = Vec::new();
-    for modname in &modnames {
-        if let Ok(embed) = commands::mod_search(modname.to_owned(), true, data).await {
-            embeds.push(embed);
-        }
-    }
-    for wikiname in &wikinames {
-        if let Some(search_result) = search_wiki_page_name(wikiname).await? {
-            embeds.push(wiki_commands::get_wiki_page(&search_result).await?);
-        }
-    }
-    for faqname in &faqnames {
-        let cache = data.faq_cache.clone();
-        let Some(server_id) = msg.guild_id else {
-            continue;
-        };
-        let db = &data.database;
-        if let Ok(embed) =
-            faq_commands::faq_core(faqname.clone(), cache, i64::from(server_id), db).await
-        {
-            embeds.push(embed);
-        }
-    }
+    let embeds = create_embeds_from_prompts(prompts, data, msg.guild_id).await?;
     if embeds.is_empty() {
+        if let Some(context) = app_context {
+            let builder = poise::CreateReply::default()
+                .ephemeral(true)
+                .content("No embeds generated");
+            context.send(builder).await?;
+        }
         Ok(None)
     } else {
-        let builder: serenity::CreateMessage = serenity::CreateMessage::new()
-            .add_embeds(embeds)
-            .reference_message(msg)
-            .allowed_mentions(serenity::CreateAllowedMentions::default());
-        let response = msg.channel_id.send_message(ctx.http(), builder).await?;
+        let response = if let Some(c) = app_context {
+            let mut builder = poise::CreateReply::default()
+                .reply(true)
+                .allowed_mentions(serenity::CreateAllowedMentions::default());
+            for embed in embeds {
+                builder = builder.embed(embed);
+            }
+            c.send(builder).await?.into_message().await?
+        } else {
+            let builder = serenity::CreateMessage::new()
+                .add_embeds(embeds)
+                .reference_message(msg)
+                .allowed_mentions(serenity::CreateAllowedMentions::default());
+            msg.channel_id.send_message(ctx.http(), builder).await?
+        };
         Ok(Some(response.id))
     }
 }
@@ -361,48 +410,54 @@ async fn update_inline_search_response(
     ctx: &serenity::Context,
     data: &Data,
     bot_message_info: BotMessageInfo,
-    modnames: Vec<String>,
-    wikinames: Vec<String>,
-    faqnames: Vec<String>,
+    prompts: Vec<InlineCommand>,
 ) -> Result<(), Error> {
-    println!("Updating message: {modnames:?}, {wikinames:?}, {faqnames:?}");
-    let mut embeds: Vec<serenity::CreateEmbed> = Vec::new();
-    for modname in modnames {
-        if let Ok(embed) = commands::mod_search(modname, true, data).await {
-            embeds.push(embed);
-        }
-    }
-    for wikiname in wikinames {
-        if let Some(search_result) = search_wiki_page_name(&wikiname).await? {
-            embeds.push(wiki_commands::get_wiki_page(&search_result).await?);
-        }
-    }
-    for faqname in &faqnames {
-        println!("{faqname}");
-        let cache: Arc<std::sync::RwLock<Vec<faq_commands::FaqCacheEntry>>> =
-            data.faq_cache.clone();
-        let db = &data.database;
-        if let Ok(embed) = faq_commands::faq_core(
-            faqname.clone(),
-            cache,
-            i64::from(bot_message_info.server_id),
-            db,
-        )
-        .await
-        {
-            embeds.push(embed);
-        }
-    }
-    println!("{embeds:?}");
+    let embeds =
+        create_embeds_from_prompts(prompts, data, Some(bot_message_info.server_id)).await?;
     if !embeds.is_empty() {
         let builder: serenity::EditMessage = serenity::EditMessage::new().add_embeds(embeds);
-        // bot_message.edit(ctx, builder).await?;
         bot_message_info
             .channel_id
             .edit_message(&ctx.http, bot_message_info.message_id, builder)
             .await?;
     }
     Ok(())
+}
+
+async fn create_embeds_from_prompts(
+    prompts: Vec<InlineCommand>,
+    data: &Data,
+    server_id_opt: Option<serenity::GuildId>,
+) -> Result<Vec<serenity::CreateEmbed<'_>>, Error> {
+    let mut embeds: Vec<serenity::CreateEmbed> = Vec::new();
+    for prompt in prompts {
+        match prompt.kind {
+            InlineCommandType::Wiki => {
+                if let Some(search_result) = search_wiki_page_name(&prompt.name).await? {
+                    embeds.push(wiki_commands::get_wiki_page(&search_result).await?);
+                }
+            }
+            InlineCommandType::Mod => {
+                if let Ok(embed) = commands::mod_search(prompt.name.clone(), true, data).await {
+                    embeds.push(embed);
+                }
+            }
+            InlineCommandType::Faq => {
+                let cache = data.faq_cache.clone();
+                let Some(server_id) = server_id_opt else {
+                    continue;
+                };
+                let db = &data.database;
+                if let Ok(embed) =
+                    faq_commands::faq_core(prompt.name.clone(), cache, i64::from(server_id), db)
+                        .await
+                {
+                    embeds.push(embed);
+                }
+            }
+        }
+    }
+    Ok(embeds)
 }
 
 async fn search_wiki_page_name(name: &str) -> Result<Option<String>, Error> {

@@ -208,6 +208,10 @@ pub async fn on_message_edit(
     };
     let bot_message_info = entry.clone();
     let message_content = &msg.content;
+    if message_content.is_empty() {
+        // Could not access message content, initial bot response was made via app command
+        return Ok(())
+    }
     let prompts = message_prompt_search(message_content);
     if !prompts.is_empty() {
         update_inline_search_response(&ctx, data, bot_message_info, prompts).await?;

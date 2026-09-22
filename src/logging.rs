@@ -32,7 +32,7 @@ pub fn init_logging() -> WorkerGuard {
         )
         .with(
             // Log to STDOUT
-            tracing_subscriber::fmt::layer().with_filter(LevelFilter::INFO),
+            tracing_subscriber::fmt::layer().with_filter(LevelFilter::ERROR),
         )
         .init();
 

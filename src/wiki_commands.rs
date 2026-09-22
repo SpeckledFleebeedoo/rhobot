@@ -1,4 +1,4 @@
-use log::error;
+use tracing::error;
 use parse_wiki_text::{Configuration, Node};
 use poise::CreateReply;
 use poise::serenity_prelude::{Colour, CreateAllowedMentions, CreateEmbed, CreateAutocompleteResponse, AutocompleteChoice};

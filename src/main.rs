@@ -9,6 +9,7 @@ mod fff_commands;
 mod formatting_tools;
 mod fun_commands;
 mod help;
+mod logging;
 mod management;
 mod modding_api;
 mod mods;
@@ -16,11 +17,10 @@ mod wiki_commands;
 
 use dashmap::DashMap;
 use dotenv::dotenv;
-use log::{error, info};
+use tracing::{error, info};
 use poise::serenity_prelude as serenity;
 use std::{
-    env::var,
-    sync::{Arc, RwLock},
+    env::var, sync::{Arc, RwLock},
 };
 use tokio::time;
 
@@ -60,7 +60,7 @@ pub struct Data {
 #[allow(clippy::too_many_lines, clippy::unreadable_literal)]
 #[tokio::main]
 async fn main() {
-    env_logger::init();
+    let _log_guard = logging::init_logging();
     rustls::crypto::ring::default_provider().install_default().expect("Failed to install ring as rustls provider");
     dotenv().ok();
 
@@ -150,6 +150,7 @@ async fn main() {
             fun_commands::anniversary(),
             cheatsheet::cheatsheet(),
             events::run_inline_commands(),
+            logging::logs(),
         ],
         prefix_options: poise::PrefixFrameworkOptions {
             mention_as_prefix: true,

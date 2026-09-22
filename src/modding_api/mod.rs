@@ -8,7 +8,7 @@ use data::{api_prototype, api_type};
 use runtime::{api_class, api_concept, api_define, api_event};
 
 use core::fmt;
-use log::warn;
+use tracing::warn;
 use poise::reply::CreateReply;
 use poise::serenity_prelude as serenity;
 use regex::Regex;

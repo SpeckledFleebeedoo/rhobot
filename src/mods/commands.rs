@@ -1,4 +1,4 @@
-use log::error;
+use tracing::error;
 use poise::{
     CreateReply,
     serenity_prelude::{AutocompleteChoice, Colour, CreateAllowedMentions, CreateEmbed},

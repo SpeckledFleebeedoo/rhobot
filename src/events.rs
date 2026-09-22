@@ -1,5 +1,5 @@
 use ::serenity::all::prelude::CacheHttp;
-use log::{error, info};
+use tracing::{error, info};
 use poise::CreateReply;
 use poise::serenity_prelude as serenity;
 use sqlx::{Pool, Sqlite};
@@ -45,8 +45,7 @@ impl serenity::EventHandler for CustomEventHandler {
                 let _ = on_react_added(ctx.clone(), add_reaction).await;
             }
             serenity::FullEvent::Ready { data_about_bot, .. } => {
-                println!("Logged in as {}", data_about_bot.user.name);
-                log::info!("Logged in as {}", data_about_bot.user.name);
+                tracing::info!("Logged in as {}", data_about_bot.user.name);
             }
             _ => (),
         }
@@ -182,7 +181,7 @@ pub async fn on_message(
             send_inline_search_response(&ctx, msg, data, prompts, app_context).await?
     {
         let Some(guild_id) = msg.guild_id else {
-            log::warn!("Failed to store message details, guild ID not found");
+            tracing::warn!("Failed to store message details, guild ID not found");
             return Ok(());
         };
         data.inline_command_log.insert(

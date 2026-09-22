@@ -1,4 +1,4 @@
-use log::{error, info};
+use tracing::{error, info};
 use poise::reply::CreateReply;
 use poise::serenity_prelude as serenity;
 use serde::{Deserialize, Serialize};

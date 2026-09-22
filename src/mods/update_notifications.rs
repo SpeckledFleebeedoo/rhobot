@@ -1,4 +1,4 @@
-use log::{error, info};
+use tracing::{error, info};
 use serde::{Deserialize, Serialize};
 use serenity::all::{Colour, CreateEmbed, CreateMessage};
 use sqlx::{Pool, Sqlite};

@@ -1,4 +1,4 @@
-use log::{error, info, warn};
+use tracing::{error, info, warn};
 use std::fmt;
 
 use crate::{database, faq_commands, fff_commands, management, modding_api, mods, wiki_commands};
@@ -15,6 +15,7 @@ pub enum RhobotError {
     Wiki(wiki_commands::WikiError),
     Serenity(Box<serenity::Error>),
     CommandNotFound(String),
+    Io(Box<std::io::Error>)
 }
 
 impl fmt::Display for RhobotError {
@@ -29,6 +30,7 @@ impl fmt::Display for RhobotError {
             Self::Wiki(error) => f.write_str(&error.to_string()),
             Self::Serenity(error) => f.write_str(&format!("Serenity error: {error}")),
             Self::CommandNotFound(command) => f.write_str(&format!("Command not found: {command}")),
+            Self::Io(error) => f.write_str(&format!("IO error: {error}")),
         }
     }
 }
@@ -72,6 +74,7 @@ impl RhobotError {
             Self::Wiki(wiki_error) => error!("{wiki_error}"),
             Self::Serenity(error) => error!("{error}"),
             Self::CommandNotFound(command) => error!("Command not found: {command}"),
+            Self::Io(error) => error!("IO error: {error}"),
         }
     }
 }
@@ -123,5 +126,11 @@ impl From<wiki_commands::WikiError> for RhobotError {
 impl From<serenity::Error> for RhobotError {
     fn from(value: serenity::Error) -> Self {
         Self::Serenity(Box::new(value))
+    }
+}
+
+impl From<std::io::Error> for RhobotError {
+    fn from(value: std::io::Error) -> Self {
+        Self::Io(Box::new(value))
     }
 }

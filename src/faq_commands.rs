@@ -1,4 +1,4 @@
-use log::error;
+use tracing::error;
 use poise::CreateReply;
 use poise::Modal;
 use poise::serenity_prelude as serenity;

@@ -1,9 +1,9 @@
 use ::serenity::all::prelude::CacheHttp;
-use tracing::{error, info};
 use poise::CreateReply;
 use poise::serenity_prelude as serenity;
 use sqlx::{Pool, Sqlite};
 use std::sync::Arc;
+use tracing::{error, info};
 
 use crate::faq_commands;
 use crate::{Context, Data, Error, database, mods::commands, wiki_commands};
@@ -99,22 +99,28 @@ struct InlineCommand {
     kind: InlineCommandType,
 }
 
-#[poise::command(context_menu_command = "Run inline commands")]
-pub async fn run_inline_commands(ctx: Context<'_>, mut msg: serenity::Message) -> Result<(), Error> {
+#[poise::command(
+    context_menu_command = "Run inline commands",
+    hide_in_help,
+    install_context = "Guild|User",
+    interaction_context = "Guild|BotDm|PrivateChannel"
+)]
+pub async fn run_inline_commands(
+    ctx: Context<'_>,
+    mut msg: serenity::Message,
+) -> Result<(), Error> {
     let data = ctx.data();
     msg.guild_id = ctx.guild_id();
     match data.inline_command_log.get(&msg.id) {
         Some(_) => {
             on_message_edit(ctx.serenity_context().clone(), &msg, &data).await?;
-                let builder = poise::CreateReply::default()
+            let builder = poise::CreateReply::default()
                 .ephemeral(true)
                 .content("Response updated");
             ctx.send(builder).await?;
             Ok(())
-        },
-        None => {
-            on_message(ctx.serenity_context().clone(), &msg, &data, Some(ctx)).await
-        },
+        }
+        None => on_message(ctx.serenity_context().clone(), &msg, &data, Some(ctx)).await,
     }
 }
 
@@ -209,7 +215,7 @@ pub async fn on_message_edit(
     let message_content = &msg.content;
     if message_content.is_empty() {
         // Could not access message content, initial bot response was made via app command
-        return Ok(())
+        return Ok(());
     }
     let prompts = message_prompt_search(message_content);
     if !prompts.is_empty() {

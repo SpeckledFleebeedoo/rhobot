@@ -334,8 +334,8 @@ pub async fn get_mod_thumbnail(name: &String) -> Result<String, ModError> {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct ModChangelogEntry {
-    version: String,
+pub struct ModChangelogEntry {
+    pub version: String,
     date: Option<String>,
     categories: Vec<ModChangelogCategory>,
 }
@@ -362,7 +362,7 @@ pub async fn get_mod_info(name: &str) -> Result<FullMod, ModError> {
     Ok(response.json::<FullMod>().await?)
 }
 
-fn get_mod_changelog(mod_info: &FullMod) -> Vec<ModChangelogEntry> {
+pub fn get_mod_changelog(mod_info: &FullMod) -> Vec<ModChangelogEntry> {
     let versionsplit = "-".repeat(99);
 
     if mod_info.changelog.is_none() {
@@ -372,6 +372,7 @@ fn get_mod_changelog(mod_info: &FullMod) -> Vec<ModChangelogEntry> {
     let version_entries = ch.split(&versionsplit);
     let mut out = Vec::new();
     for changelog in version_entries {
+        if changelog.is_empty() { continue }
         let mut entry = ModChangelogEntry::default();
         let mut current_category = ModChangelogCategory::default();
 
@@ -409,7 +410,7 @@ fn get_mod_changelog(mod_info: &FullMod) -> Vec<ModChangelogEntry> {
     out
 }
 
-fn format_mod_changelog(
+pub fn format_mod_changelog(
     changelogs: &[ModChangelogEntry],
     version: &str,
     max_lines: usize,
@@ -521,7 +522,6 @@ Version: 1.0.0
         };
 
         let changelog = get_mod_changelog(&mod_info);
-        // println!("{changelog:#?}");
         let expected = [
             ModChangelogEntry {
                 version: "1.0.1".to_owned(),

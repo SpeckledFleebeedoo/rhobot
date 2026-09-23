@@ -11,6 +11,7 @@ pub enum ModError {
     ModNotFound(String),
     BadStatusCode(String),
     DatabaseError(DatabaseError),
+    ChangelogNotFound(String),
 }
 
 impl fmt::Display for ModError {
@@ -26,6 +27,7 @@ impl fmt::Display for ModError {
                 "Received HTTP status code {status} while accessing mod portal."
             )),
             Self::DatabaseError(error) => f.write_str(&format!("Mod database error: {error}")),
+            Self::ChangelogNotFound(version) => f.write_str(&format!("Could not find a changelog for version {version}"))
         }
     }
 }

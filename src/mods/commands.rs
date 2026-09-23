@@ -7,9 +7,7 @@ use poise::{
 use poise::serenity_prelude as serenity;
 
 use crate::{
-    Context, Data, Error, database,
-    formatting_tools::DiscordFormat,
-    management::{checks::is_mod, get_server_id},
+    Context, Data, Error, database, formatting_tools::DiscordFormat, management::{checks::is_mod, get_server_id}, mods::update_notifications,
 };
 
 use super::{
@@ -386,7 +384,7 @@ pub async fn mod_search(
     let mut search_result = if imprecise_search {
         search_api::find_mod(&modname, &data.mod_portal_credentials).await?
     } else {
-        let data = super::update_notifications::get_mod_info(&modname).await?;
+        let data = update_notifications::get_mod_info(&modname).await?;
         let factorio_versions = data
             .releases
             .iter()
@@ -513,6 +511,77 @@ async fn autocomplete_modname<'a>(
         })
         .collect::<Vec<AutocompleteChoice>>();
     choices.append(&mut name_contains);
+
+    serenity::CreateAutocompleteResponse::new().set_choices(choices)
+}
+
+/// Show a mod changelog
+#[allow(clippy::unused_async)]
+#[poise::command(
+    slash_command,
+    install_context = "Guild|User",
+    interaction_context = "Guild|BotDm|PrivateChannel"
+)]
+pub async fn changelog(
+    ctx: Context<'_>,
+    #[autocomplete = "autocomplete_modname"]
+    #[description = "Name of the mod to search for"]
+    modname: String,
+    #[autocomplete = "autocomplete_version"]
+    #[description = "Version to show changelog for"]
+    version: String,
+) -> Result<(), Error> {
+    let max_lines = 15;
+    let modname = modname.trim_start_matches('*').to_string();
+
+    let mod_info = update_notifications::get_mod_info(&modname).await?;
+    let changelogs = update_notifications::get_mod_changelog(&mod_info);
+    let Some(changelog) = update_notifications::format_mod_changelog(&changelogs, &version, max_lines)
+        else {
+            return Err(ModError::ChangelogNotFound(version))?;
+        };
+
+    let url = format!("https://mods.factorio.com/mod/{}", mod_info.name).replace(' ', "%20");
+    let title = format!("{} version {version}", mod_info.title);
+    let thumbnail_url = format!(
+        "https://assets-mod.factorio.com{}",
+        mod_info
+            .thumbnail
+            .unwrap_or_else(|| "/assets/.thumb.png".to_owned())
+    );
+    let embed = CreateEmbed::new()
+        .title(title.truncate_for_embed(256))
+        .url(url)
+        .color(Colour::from_rgb(0x2E, 0xCC, 0x71))
+        .description(changelog.truncate_for_embed(4096))
+        .thumbnail(thumbnail_url, None);
+    let builder: CreateReply<'_> = CreateReply::default()
+        .embed(embed)
+        .reply(true)
+        .allowed_mentions(CreateAllowedMentions::default());
+    ctx.send(builder).await?;
+    Ok(())
+}
+
+#[allow(clippy::unused_async)]
+async fn autocomplete_version<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
+    let serenity::ResolvedValue::String(modname) = ctx.args[0].value else {
+        return serenity::CreateAutocompleteResponse::new();
+    };
+    if modname.is_empty() {
+        return serenity::CreateAutocompleteResponse::new();
+    }
+    let modname = modname.trim_start_matches('*').to_string();
+
+    let Ok(mod_info) = update_notifications::get_mod_info(&modname).await else {
+        return serenity::CreateAutocompleteResponse::new();
+    };
+    let changelogs = update_notifications::get_mod_changelog(&mod_info);
+    let choices = changelogs.iter()
+        .filter(|v| v.version.starts_with(partial))
+        .take(25)
+        .map(|v| serenity::AutocompleteChoice::from(v.version.clone()))
+        .collect::<Vec<serenity::AutocompleteChoice>>();
 
     serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }

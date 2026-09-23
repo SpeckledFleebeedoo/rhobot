@@ -137,6 +137,7 @@ async fn main() {
             mods::commands::set_updates_channel(),
             mods::commands::set_modrole(),
             mods::commands::show_changelogs(),
+            mods::commands::changelog(),
             faq_commands::faq(),
             faq_commands::faq_list(),
             faq_commands::faq_edit(),

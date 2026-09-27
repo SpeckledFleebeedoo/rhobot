@@ -305,7 +305,7 @@ async fn make_update_message(
     let builder = CreateMessage::new().embed(embed);
     match updates_channel.widen().send_message(cache_http, builder).await {
         Ok(_) => {}
-        Err(e) => error!("Error sending message: {e}"),
+        Err(e) => error!("Error sending message in channel {updates_channel}: {e}"),
     }
     Ok(())
 }

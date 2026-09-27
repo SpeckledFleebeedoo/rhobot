@@ -573,8 +573,12 @@ async fn autocomplete_version<'a>(ctx: Context<'a>, partial: &'a str) -> serenit
     }
     let modname = modname.trim_start_matches('*').to_string();
 
-    let Ok(mod_info) = update_notifications::get_mod_info(&modname).await else {
-        return serenity::CreateAutocompleteResponse::new();
+    let mod_info = match update_notifications::get_mod_info(&modname).await {
+        Ok(info) => info,
+        Err(e) => {
+            error!("Error getting mod info: {e}");
+            return serenity::CreateAutocompleteResponse::new();
+        },
     };
     let changelogs = update_notifications::get_mod_changelog(&mod_info);
     let choices = changelogs.iter()

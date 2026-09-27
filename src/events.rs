@@ -137,6 +137,9 @@ pub async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
             )
             .await;
         }
+        poise::FrameworkError::UnknownCommand { .. } => {
+            // Do not log failed prefix conmmands from bot mentions
+        }
         error => {
             if let Err(e) = poise::builtins::on_error(error).await {
                 error!("Error while handling error: {e}");

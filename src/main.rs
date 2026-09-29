@@ -50,7 +50,9 @@ pub struct Data {
     mod_subscription_cache: Arc<RwLock<Vec<SubCacheEntry>>>,
     mod_author_cache: Arc<RwLock<Vec<String>>>,
     runtime_api_cache: Arc<RwLock<modding_api::runtime::ApiResponse>>,
+    runtime_api_autocomplete_cache: Arc<RwLock<Vec<modding_api::runtime::AutocompleteOption>>>,
     data_api_cache: Arc<RwLock<modding_api::data::ApiResponse>>,
+    data_api_autocomplete_cache: Arc<RwLock<Vec<modding_api::data::AutocompleteOption>>>,
     mod_portal_credentials: Arc<ModPortalCredentials>,
     inline_command_log: Arc<
         DashMap<serenity::MessageId, BotMessageInfo>,
@@ -89,27 +91,15 @@ async fn main() {
     let authorname_cache = Arc::new(RwLock::new(Vec::new()));
     let authorname_cache_clone = authorname_cache.clone();
 
-    let runtime_api: modding_api::runtime::ApiResponse =
-        match modding_api::runtime::get_runtime_api().await {
-            Ok(a) => a,
-            Err(e) => {
-                error!("Failed to get modding runtime api: {e}");
-                return;
-            }
-        };
-    let runtime_api_cache = Arc::new(RwLock::new(runtime_api));
+    let runtime_api_cache = Arc::new(RwLock::default());
     let runtime_api_cache_clone = runtime_api_cache.clone();
-
-    let datastage_api: modding_api::data::ApiResponse =
-        match modding_api::data::get_data_api().await {
-            Ok(a) => a,
-            Err(e) => {
-                error!("Failed to get modding data api: {e}");
-                return;
-            }
-        };
-    let data_api_cache = Arc::new(RwLock::new(datastage_api));
+    let data_api_cache = Arc::new(RwLock::default());
     let data_api_cache_clone = data_api_cache.clone();
+    
+    let runtime_api_autocomplete_cache =  Arc::new(RwLock::new(Vec::new()));
+    let runtime_api_autocomplete_cache_clone = runtime_api_autocomplete_cache.clone();
+    let data_api_autocomplete_cache = Arc::new(RwLock::new(Vec::new()));
+    let data_api_autocomplete_cache_clone = data_api_autocomplete_cache.clone();
 
     let mod_portal_credentials = {
         let username =
@@ -183,7 +173,9 @@ async fn main() {
         mod_subscription_cache: subscription_cache_clone,
         mod_author_cache: authorname_cache_clone,
         runtime_api_cache: runtime_api_cache_clone,
+        runtime_api_autocomplete_cache: runtime_api_autocomplete_cache_clone,
         data_api_cache: data_api_cache_clone,
+        data_api_autocomplete_cache: data_api_autocomplete_cache_clone,
         mod_portal_credentials,
         inline_command_log,
     });
@@ -245,29 +237,37 @@ async fn main() {
                 Err(error) => error!("Error while updating faq cache: {error}"),
             }
             match update_sub_cache(subscription_cache.clone(), &db).await {
-                Ok(()) => info!("Updated subscription cache"),
-                Err(error) => error!("Error while updating subscription cache: {error}"),
+                Ok(()) => info!("Updated mod subscription cache"),
+                Err(error) => error!("Error while updating mod subscription cache: {error}"),
             }
             match update_author_cache(authorname_cache.clone(), &db).await {
-                Ok(()) => info!("Updated subscription cache"),
-                Err(error) => error!("Error while updating author name cache: {error}"),
+                Ok(()) => info!("Updated author subscription cache"),
+                Err(error) => error!("Error while updating author subscription cache: {error}"),
             }
             info!("Caches updated");
         }
     });
 
     let mut api_update_interval = time::interval(time::Duration::from_hours(24)); // Update once per day
-    api_update_interval.tick().await; // First tick happens instantly
+    // api_update_interval.tick().await; // First tick happens instantly
     tokio::spawn(async move {
         loop {
             api_update_interval.tick().await;
             match modding_api::runtime::update_api_cache(runtime_api_cache.clone()).await {
-                Ok(()) => info!("Updated API cache"),
+                Ok(()) => info!("Updated runtime API cache"),
                 Err(error) => error!("Error while updating runtime api cache: {error}"),
             }
             match modding_api::data::update_api_cache(data_api_cache.clone()).await {
-                Ok(()) => info!("Updated API cache"),
-                Err(error) => error!("Error whille updating data api cache: {error}"),
+                Ok(()) => info!("Updated data API cache"),
+                Err(error) => error!("Error while updating data api cache: {error}"),
+            }
+            match modding_api::runtime::generate_autocomplete_cache(&runtime_api_cache, &runtime_api_autocomplete_cache) {
+                Ok(()) => info!("Updated runtime API autocomplete cache"),
+                Err(error) => error!("Error while updating data api autocomplete cache: {error}"),
+            }
+            match modding_api::data::generate_autocomplete_cache(&data_api_cache, &data_api_autocomplete_cache) {
+                Ok(()) => info!("Updated data API autocomplete cache"),
+                Err(error) => error!("Error while updating data api autocomplete cache: {error}"),
             }
         }
     });

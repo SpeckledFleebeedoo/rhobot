@@ -1,4 +1,4 @@
-use tracing::{error, info};
+use tracing::error;
 use poise::reply::CreateReply;
 use poise::serenity_prelude as serenity;
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,7 @@ pub struct Image {
     caption: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub struct ApiResponse {
     pub application: String,
     pub application_version: String,
@@ -461,7 +461,6 @@ impl fmt::Display for AttributeTypes {
 }
 
 pub async fn update_api_cache(cache: Arc<RwLock<ApiResponse>>) -> Result<(), Error> {
-    info!("Updating API cache");
     {
         let new_runtime_api = get_runtime_api().await?;
         let mut c = match cache.write() {
@@ -492,24 +491,63 @@ pub async fn get_runtime_api() -> Result<ApiResponse, Error> {
         .map_err(ApiError::from)?)
 }
 
-/// Link a runtime modding API class.
-#[allow(clippy::unused_async)]
-#[poise::command(
-    slash_command,
-    rename = "class",
-    install_context = "Guild|User",
-    interaction_context = "Guild|BotDm|PrivateChannel"
-)]
+pub fn generate_autocomplete_cache(api_cache: &Arc<RwLock<ApiResponse>>, autocomplete_cache: &Arc<RwLock<Vec<AutocompleteOption>>>) -> Result<(), Error> {
+    let api = match api_cache.read() {
+        Ok(c) => c,
+        Err(e) => return Err(ApiError::CacheError(e.to_string()))?,
+    }.clone();
+
+    let runtime_autocomplete = api.classes.iter()
+        .flat_map(|c| {
+            std::iter::once(AutocompleteOption {
+                kind: AutocompleteType::Class,
+                search: c.common.name.clone(),
+                parent: None,
+            })
+            .chain(c.methods.iter()
+                .map(|cm| AutocompleteOption {
+                    kind: AutocompleteType::Class,
+                    search: cm.common.name.clone(),
+                    parent: Some(c.common.name.clone())
+            }))
+            .chain(c.attributes.iter()
+                .map(|ca| AutocompleteOption {
+                    kind: AutocompleteType::Class,
+                    search: ca.common.name.clone(),
+                    parent: Some(c.common.name.clone())
+            }))
+        })
+        
+        .chain(api.concepts.iter()
+            .map(|c| 
+                AutocompleteOption {
+                    kind: AutocompleteType::Concept,
+                    search: c.common.name.clone(),
+                    parent: None,
+        }))
+
+        .chain(api.events.iter()
+            .map(|e| 
+            AutocompleteOption {
+                    kind: AutocompleteType::Event,
+                    search: e.common.name.clone(),
+                    parent: None,
+    }))
+    .collect::<Vec<AutocompleteOption>>();
+
+    let mut c = match autocomplete_cache.write() {
+        Ok(c) => c,
+        Err(e) => return Err(ApiError::CacheError(e.to_string()))?,
+    };
+    *c = runtime_autocomplete;
+    drop(c);
+    Ok(())
+}
+
 pub async fn api_class(
     ctx: Context<'_>,
-    #[description = "Search term"]
-    #[autocomplete = "autocomplete_class"]
-    #[rename = "class"]
-    class_search: String,
-    #[description = "Class property"]
-    #[autocomplete = "autocomplete_class_property"]
-    #[rename = "property"]
-    property_search: Option<String>,
+    class_search: &str,
+    property_search: Option<&str>,
 ) -> Result<(), Error> {
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read() {
@@ -525,25 +563,25 @@ pub async fn api_class(
         .iter()
         .find(|class| class_search.eq_ignore_ascii_case(&class.common.name))
     else {
-        return Err(ApiError::ClassNotFound(class_search))?;
+        return Err(ApiError::ClassNotFound(class_search.to_string()))?;
     };
 
     let embed = if let Some(property_name) = property_search {
         let method = search_result
             .methods
             .iter()
-            .find(|m| m.common.name.eq_ignore_ascii_case(&property_name));
+            .find(|m| m.common.name.eq_ignore_ascii_case(property_name));
         let attribute = search_result
             .attributes
             .iter()
-            .find(|a| a.common.name.eq_ignore_ascii_case(&property_name));
+            .find(|a| a.common.name.eq_ignore_ascii_case(property_name));
         
         if let Some(m) = method {
             m.to_embed(search_result, &ctx.data())
         } else if let Some(a) = attribute {
             a.to_embed(search_result, &ctx.data())
         } else {
-            return Err(ApiError::PropertyNotFound(property_name))?;
+            return Err(ApiError::PropertyNotFound(property_name.to_string()))?;
         }
     } else {
         search_result.to_embed(&ctx.data())
@@ -557,86 +595,9 @@ pub async fn api_class(
     Ok(())
 }
 
-#[allow(clippy::unused_async)]
-async fn autocomplete_class<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
-    let cache = ctx.data().runtime_api_cache.clone();
-    let api = match cache.read() {
-        Ok(c) => c,
-        Err(e) => {
-            error! {"Error acquiring cache: {e}"}
-            return serenity::CreateAutocompleteResponse::new();
-        }
-    }
-    .clone();
-    let choices= api.classes
-        .iter()
-        .filter(|c| {
-            c.common
-                .name
-                .to_lowercase()
-                .contains(partial.to_lowercase().trim())
-        })
-        .take(25)
-        .map(|c| serenity::AutocompleteChoice::from(c.common.name.clone()))
-        .collect::<Vec<serenity::AutocompleteChoice>>();
-
-    serenity::CreateAutocompleteResponse::new().set_choices(choices)
-}
-
-#[allow(clippy::unused_async)]
-async fn autocomplete_class_property<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
-    let serenity::ResolvedValue::String(classname) = ctx.args[0].value else {
-        return serenity::CreateAutocompleteResponse::new();
-    };
-    if classname.is_empty() {
-        return serenity::CreateAutocompleteResponse::new();
-    }
-
-    let cache = ctx.data().runtime_api_cache.clone();
-    let api = match cache.read() {
-        Ok(c) => c,
-        Err(e) => {
-            error! {"Error acquiring cache: {e}"}
-            return serenity::CreateAutocompleteResponse::new();
-        }
-    }
-    .clone();
-    let Some(class) = api
-        .classes
-        .iter()
-        .find(|c| c.common.name.eq_ignore_ascii_case(classname))
-    else {
-        return serenity::CreateAutocompleteResponse::new();
-    }; // Happens when invalid class is used
-
-    let methods = class.methods.clone().into_iter().map(|m| m.common);
-    let attributes = class.attributes.clone().into_iter().map(|a| a.common);
-    let properties = methods.chain(attributes);
-
-    let choices = properties
-        .map(|p| p.name)
-        .filter(|n| n.to_lowercase().contains(partial.to_lowercase().trim()))
-        .take(25)
-        .map(serenity::AutocompleteChoice::from)
-        .collect::<Vec<serenity::AutocompleteChoice>>();
-
-    serenity::CreateAutocompleteResponse::new().set_choices(choices)
-}
-
-/// Link a runtime modding API event
-#[allow(clippy::unused_async)]
-#[poise::command(
-    slash_command,
-    rename = "event",
-    install_context = "Guild|User",
-    interaction_context = "Guild|BotDm|PrivateChannel"
-)]
 pub async fn api_event(
     ctx: Context<'_>,
-    #[description = "Search term"]
-    #[autocomplete = "autocomplete_event"]
-    #[rename = "event"]
-    event_search: String,
+    event_search: &str,
 ) -> Result<(), Error> {
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read() {
@@ -650,7 +611,7 @@ pub async fn api_event(
         .iter()
         .find(|event| event_search.eq_ignore_ascii_case(&event.common.name))
     else {
-        return Err(ApiError::EventNotFound(event_search))?;
+        return Err(ApiError::EventNotFound(event_search.to_string()))?;
     };
 
     let builder = CreateReply::default()
@@ -659,31 +620,6 @@ pub async fn api_event(
         .allowed_mentions(serenity::CreateAllowedMentions::default());
     ctx.send(builder).await?;
     Ok(())
-}
-
-#[allow(clippy::unused_async)]
-async fn autocomplete_event<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
-    let cache = ctx.data().runtime_api_cache.clone();
-    let api = match cache.read() {
-        Ok(c) => c,
-        Err(e) => {
-            error! {"Error acquiring cache: {e}"}
-            return serenity::CreateAutocompleteResponse::new();
-        }
-    }
-    .clone();
-    let choices = api.events
-        .iter()
-        .filter(|c| {
-            c.common
-                .name
-                .to_lowercase()
-                .contains(partial.to_lowercase().trim())
-        })
-        .take(25)
-        .map(|c| serenity::AutocompleteChoice::from(c.common.name.clone()))
-        .collect::<Vec<serenity::AutocompleteChoice>>();
-    serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }
 
 /// Link a runtime modding API define
@@ -749,20 +685,9 @@ async fn autocomplete_define<'a>(ctx: Context<'a>, partial: &'a str) -> serenity
     serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }
 
-/// Link a runtime modding API concept
-#[allow(clippy::unused_async)]
-#[poise::command(
-    slash_command,
-    rename = "concept",
-    install_context = "Guild|User",
-    interaction_context = "Guild|BotDm|PrivateChannel"
-)]
 pub async fn api_concept(
     ctx: Context<'_>,
-    #[description = "Search term"]
-    #[autocomplete = "autocomplete_concept"]
-    #[rename = "concept"]
-    concept_search: String,
+    concept_search: &str,
 ) -> Result<(), Error> {
     let cache = ctx.data().runtime_api_cache.clone();
     let api = match cache.read() {
@@ -776,7 +701,7 @@ pub async fn api_concept(
         .iter()
         .find(|concept| concept_search.eq_ignore_ascii_case(&concept.common.name))
     else {
-        return Err(ApiError::ConceptNotFound(concept_search))?;
+        return Err(ApiError::ConceptNotFound(concept_search.to_string()))?;
     };
 
     let builder = CreateReply::default()
@@ -787,10 +712,69 @@ pub async fn api_concept(
     Ok(())
 }
 
+/// Link to the runtime modding API
 #[allow(clippy::unused_async)]
-async fn autocomplete_concept<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
-    let cache = ctx.data().runtime_api_cache.clone();
-    let api = match cache.read() {
+#[poise::command(
+    slash_command,
+    install_context = "Guild|User",
+    interaction_context = "Guild|BotDm|PrivateChannel"
+)]
+pub async fn runtime(
+    ctx: Context<'_>,
+    #[description = "Search term"]
+    #[autocomplete = "autocomplete_runtime"]
+    search: String,
+) -> Result<(), Error> {
+    if search.starts_with("[Cls] ") {
+        let searchtext = search.trim_start_matches("[Cls] ");
+        if let Some((prototype, property)) = searchtext.split_once("::") {
+            api_class(ctx, prototype, Some(property)).await?;
+        } else {
+            api_class(ctx, searchtext, None).await?;
+        }
+    } else if search.starts_with("[Con] ") {
+        let property = search.trim_start_matches("[Con] ");
+        api_concept(ctx, property).await?;
+    } else if search.starts_with("[E] ") {
+        let event = search.trim_start_matches("[E] ");
+        api_event(ctx, event).await?;
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone)]
+enum AutocompleteType {
+    Class,
+    Concept,
+    Event,
+}
+
+#[derive(Debug, Clone)]
+pub struct AutocompleteOption {
+    kind: AutocompleteType,
+    search: String,
+    parent: Option<String>
+}
+
+impl fmt::Display for AutocompleteOption {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.kind {
+            AutocompleteType::Class => write!(f, "[Cls] "),
+            AutocompleteType::Concept => write!(f, "[Con] "),
+            AutocompleteType::Event => write!(f, "[E] ")
+        }?;
+        if let Some(parent) = &self.parent {
+            write!(f, "{}::{}", parent, self.search)
+        } else {
+            write!(f, "{}", self.search)
+        }
+    }
+}
+
+#[allow(clippy::unused_async)]
+async fn autocomplete_runtime<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
+    let cache = ctx.data().runtime_api_autocomplete_cache.clone();
+    let runtime_autocomplete = match cache.read() {
         Ok(c) => c,
         Err(e) => {
             error! {"Error acquiring cache: {e}"}
@@ -798,17 +782,14 @@ async fn autocomplete_concept<'a>(ctx: Context<'a>, partial: &'a str) -> serenit
         }
     }
     .clone();
-    let choices = api.concepts
-        .iter()
-        .filter(|c| {
-            c.common
-                .name
-                .to_lowercase()
-                .contains(partial.to_lowercase().trim())
-        })
+
+    let choices = runtime_autocomplete.iter()
+        .filter(|t| t.search.to_lowercase().contains(partial.to_lowercase().trim()))
         .take(25)
-        .map(|c| serenity::AutocompleteChoice::from(c.common.name.clone()))
+        .map(|t| 
+            serenity::AutocompleteChoice::from(format!("{t}")))
         .collect::<Vec<serenity::AutocompleteChoice>>();
+
     serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }
 

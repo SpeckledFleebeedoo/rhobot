@@ -4,8 +4,8 @@ pub mod lua;
 mod lua_constants;
 pub mod runtime;
 
-use data::{api_prototype, api_type};
-use runtime::{api_class, api_concept, api_define, api_event};
+use data::prototype;
+use runtime::{runtime, api_define};
 
 use core::fmt;
 use tracing::warn;
@@ -22,12 +22,9 @@ use error::ApiError;
 #[poise::command(
     slash_command,
     subcommands(
-        "api_class",
-        "api_event",
         "api_define",
-        "api_concept",
-        "api_prototype",
-        "api_type",
+        "runtime",
+        "prototype",
         "api_page"
     ),
     install_context = "Guild|User",

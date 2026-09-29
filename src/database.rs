@@ -150,7 +150,7 @@ pub async fn add_faq_entry(
 
 pub async fn update_faq_entry(
     db: &Pool<Sqlite>,
-    faq_entry: DBFaqEntry<'_>
+    faq_entry: DBFaqEntry<'_>,
 ) -> Result<(), DatabaseError> {
     sqlx::query!(
         r#"UPDATE faq SET contents = ?, image = ?, link = ? 
@@ -165,7 +165,6 @@ pub async fn update_faq_entry(
     .await?;
     Ok(())
 }
-
 
 pub async fn find_faq_entry_opt(
     db: &Pool<Sqlite>,

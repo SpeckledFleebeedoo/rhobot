@@ -1,5 +1,5 @@
-use tracing::{error, info, warn};
 use std::fmt;
+use tracing::{error, info, warn};
 
 use crate::{database, faq_commands, fff_commands, management, modding_api, mods, wiki_commands};
 
@@ -15,7 +15,7 @@ pub enum RhobotError {
     Wiki(wiki_commands::WikiError),
     Serenity(Box<serenity::Error>),
     CommandNotFound(String),
-    Io(Box<std::io::Error>)
+    Io(Box<std::io::Error>),
 }
 
 impl fmt::Display for RhobotError {

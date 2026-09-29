@@ -1,11 +1,13 @@
-use tracing::error;
 use parse_wiki_text::{Configuration, Node};
 use poise::CreateReply;
-use poise::serenity_prelude::{Colour, CreateAllowedMentions, CreateEmbed, CreateAutocompleteResponse, AutocompleteChoice};
+use poise::serenity_prelude::{
+    AutocompleteChoice, Colour, CreateAllowedMentions, CreateAutocompleteResponse, CreateEmbed,
+};
 use serde::Deserialize;
 use std::error::Error as StdError;
 use std::fmt::Debug;
 use std::{error, fmt, fmt::Write};
+use tracing::error;
 
 use crate::formatting_tools::DiscordFormat;
 use crate::{Context, Error};
@@ -514,18 +516,22 @@ pub async fn get_wiki_page(search_result: &str) -> Result<CreateEmbed<'static>, 
     Ok(embed)
 }
 
-async fn autocomplete_wiki<'a>(_ctx: Context<'a>, partial: &'a str) -> CreateAutocompleteResponse<'a> {
+async fn autocomplete_wiki<'a>(
+    _ctx: Context<'a>,
+    partial: &'a str,
+) -> CreateAutocompleteResponse<'a> {
     if partial.is_empty() {
-        return CreateAutocompleteResponse::new().add_choice("Main Page")
+        return CreateAutocompleteResponse::new().add_choice("Main Page");
     }
     match opensearch_mediawiki(partial.trim()).await {
         Ok(r) => {
-            let choices = r.into_iter()
+            let choices = r
+                .into_iter()
                 .take(25)
                 .map(AutocompleteChoice::from)
                 .collect::<Vec<AutocompleteChoice>>();
             CreateAutocompleteResponse::new().set_choices(choices)
-        },
+        }
         Err(e) => {
             error!("Error searching wiki: {e}");
             CreateAutocompleteResponse::new()

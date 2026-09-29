@@ -1,6 +1,6 @@
 use poise::serenity_prelude as serenity;
 
-use crate::{Context, Error, database, management::ManagementError, Data};
+use crate::{Context, Data, Error, database, management::ManagementError};
 
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 pub async fn is_mod(ctx: poise::Context<'_, Data, Error>) -> Result<bool, Error> {

@@ -2,17 +2,12 @@ use poise::CreateReply;
 use poise::serenity_prelude as serenity;
 
 use crate::{
-    Context, Error, Data, database,
+    Context, Data, Error, database,
     management::{checks::is_mod, get_server_id},
 };
 
 /// Remove all stored data for this server, resetting all settings.
-#[poise::command(
-    slash_command,
-    guild_only,
-    category = "Settings",
-    check = "is_mod"
-)]
+#[poise::command(slash_command, guild_only, category = "Settings", check = "is_mod")]
 pub async fn reset_server_settings(ctx: Context<'_>) -> Result<(), Error> {
     let server_id = get_server_id(ctx)?;
     let db = &ctx.data().database;
@@ -43,12 +38,7 @@ pub async fn info(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 /// Show stored information about this server
-#[poise::command(
-    slash_command,
-    guild_only,
-    ephemeral,
-    category = "Settings"
-)]
+#[poise::command(slash_command, guild_only, ephemeral, category = "Settings")]
 pub async fn get_server_info(ctx: Context<'_>) -> Result<(), Error> {
     let server_id = get_server_id(ctx)?;
 

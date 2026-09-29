@@ -17,15 +17,17 @@ mod wiki_commands;
 
 use dashmap::DashMap;
 use dotenv::dotenv;
-use tracing::{error, info};
 use poise::serenity_prelude as serenity;
 use std::{
-    env::var, sync::{Arc, RwLock},
+    env::var,
+    sync::{Arc, RwLock},
 };
 use tokio::time;
+use tracing::{error, info};
 
 use crate::{
     error::RhobotError,
+    events::BotMessageInfo,
     faq_commands::{FaqCacheEntry, update_faq_cache},
     mods::{
         search_api::ModPortalCredentials,
@@ -34,7 +36,6 @@ use crate::{
             update_sub_cache,
         },
     },
-    events::BotMessageInfo,
 };
 
 // Types used by all command functions
@@ -54,16 +55,16 @@ pub struct Data {
     data_api_cache: Arc<RwLock<modding_api::data::ApiResponse>>,
     data_api_autocomplete_cache: Arc<RwLock<Vec<modding_api::data::AutocompleteOption>>>,
     mod_portal_credentials: Arc<ModPortalCredentials>,
-    inline_command_log: Arc<
-        DashMap<serenity::MessageId, BotMessageInfo>,
-    >,
+    inline_command_log: Arc<DashMap<serenity::MessageId, BotMessageInfo>>,
 }
 
 #[allow(clippy::too_many_lines, clippy::unreadable_literal)]
 #[tokio::main]
 async fn main() {
     let _log_guard = logging::init_logging();
-    rustls::crypto::ring::default_provider().install_default().expect("Failed to install ring as rustls provider");
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install ring as rustls provider");
     dotenv().ok();
 
     // Initialize sqlx database
@@ -95,8 +96,8 @@ async fn main() {
     let runtime_api_cache_clone = runtime_api_cache.clone();
     let data_api_cache = Arc::new(RwLock::default());
     let data_api_cache_clone = data_api_cache.clone();
-    
-    let runtime_api_autocomplete_cache =  Arc::new(RwLock::new(Vec::new()));
+
+    let runtime_api_autocomplete_cache = Arc::new(RwLock::new(Vec::new()));
     let runtime_api_autocomplete_cache_clone = runtime_api_autocomplete_cache.clone();
     let data_api_autocomplete_cache = Arc::new(RwLock::new(Vec::new()));
     let data_api_autocomplete_cache_clone = data_api_autocomplete_cache.clone();
@@ -162,7 +163,7 @@ async fn main() {
         // Enforce command checks even for owners (enforced by default)
         // Set to true to bypass checks, which is useful for testing
         skip_checks_for_owners: false,
-        // event_handler: 
+        // event_handler:
         ..Default::default()
     };
 
@@ -180,14 +181,11 @@ async fn main() {
         inline_command_log,
     });
 
-    let framework = poise::Framework::builder()
-        .options(options)
-        .build();
+    let framework = poise::Framework::builder().options(options).build();
 
     let token = serenity::Token::from_env("DISCORD_TOKEN")
         .expect("Missing `DISCORD_TOKEN` env var, see README for more information.");
-    let intents =
-        serenity::GatewayIntents::non_privileged();
+    let intents = serenity::GatewayIntents::non_privileged();
 
     let client = serenity::ClientBuilder::new(token, intents)
         .framework(Box::new(framework))
@@ -249,7 +247,6 @@ async fn main() {
     });
 
     let mut api_update_interval = time::interval(time::Duration::from_hours(24)); // Update once per day
-    // api_update_interval.tick().await; // First tick happens instantly
     tokio::spawn(async move {
         loop {
             api_update_interval.tick().await;
@@ -261,11 +258,17 @@ async fn main() {
                 Ok(()) => info!("Updated data API cache"),
                 Err(error) => error!("Error while updating data api cache: {error}"),
             }
-            match modding_api::runtime::generate_autocomplete_cache(&runtime_api_cache, &runtime_api_autocomplete_cache) {
+            match modding_api::runtime::generate_autocomplete_cache(
+                &runtime_api_cache,
+                &runtime_api_autocomplete_cache,
+            ) {
                 Ok(()) => info!("Updated runtime API autocomplete cache"),
                 Err(error) => error!("Error while updating data api autocomplete cache: {error}"),
             }
-            match modding_api::data::generate_autocomplete_cache(&data_api_cache, &data_api_autocomplete_cache) {
+            match modding_api::data::generate_autocomplete_cache(
+                &data_api_cache,
+                &data_api_autocomplete_cache,
+            ) {
                 Ok(()) => info!("Updated data API autocomplete cache"),
                 Err(error) => error!("Error while updating data api autocomplete cache: {error}"),
             }

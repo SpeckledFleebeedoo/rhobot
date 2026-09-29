@@ -1,16 +1,14 @@
-use tracing::error;
 use poise::CreateReply;
 use poise::Modal;
 use poise::serenity_prelude as serenity;
 use poise::serenity_prelude::{
-    CollectComponentInteractions, 
-    small_fixed_array::FixedArray, 
-    small_fixed_array::FixedString,
+    CollectComponentInteractions, small_fixed_array::FixedArray, small_fixed_array::FixedString,
 };
 use sqlx::{Pool, Sqlite};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use std::{error, fmt};
+use tracing::error;
 
 use crate::management::checks;
 use crate::{
@@ -171,13 +169,13 @@ pub async fn faq(
     let cache = ctx.data().faq_cache.clone();
     let server_id = management::get_server_id(ctx).map_err(FaqError::from)?;
     let db = &ctx.data().database;
-    let embed = match faq_core(name, cache, server_id, db).await{
+    let embed = match faq_core(name, cache, server_id, db).await {
         Ok(e) => e,
         Err(FaqError::NotFound(e)) => {
             faq_not_found(ctx, &e).await?;
             return Ok(());
-        },
-        Err(e) => return Err(e.into())
+        }
+        Err(e) => return Err(e.into()),
     };
     let builder = CreateReply::default()
         .embed(embed)
@@ -369,7 +367,10 @@ async fn autocomplete_faq<'a>(
         faqcache
             .iter()
             .filter(|f| {
-                f.server_id == server_id && f.title.to_lowercase().contains(partial.to_lowercase().trim())
+                f.server_id == server_id
+                    && f.title
+                        .to_lowercase()
+                        .contains(partial.to_lowercase().trim())
             })
             .cloned()
             .collect::<Vec<FaqCacheEntry>>()
@@ -379,11 +380,9 @@ async fn autocomplete_faq<'a>(
     let choices = autocomplete_vec
         .into_iter()
         .take(25)
-        .map(|f| {
-            match f.link {
-                Some(l) => serenity::AutocompleteChoice::new(f.title, l),
-                None => serenity::AutocompleteChoice::from(f.title),
-            }
+        .map(|f| match f.link {
+            Some(l) => serenity::AutocompleteChoice::new(f.title, l),
+            None => serenity::AutocompleteChoice::from(f.title),
         })
         .collect::<Vec<serenity::AutocompleteChoice>>();
 
@@ -521,7 +520,8 @@ async fn get_attachment_url(
         return Ok(Some(image.url.clone()));
     }
 
-    let attachment = serenity::CreateAttachment::url(image.url.to_string(), image.filename.clone()).await?;
+    let attachment =
+        serenity::CreateAttachment::url(image.url.to_string(), image.filename.clone()).await?;
     let builder = CreateReply::default().attachment(attachment);
     let reply = ctx.send(builder).await?;
     let message = reply.message().await?;
@@ -629,7 +629,9 @@ pub async fn drop_faqs(ctx: Context<'_>) -> Result<(), Error> {
             .label("No")
             .style(serenity::ButtonStyle::Primary),
     ];
-    let components = [serenity::CreateComponent::ActionRow(serenity::CreateActionRow::buttons(&buttons))];
+    let components = [serenity::CreateComponent::ActionRow(
+        serenity::CreateActionRow::buttons(&buttons),
+    )];
     let confirmation = ctx.send(
         CreateReply::default()
             .content("Are you sure you want to drop the FAQ database for this server? \n**THIS ACTION CANNOT BE REVERTED**")

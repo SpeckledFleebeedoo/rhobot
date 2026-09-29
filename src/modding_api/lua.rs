@@ -53,7 +53,10 @@ pub async fn chapter(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_chapter<'a>(_ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
+async fn autocomplete_chapter<'a>(
+    _ctx: Context<'a>,
+    partial: &'a str,
+) -> serenity::CreateAutocompleteResponse<'a> {
     let choices = CHAPTERS
         .iter()
         .filter(|ch| {
@@ -98,7 +101,10 @@ pub async fn function(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_function<'a>(_ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
+async fn autocomplete_function<'a>(
+    _ctx: Context<'a>,
+    partial: &'a str,
+) -> serenity::CreateAutocompleteResponse<'a> {
     let choices = FUNCTIONS
         .iter()
         .filter(|f| {
@@ -108,6 +114,6 @@ async fn autocomplete_function<'a>(_ctx: Context<'a>, partial: &'a str) -> seren
         .map(|f| serenity::AutocompleteChoice::from(f.0.to_owned()))
         .take(25)
         .collect::<Vec<serenity::AutocompleteChoice>>();
-    
+
     serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }

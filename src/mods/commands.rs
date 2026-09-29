@@ -1,13 +1,16 @@
-use tracing::error;
 use poise::{
     CreateReply,
     serenity_prelude::{AutocompleteChoice, Colour, CreateAllowedMentions, CreateEmbed},
 };
+use tracing::error;
 
 use poise::serenity_prelude as serenity;
 
 use crate::{
-    Context, Data, Error, database, formatting_tools::DiscordFormat, management::{checks::is_mod, get_server_id}, mods::update_notifications,
+    Context, Data, Error, database,
+    formatting_tools::DiscordFormat,
+    management::{checks::is_mod, get_server_id},
+    mods::update_notifications,
 };
 
 use super::{
@@ -47,12 +50,7 @@ pub async fn set_updates_channel(
 
 /// Set which role is allowed to edit bot settings. Admins can always edit settings.
 #[allow(clippy::cast_possible_wrap)]
-#[poise::command(
-    slash_command,
-    guild_only,
-    check = "is_mod",
-    category = "Settings"
-)]
+#[poise::command(slash_command, guild_only, check = "is_mod", category = "Settings")]
 pub async fn set_modrole(
     ctx: Context<'_>,
     role: poise::serenity_prelude::Role,
@@ -69,12 +67,7 @@ pub async fn set_modrole(
 }
 
 /// Turn showing changelogs in update feed on or off
-#[poise::command(
-    slash_command,
-    guild_only,
-    check = "is_mod",
-    category = "Settings"
-)]
+#[poise::command(slash_command, guild_only, check = "is_mod", category = "Settings")]
 pub async fn show_changelogs(ctx: Context<'_>, show_changelogs: bool) -> Result<(), Error> {
     let server_id = get_server_id(ctx)?;
     let db = &ctx.data().database;
@@ -120,12 +113,7 @@ pub async fn subscribe(_: Context<'_>) -> Result<(), Error> {
 
 /// Subscribe to a mod
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
-#[poise::command(
-    slash_command,
-    guild_only,
-    check = "is_mod",
-    rename = "mod"
-)]
+#[poise::command(slash_command, guild_only, check = "is_mod", rename = "mod")]
 pub async fn subscribe_mod(
     ctx: Context<'_>,
     #[description = "Name of the mod to subscribe to"]
@@ -154,12 +142,7 @@ pub async fn subscribe_mod(
 
 /// Unsubscribe from a mod
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
-#[poise::command(
-    slash_command,
-    guild_only,
-    check = "is_mod",
-    rename = "mod"
-)]
+#[poise::command(slash_command, guild_only, check = "is_mod", rename = "mod")]
 pub async fn unsubscribe_mod(
     ctx: Context<'_>,
     #[description = "Name of the mod to unsubscribe from"]
@@ -185,12 +168,7 @@ async fn autocomplete_subscribed_modname<'a>(
 
 /// Subscribe to a mod author
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
-#[poise::command(
-    slash_command,
-    guild_only,
-    check = "is_mod",
-    rename = "author"
-)]
+#[poise::command(slash_command, guild_only, check = "is_mod", rename = "author")]
 pub async fn subscribe_author(
     ctx: Context<'_>,
     #[description = "Name of the mod author to subscribe to"]
@@ -233,7 +211,11 @@ async fn autocomplete_author<'a>(
 
     let choices = author_cache
         .into_iter()
-        .filter(|entry| entry.to_lowercase().starts_with(partial.to_lowercase().trim()))
+        .filter(|entry| {
+            entry
+                .to_lowercase()
+                .starts_with(partial.to_lowercase().trim())
+        })
         .take(25)
         .map(serenity::AutocompleteChoice::from)
         .collect::<Vec<serenity::AutocompleteChoice>>();
@@ -243,12 +225,7 @@ async fn autocomplete_author<'a>(
 
 /// Unsubscribe from a mod author
 #[allow(clippy::unused_async, clippy::cast_possible_wrap)]
-#[poise::command(
-    slash_command,
-    guild_only,
-    check = "is_mod",
-    rename = "author"
-)]
+#[poise::command(slash_command, guild_only, check = "is_mod", rename = "author")]
 pub async fn unsubscribe_author(
     ctx: Context<'_>,
     #[description = "Name of the mod author to unsubscribe from"]
@@ -299,7 +276,11 @@ fn autocomplete_unsubscribe<'a>(
                 SubscriptionType::Author(_) => None,
                 SubscriptionType::Modname(name) => Some(name),
             })
-            .filter(|entry| entry.to_lowercase().starts_with(partial.to_lowercase().trim()))
+            .filter(|entry| {
+                entry
+                    .to_lowercase()
+                    .starts_with(partial.to_lowercase().trim())
+            })
             .take(25)
             .map(serenity::AutocompleteChoice::from)
             .collect::<Vec<AutocompleteChoice>>(),
@@ -311,7 +292,11 @@ fn autocomplete_unsubscribe<'a>(
                 SubscriptionType::Author(name) => Some(name),
                 SubscriptionType::Modname(_) => None,
             })
-            .filter(|entry| entry.to_lowercase().starts_with(partial.to_lowercase().trim()))
+            .filter(|entry| {
+                entry
+                    .to_lowercase()
+                    .starts_with(partial.to_lowercase().trim())
+            })
             .take(25)
             .map(serenity::AutocompleteChoice::from)
             .collect::<Vec<AutocompleteChoice>>(),
@@ -450,8 +435,12 @@ async fn autocomplete_modname<'a>(
         .clone()
         .into_iter()
         .filter(move |f| {
-            f.title.to_lowercase().starts_with(partial.to_lowercase().trim())
-                || f.author.to_lowercase().starts_with(partial.to_lowercase().trim())
+            f.title
+                .to_lowercase()
+                .starts_with(partial.to_lowercase().trim())
+                || f.author
+                    .to_lowercase()
+                    .starts_with(partial.to_lowercase().trim())
         })
         .take(25)
         .map(|f| {
@@ -536,10 +525,11 @@ pub async fn changelog(
 
     let mod_info = update_notifications::get_mod_info(&modname).await?;
     let changelogs = update_notifications::get_mod_changelog(&mod_info);
-    let Some(changelog) = update_notifications::format_mod_changelog(&changelogs, &version, max_lines)
-        else {
-            return Err(ModError::ChangelogNotFound(version))?;
-        };
+    let Some(changelog) =
+        update_notifications::format_mod_changelog(&changelogs, &version, max_lines)
+    else {
+        return Err(ModError::ChangelogNotFound(version))?;
+    };
 
     let url = format!("https://mods.factorio.com/mod/{}", mod_info.name).replace(' ', "%20");
     let title = format!("{} version {version}", mod_info.title);
@@ -564,7 +554,10 @@ pub async fn changelog(
 }
 
 #[allow(clippy::unused_async)]
-async fn autocomplete_version<'a>(ctx: Context<'a>, partial: &'a str) -> serenity::CreateAutocompleteResponse<'a> {
+async fn autocomplete_version<'a>(
+    ctx: Context<'a>,
+    partial: &'a str,
+) -> serenity::CreateAutocompleteResponse<'a> {
     let serenity::ResolvedValue::String(modname) = ctx.args[0].value else {
         return serenity::CreateAutocompleteResponse::new();
     };
@@ -578,10 +571,11 @@ async fn autocomplete_version<'a>(ctx: Context<'a>, partial: &'a str) -> serenit
         Err(e) => {
             error!("Error getting mod info: {e}");
             return serenity::CreateAutocompleteResponse::new();
-        },
+        }
     };
     let changelogs = update_notifications::get_mod_changelog(&mod_info);
-    let choices = changelogs.iter()
+    let choices = changelogs
+        .iter()
         .filter(|v| v.version.starts_with(partial))
         .take(25)
         .map(|v| serenity::AutocompleteChoice::from(v.version.clone()))

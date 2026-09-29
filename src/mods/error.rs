@@ -27,7 +27,9 @@ impl fmt::Display for ModError {
                 "Received HTTP status code {status} while accessing mod portal."
             )),
             Self::DatabaseError(error) => f.write_str(&format!("Mod database error: {error}")),
-            Self::ChangelogNotFound(version) => f.write_str(&format!("Could not find a changelog for version {version}"))
+            Self::ChangelogNotFound(version) => {
+                f.write_str(&format!("Could not find a changelog for version {version}"))
+            }
         }
     }
 }

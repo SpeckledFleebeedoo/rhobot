@@ -1,4 +1,3 @@
-use tracing::{error, info};
 use serde::{Deserialize, Serialize};
 use serenity::all::{Colour, CreateEmbed, CreateMessage};
 use sqlx::{Pool, Sqlite};
@@ -6,6 +5,7 @@ use std::{
     fmt,
     sync::{Arc, RwLock},
 };
+use tracing::{error, info};
 
 use crate::{database, formatting_tools::DiscordFormat, mods::error::ModError};
 
@@ -121,12 +121,8 @@ pub async fn get_mods(page: i32, initializing: bool) -> Result<ApiResponse, ModE
         )
     };
     let user_agent = std::env::var("USER_AGENT").unwrap_or_else(|_| "Rhobot".to_string());
-    let client = reqwest::Client::builder()
-        .user_agent(user_agent)
-        .build()?;
-    let response = client.get(&url)
-        .send()
-        .await?;
+    let client = reqwest::Client::builder().user_agent(user_agent).build()?;
+    let response = client.get(&url).send().await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(ModError::BadStatusCode(response.status().to_string())),
@@ -303,7 +299,11 @@ async fn make_update_message(
         .field("**Version**", &updated_mod.version, true)
         .thumbnail(&updated_mod.thumbnail, None);
     let builder = CreateMessage::new().embed(embed);
-    match updates_channel.widen().send_message(cache_http, builder).await {
+    match updates_channel
+        .widen()
+        .send_message(cache_http, builder)
+        .await
+    {
         Ok(_) => {}
         Err(e) => error!("Error sending message in channel {updates_channel}: {e}"),
     }
@@ -313,12 +313,8 @@ async fn make_update_message(
 pub async fn get_mod_thumbnail(name: &String) -> Result<String, ModError> {
     let url = format!("https://mods.factorio.com/api/mods/{name}");
     let user_agent = std::env::var("USER_AGENT").unwrap_or_else(|_| "Rhobot".to_string());
-    let client = reqwest::Client::builder()
-        .user_agent(user_agent)
-        .build()?;
-    let response = client.get(&url)
-        .send()
-        .await?;
+    let client = reqwest::Client::builder().user_agent(user_agent).build()?;
+    let response = client.get(&url).send().await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(ModError::BadStatusCode(response.status().to_string())),
@@ -349,12 +345,8 @@ struct ModChangelogCategory {
 pub async fn get_mod_info(name: &str) -> Result<FullMod, ModError> {
     let url = format!("https://mods.factorio.com/api/mods/{name}/full");
     let user_agent = std::env::var("USER_AGENT").unwrap_or_else(|_| "Rhobot".to_string());
-    let client = reqwest::Client::builder()
-        .user_agent(user_agent)
-        .build()?;
-    let response = client.get(&url)
-        .send()
-        .await?;
+    let client = reqwest::Client::builder().user_agent(user_agent).build()?;
+    let response = client.get(&url).send().await?;
     match response.status() {
         reqwest::StatusCode::OK => (),
         _ => return Err(ModError::BadStatusCode(response.status().to_string())),
@@ -372,7 +364,9 @@ pub fn get_mod_changelog(mod_info: &FullMod) -> Vec<ModChangelogEntry> {
     let version_entries = ch.split(&versionsplit);
     let mut out = Vec::new();
     for changelog in version_entries {
-        if changelog.is_empty() { continue }
+        if changelog.is_empty() {
+            continue;
+        }
         let mut entry = ModChangelogEntry::default();
         let mut current_category = ModChangelogCategory::default();
 

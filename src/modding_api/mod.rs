@@ -5,14 +5,14 @@ mod lua_constants;
 pub mod runtime;
 
 use data::prototype;
-use runtime::{runtime, api_define};
+use runtime::{api_define, runtime};
 
 use core::fmt;
-use tracing::warn;
 use poise::reply::CreateReply;
 use poise::serenity_prelude as serenity;
 use regex::Regex;
 use std::sync::{Arc, RwLock};
+use tracing::warn;
 
 use crate::{Context, Data, Error};
 use error::ApiError;
@@ -21,12 +21,7 @@ use error::ApiError;
 #[allow(clippy::unused_async)]
 #[poise::command(
     slash_command,
-    subcommands(
-        "api_define",
-        "runtime",
-        "prototype",
-        "api_page"
-    ),
+    subcommands("api_define", "runtime", "prototype", "api_page"),
     install_context = "Guild|User",
     interaction_context = "Guild|BotDm|PrivateChannel"
 )]
@@ -140,11 +135,11 @@ pub async fn api_page(
         ),
         ApiPage::FurnaceRecipeSelection => (
             "Furnace Recipe Selection",
-            "https://lua-api.factorio.com/latest/auxiliary/furnace-recipe-selection.html"
+            "https://lua-api.factorio.com/latest/auxiliary/furnace-recipe-selection.html",
         ),
         ApiPage::CircuitRecipeSelection => (
             "Circuit Recipe Selection",
-            "https://lua-api.factorio.com/latest/auxiliary/circuit-recipe-selection.html"
+            "https://lua-api.factorio.com/latest/auxiliary/circuit-recipe-selection.html",
         ),
     };
 

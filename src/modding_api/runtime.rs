@@ -783,9 +783,19 @@ async fn autocomplete_runtime<'a>(
     let choices = runtime_autocomplete
         .iter()
         .filter(|t| {
-            t.search
+            if let Some((class, property)) = partial.split_once("::") {
+                t.search.to_lowercase().contains(property.to_lowercase().trim())
+                    && t.parent.is_some()
+                    && t.parent
+                        .as_ref()
+                        .unwrap()
+                        .to_lowercase()
+                        .contains(class.to_lowercase().trim())
+            } else {
+                t.search
                 .to_lowercase()
                 .contains(partial.to_lowercase().trim())
+            }
         })
         .take(25)
         .map(|t| serenity::AutocompleteChoice::from(format!("{t}")))

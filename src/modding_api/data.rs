@@ -517,9 +517,19 @@ async fn autocomplete_datastage<'a>(
     let choices = data_autocomplete
         .iter()
         .filter(|t| {
-            t.search
+            if let Some((prototype, property)) = partial.split_once("::") {
+                t.search.to_lowercase().contains(property.to_lowercase().trim())
+                    && t.parent.is_some()
+                    && t.parent
+                        .as_ref()
+                        .unwrap()
+                        .to_lowercase()
+                        .contains(prototype.to_lowercase().trim())
+            } else {
+                t.search
                 .to_lowercase()
                 .contains(partial.to_lowercase().trim())
+            }
         })
         .take(25)
         .map(|t| serenity::AutocompleteChoice::from(format!("{t}")))

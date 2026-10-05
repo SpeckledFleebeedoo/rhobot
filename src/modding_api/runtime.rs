@@ -784,7 +784,9 @@ async fn autocomplete_runtime<'a>(
         .iter()
         .filter(|t| {
             if let Some((class, property)) = partial.split_once("::") {
-                t.search.to_lowercase().contains(property.to_lowercase().trim())
+                t.search
+                    .to_lowercase()
+                    .contains(property.to_lowercase().trim())
                     && t.parent.is_some()
                     && t.parent
                         .as_ref()
@@ -793,8 +795,8 @@ async fn autocomplete_runtime<'a>(
                         .contains(class.to_lowercase().trim())
             } else {
                 t.search
-                .to_lowercase()
-                .contains(partial.to_lowercase().trim())
+                    .to_lowercase()
+                    .contains(partial.to_lowercase().trim())
             }
         })
         .take(25)

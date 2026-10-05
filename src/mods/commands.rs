@@ -2,7 +2,7 @@ use poise::{
     CreateReply,
     serenity_prelude::{AutocompleteChoice, Colour, CreateAllowedMentions, CreateEmbed},
 };
-use tracing::error;
+use tracing::{error, info};
 
 use poise::serenity_prelude as serenity;
 
@@ -10,12 +10,11 @@ use crate::{
     Context, Data, Error, database,
     formatting_tools::DiscordFormat,
     management::{checks::is_mod, get_server_id},
-    mods::update_notifications,
 };
 
 use super::{
     error::ModError,
-    search_api,
+    search_api, update_notifications,
     update_notifications::{SubCacheEntry, SubscriptionType},
 };
 
@@ -582,4 +581,71 @@ async fn autocomplete_version<'a>(
         .collect::<Vec<serenity::AutocompleteChoice>>();
 
     serenity::CreateAutocompleteResponse::new().set_choices(choices)
+}
+
+/// Show a mod changelog
+#[allow(clippy::unused_async)]
+#[poise::command(
+    slash_command,
+    install_context = "Guild|User",
+    interaction_context = "Guild|BotDm|PrivateChannel",
+    owners_only,
+    hide_in_help,
+    ephemeral,
+    category = "Management"
+)]
+pub async fn sync_mod_cache(ctx: Context<'_>) -> Result<(), Error> {
+    ctx.defer_ephemeral().await?;
+    let mut num_desynced_mods = 0;
+    let mods = update_notifications::get_mods(1, true).await?;
+    let db = &ctx.data().database;
+    for result in mods.results {
+        let category = result
+            .category
+            .clone()
+            .map_or_else(String::new, |cat| format!("{cat}"));
+        let latest_release = result.latest_release.clone();
+        let factorio_version = latest_release
+            .as_ref()
+            .map_or_else(String::new, |ver| ver.clone().info_json.factorio_version);
+        let version = latest_release
+            .as_ref()
+            .map_or_else(String::new, |ver| ver.clone().version);
+        let released_at = latest_release
+            .as_ref()
+            .map_or_else(String::new, |ver| ver.clone().released_at);
+        let timestamp = chrono::DateTime::parse_from_rfc3339(&released_at)
+            .map_or(0, |datetime| datetime.timestamp());
+
+        if let Some(release_time) = database::get_last_mod_update_time(db, &result.name).await? {
+            // Mod found in database
+            if release_time == timestamp {
+                // No change needed, move on to next
+                continue;
+            }
+            info!("Updated mod found: {}", result.title);
+        } else {
+            // Mod not found in database
+            info!("New mod found: {}", result.title);
+        }
+        num_desynced_mods += 1;
+
+        let mod_details = database::DBModEntry {
+            name: &result.name,
+            title: &result.title,
+            owner: &result.owner,
+            summary: &result.summary,
+            category: &category,
+            downloads_count: result.downloads_count,
+            factorio_version: &factorio_version,
+            version: &version,
+            released_at: timestamp,
+        };
+        database::store_mod_data(db, mod_details).await?;
+    }
+    ctx.say(format!(
+        "Found {num_desynced_mods} mods that were out of sync with database."
+    ))
+    .await?;
+    Ok(())
 }

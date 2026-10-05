@@ -518,7 +518,9 @@ async fn autocomplete_datastage<'a>(
         .iter()
         .filter(|t| {
             if let Some((prototype, property)) = partial.split_once("::") {
-                t.search.to_lowercase().contains(property.to_lowercase().trim())
+                t.search
+                    .to_lowercase()
+                    .contains(property.to_lowercase().trim())
                     && t.parent.is_some()
                     && t.parent
                         .as_ref()
@@ -527,8 +529,8 @@ async fn autocomplete_datastage<'a>(
                         .contains(prototype.to_lowercase().trim())
             } else {
                 t.search
-                .to_lowercase()
-                .contains(partial.to_lowercase().trim())
+                    .to_lowercase()
+                    .contains(partial.to_lowercase().trim())
             }
         })
         .take(25)

@@ -129,6 +129,7 @@ async fn main() {
             mods::commands::set_modrole(),
             mods::commands::show_changelogs(),
             mods::commands::changelog(),
+            mods::commands::sync_mod_cache(),
             faq_commands::faq(),
             faq_commands::faq_list(),
             faq_commands::faq_edit(),

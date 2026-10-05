@@ -583,7 +583,7 @@ async fn autocomplete_version<'a>(
     serenity::CreateAutocompleteResponse::new().set_choices(choices)
 }
 
-/// Show a mod changelog
+/// Re-sync entire mod cache to ensure it is up to date
 #[allow(clippy::unused_async)]
 #[poise::command(
     slash_command,

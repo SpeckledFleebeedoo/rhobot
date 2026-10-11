@@ -6,6 +6,24 @@ use crate::{
     management::{checks::is_mod, get_server_id},
 };
 
+/// Set which role is allowed to edit bot settings. Admins can always edit settings.
+#[allow(clippy::cast_possible_wrap)]
+#[poise::command(slash_command, guild_only, check = "is_mod", category = "Settings")]
+pub async fn set_modrole(
+    ctx: Context<'_>,
+    role: poise::serenity_prelude::Role,
+) -> Result<(), Error> {
+    let role_id = role.id.get() as i64;
+    let server_id = role.guild_id.get() as i64;
+    let db = &ctx.data().database;
+
+    database::store_modrole(db, server_id, role_id).await?;
+
+    let response = format!("Modrole was set to {role}");
+    ctx.reply(response).await?;
+    Ok(())
+}
+
 /// Remove all stored data for this server, resetting all settings.
 #[poise::command(slash_command, guild_only, category = "Settings", check = "is_mod")]
 pub async fn reset_server_settings(ctx: Context<'_>) -> Result<(), Error> {

@@ -32,8 +32,7 @@ use crate::{
     mods::{
         search_api::ModPortalCredentials,
         update_notifications::{
-            ModCacheEntry, SubCacheEntry, update_author_cache, update_database, update_mod_cache,
-            update_sub_cache,
+            ModCacheEntry, update_author_cache, update_database, update_mod_cache,
         },
     },
 };
@@ -48,7 +47,6 @@ pub struct Data {
     database: sqlx::SqlitePool,
     mod_cache: Arc<RwLock<Vec<ModCacheEntry>>>,
     faq_cache: Arc<RwLock<Vec<FaqCacheEntry>>>,
-    mod_subscription_cache: Arc<RwLock<Vec<SubCacheEntry>>>,
     mod_author_cache: Arc<RwLock<Vec<String>>>,
     runtime_api_cache: Arc<RwLock<modding_api::runtime::ApiResponse>>,
     runtime_api_autocomplete_cache: Arc<RwLock<Vec<modding_api::runtime::AutocompleteOption>>>,
@@ -86,9 +84,6 @@ async fn main() {
     let faq_cache = Arc::new(RwLock::new(Vec::new()));
     let faq_cache_clone = faq_cache.clone();
 
-    let subscription_cache = Arc::new(RwLock::new(Vec::new()));
-    let subscription_cache_clone = subscription_cache.clone();
-
     let authorname_cache = Arc::new(RwLock::new(Vec::new()));
     let authorname_cache_clone = authorname_cache.clone();
 
@@ -121,15 +116,14 @@ async fn main() {
             management::commands::get_server_info(),
             management::commands::reset_server_settings(),
             management::commands::register_commands(),
+            management::commands::set_modrole(),
             mods::commands::find_mod(),
-            mods::commands::show_subscriptions(),
-            mods::commands::subscribe(),
-            mods::commands::unsubscribe(),
             mods::commands::set_updates_channel(),
-            mods::commands::set_modrole(),
             mods::commands::show_changelogs(),
             mods::commands::changelog(),
             mods::commands::sync_mod_cache(),
+            mods::subscriptions::subscriptions(),
+            mods::subscriptions::subscribe(),
             faq_commands::faq(),
             faq_commands::faq_list(),
             faq_commands::faq_edit(),
@@ -172,7 +166,6 @@ async fn main() {
         database: db_clone,
         mod_cache: mods_cache_clone,
         faq_cache: faq_cache_clone,
-        mod_subscription_cache: subscription_cache_clone,
         mod_author_cache: authorname_cache_clone,
         runtime_api_cache: runtime_api_cache_clone,
         runtime_api_autocomplete_cache: runtime_api_autocomplete_cache_clone,
@@ -234,10 +227,6 @@ async fn main() {
             match update_faq_cache(faq_cache.clone(), &db).await {
                 Ok(()) => info!("Updated faq cache"),
                 Err(error) => error!("Error while updating faq cache: {error}"),
-            }
-            match update_sub_cache(subscription_cache.clone(), &db).await {
-                Ok(()) => info!("Updated mod subscription cache"),
-                Err(error) => error!("Error while updating mod subscription cache: {error}"),
             }
             match update_author_cache(authorname_cache.clone(), &db).await {
                 Ok(()) => info!("Updated author subscription cache"),

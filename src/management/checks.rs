@@ -1,4 +1,5 @@
 use poise::serenity_prelude as serenity;
+use sqlx::{Pool, Sqlite};
 
 use crate::{Context, Data, Error, database, management::ManagementError};
 
@@ -18,18 +19,44 @@ pub async fn is_mod(ctx: poise::Context<'_, Data, Error>) -> Result<bool, Error>
         return Ok(true);
     }
     let db = &ctx.data().database;
-    let server = ctx
-        .guild_id()
-        .ok_or_else(|| ManagementError::ServerNotFound)?;
-    let server_id = server.get() as i64;
+    let server_id = guild.id.get() as i64;
     let Some(modrole) = database::get_modrole(db, server_id).await? else {
         return Ok(false);
     };
-    let has_role = ctx
-        .author()
-        .has_role(ctx.http(), server, serenity::RoleId::from(modrole as u64))
+    let has_role = member
+        .user
+        .has_role(ctx.http(), guild.id, serenity::RoleId::from(modrole as u64))
         .await?;
     Ok(has_role)
+}
+
+pub async fn is_mod_interaction(
+    interaction: &serenity::ComponentInteraction,
+    db: &Pool<Sqlite>,
+) -> bool {
+    let Some(ref member) = interaction.member else {
+        return false;
+    };
+    let Some(permissions) = member.permissions else {
+        return false;
+    };
+    if permissions.contains(serenity::Permissions::ADMINISTRATOR) {
+        return true;
+    }
+    let Some(guild) = interaction.guild_id else {
+        return false;
+    };
+    let server_id = guild.get().cast_signed();
+    let Ok(Some(modrole)) = database::get_modrole(db, server_id).await else {
+        return false;
+    };
+    if member
+        .roles
+        .contains(&serenity::RoleId::from(modrole.cast_unsigned()))
+    {
+        return true;
+    }
+    false
 }
 
 pub async fn is_owner(ctx: Context<'_>, user: serenity::User) -> Result<bool, ManagementError> {

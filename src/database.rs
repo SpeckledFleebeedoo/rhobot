@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::{error, fmt};
 
 use crate::faq_commands::{BasicFaqEntry, FaqCacheEntry};
-use crate::mods::update_notifications::{ModCacheEntry, SubCacheEntry, SubscriptionType};
+use crate::mods::update_notifications::ModCacheEntry;
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug)]
@@ -252,6 +252,22 @@ pub async fn get_subscribed_authors(
     Ok(subscribed_authors)
 }
 
+pub async fn get_excluded_mods(
+    db: &Pool<Sqlite>,
+    server_id: i64,
+) -> Result<Vec<String>, DatabaseError> {
+    let excluded_mods = sqlx::query!(
+        r#"SELECT mod_name FROM excluded_mods WHERE server_id = $1"#,
+        server_id
+    )
+    .fetch_all(db)
+    .await?
+    .into_iter()
+    .map(|m| m.mod_name)
+    .collect::<Vec<String>>();
+    Ok(excluded_mods)
+}
+
 pub async fn store_updates_channel(
     db: &Pool<Sqlite>,
     server_id: i64,
@@ -410,6 +426,36 @@ pub async fn remove_author_subscription(
     Ok(())
 }
 
+pub async fn add_mod_exclusion(
+    db: &Pool<Sqlite>,
+    server_id: i64,
+    modname: &str,
+) -> Result<(), DatabaseError> {
+    sqlx::query!(
+        r#"INSERT OR REPLACE INTO excluded_mods (server_id, mod_name) VALUES ($1, $2)"#,
+        server_id,
+        modname
+    )
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+pub async fn remove_mod_exclusion(
+    db: &Pool<Sqlite>,
+    server_id: i64,
+    modname: &str,
+) -> Result<(), DatabaseError> {
+    sqlx::query!(
+        r#"DELETE FROM excluded_mods WHERE server_id = $1 AND mod_name = $2"#,
+        server_id,
+        modname
+    )
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
 pub async fn get_last_mod_update_time(
     db: &Pool<Sqlite>,
     modname: &str,
@@ -486,33 +532,6 @@ pub async fn create_mods_cache(db: &Pool<Sqlite>) -> Result<Vec<ModCacheEntry>, 
     .collect::<Vec<ModCacheEntry>>();
 
     Ok(mod_cache)
-}
-
-pub async fn create_subscriptions_cache(
-    db: &Pool<Sqlite>,
-) -> Result<Vec<SubCacheEntry>, DatabaseError> {
-    let mod_records = sqlx::query!(r#"SELECT * FROM subscribed_mods"#)
-        .fetch_all(db)
-        .await?
-        .iter()
-        .map(|rec| SubCacheEntry {
-            server_id: rec.server_id,
-            subscription: SubscriptionType::Modname(rec.mod_name.clone()),
-        })
-        .chain(
-            sqlx::query!(r#"SELECT * FROM subscribed_authors"#)
-                .fetch_all(db)
-                .await?
-                .iter()
-                .filter_map(|rec| {
-                    Some(SubCacheEntry {
-                        server_id: rec.server_id?,
-                        subscription: SubscriptionType::Author(rec.author_name.clone()?),
-                    })
-                }),
-        )
-        .collect::<Vec<SubCacheEntry>>();
-    Ok(mod_records)
 }
 
 pub async fn create_mod_author_cache(db: &Pool<Sqlite>) -> Result<Vec<String>, DatabaseError> {

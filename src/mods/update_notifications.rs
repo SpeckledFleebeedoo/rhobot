@@ -236,6 +236,7 @@ async fn send_mod_update(
     for server in server_data {
         let subscribed_mods = database::get_subscribed_mods(db, server.server_id).await?;
         let subscribed_authors = database::get_subscribed_authors(db, server.server_id).await?;
+        let excluded_mods: Vec<String> = database::get_excluded_mods(db, server.server_id).await?;
 
         let updates_channel: poise::serenity_prelude::ChannelId = match server.updates_channel {
             Some(ch) => poise::serenity_prelude::ChannelId::new(ch as u64),
@@ -244,8 +245,8 @@ async fn send_mod_update(
 
         if (subscribed_mods.is_empty() && subscribed_authors.is_empty()) || // No subscriptions
             subscribed_mods.contains(&updated_mod.name) ||      // Subscribed to mod
-            subscribed_authors.contains(&updated_mod.author)
-        // Subscribed to author
+            // Subscribed to author, mod not excluded
+            (subscribed_authors.contains(&updated_mod.author) && !excluded_mods.contains(&updated_mod.name))
         {
             make_update_message(
                 &updated_mod,
@@ -305,7 +306,7 @@ async fn make_update_message(
         .await
     {
         Ok(_) => {}
-        Err(e) => error!("Error sending message in channel {updates_channel}: {e}"),
+        Err(e) => error!("Error sending message in channel <#{updates_channel}>: {e}"),
     }
     Ok(())
 }
@@ -439,18 +440,6 @@ pub struct ModCacheEntry {
     pub factorio_version: String,
 }
 
-#[derive(Debug, Clone)]
-pub enum SubscriptionType {
-    Author(String),
-    Modname(String),
-}
-
-#[derive(Debug, Clone)]
-pub struct SubCacheEntry {
-    pub server_id: i64,
-    pub subscription: SubscriptionType,
-}
-
 pub async fn update_mod_cache(
     cache: Arc<RwLock<Vec<ModCacheEntry>>>,
     db: &Pool<Sqlite>,
@@ -460,20 +449,6 @@ pub async fn update_mod_cache(
         Ok(mut c) => *c = records,
         Err(e) => return Err(ModError::CacheError(e.to_string())),
     }
-    Ok(())
-}
-
-pub async fn update_sub_cache(
-    cache: Arc<RwLock<Vec<SubCacheEntry>>>,
-    db: &Pool<Sqlite>,
-) -> Result<(), ModError> {
-    let mod_records = database::create_subscriptions_cache(db).await?;
-
-    match cache.write() {
-        Ok(mut c) => *c = mod_records,
-        Err(e) => return Err(ModError::CacheError(e.to_string())),
-    }
-
     Ok(())
 }
 

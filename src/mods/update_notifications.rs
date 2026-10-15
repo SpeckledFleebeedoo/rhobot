@@ -120,6 +120,7 @@ pub async fn get_mods(page: i32, initializing: bool) -> Result<ApiResponse, ModE
             "https://mods.factorio.com/api/mods?page_size=25&sort=updated_at&sort_order=desc&page={page}"
         )
     };
+    info!("Requesting mod portal API page {page}");
     let user_agent = std::env::var("USER_AGENT").unwrap_or_else(|_| "Rhobot".to_string());
     let client = reqwest::Client::builder().user_agent(user_agent).build()?;
     let response = client.get(&url).send().await?;

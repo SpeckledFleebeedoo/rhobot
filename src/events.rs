@@ -111,17 +111,14 @@ pub async fn run_inline_commands(
 ) -> Result<(), Error> {
     let data = ctx.data();
     msg.guild_id = ctx.guild_id();
-    match data.inline_command_log.get(&msg.id) {
-        Some(_) => {
-            on_message_edit(ctx.serenity_context().clone(), &msg, &data).await?;
-            let builder = poise::CreateReply::default()
-                .ephemeral(true)
-                .content("Response updated");
-            ctx.send(builder).await?;
-            Ok(())
-        }
-        None => on_message(ctx.serenity_context().clone(), &msg, &data, Some(ctx)).await,
-    }
+    if data.inline_command_log.contains_key(&msg.id) {
+        on_message_edit(ctx.serenity_context().clone(), &msg, &data).await?;
+        let builder = poise::CreateReply::default()
+            .ephemeral(true)
+            .content("Response updated");
+        ctx.send(builder).await?;
+        Ok(())
+    } else { on_message(ctx.serenity_context().clone(), &msg, &data, Some(ctx)).await }
 }
 
 pub async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
@@ -215,6 +212,7 @@ pub async fn on_message_edit(
         return Ok(());
     };
     let bot_message_info = entry.clone();
+    drop(entry); // Drop dashmap guard before awaiting
     let message_content = &msg.content;
     if message_content.is_empty() {
         // Could not access message content, initial bot response was made via app command
@@ -243,7 +241,9 @@ pub async fn on_message_delete(
     let Some(entry) = data.inline_command_log.get(deleted_message_id) else {
         return Ok(());
     };
-    let message = channel_id.message(&ctx, entry.message_id).await?;
+    let message_id = entry.message_id;
+    drop(entry); // Drop dashmap guard before awaiting
+    let message = channel_id.message(&ctx, message_id).await?;
     message.delete(&ctx.http, None).await?;
     data.inline_command_log.remove(deleted_message_id);
 

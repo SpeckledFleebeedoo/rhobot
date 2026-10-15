@@ -27,8 +27,24 @@ pub async fn set_updates_channel(
     ctx: Context<'_>,
     channel: poise::serenity_prelude::GuildChannel,
 ) -> Result<(), Error> {
+    let Some(guild) = ctx.partial_guild().await else {
+        return Ok(());
+    };
+    let current_user = ctx.cache().current_user().clone();
+    let guild_id = channel.base.guild_id;
+    let bot_member = ctx
+        .http()
+        .get_member(channel.base.guild_id, current_user.id)
+        .await?;
+    let bot_permissions = guild.user_permissions_in(&channel, &bot_member);
+    if !bot_permissions.contains(serenity::Permissions::SEND_MESSAGES) {
+        ctx.reply("ERROR: No permission to send messages in that channel.")
+            .await?;
+        return Ok(());
+    }
+
     let channel_id = channel.id.get() as i64;
-    let server_id = channel.base.guild_id.get() as i64;
+    let server_id = guild_id.get() as i64;
     let db = &ctx.data().database;
 
     database::store_updates_channel(db, server_id, channel_id).await?;
